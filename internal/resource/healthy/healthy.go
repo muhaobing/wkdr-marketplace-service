@@ -1,10 +1,14 @@
 package healthy
 
 import (
-	"net/http"
+	"errors"
 
 	"github.com/gin-gonic/gin"
+	"github.com/muhaobing-eng/std-go/go-common/cache"
+	"github.com/muhaobing-eng/std-go/go-common/database"
 	"github.com/muhaobing-eng/std-go/restserver/registry"
+
+	"wdkr-marketplace-service/internal/common/utils/http_utils"
 )
 
 type HealthyResource struct{}
@@ -14,7 +18,15 @@ func NewHealthyResource() *HealthyResource {
 }
 
 func (r *HealthyResource) Ping(ctx *gin.Context) {
-	ctx.JSON(http.StatusOK, gin.H{"message": "pong"})
+	if db := database.FromContext(ctx.Request.Context()); db == nil {
+		http_utils.WriteResponse(ctx, nil, errors.New("database is nil"))
+		return
+	}
+	if db := cache.FromContext(ctx.Request.Context()); db == nil {
+		http_utils.WriteResponse(ctx, nil, errors.New("cache is nil"))
+		return
+	}
+	http_utils.WriteResponse(ctx, nil, nil)
 }
 
 func (r *HealthyResource) Router() registry.Registry {

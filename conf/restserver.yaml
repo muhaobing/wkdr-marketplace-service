@@ -1,0 +1,17 @@
+# WKDR Marketplace Service 配置文件
+restserver:
+  server:
+    port: 9090
+    log: ""
+  database:
+    ip: "rm-2ze7ce8lnejdjnt70xo.mysql.rds.aliyuncs.com"
+    port: 3306
+    user: "DBManager"
+    password: "DBA_powermind"
+    db: "marketplace"
+#  cache:
+#    host: "r-2zebckuc7ews8163scpd.redis.rds.aliyuncs.com"
+#    port: 6379
+#    username: "redis_user"
+#    password: "RDBA_powermind"
+#    db: 0
