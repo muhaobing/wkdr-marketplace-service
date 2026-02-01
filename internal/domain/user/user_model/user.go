@@ -1,8 +1,11 @@
 package usermodel
 
 import (
+	"crypto/sha256"
 	"database/sql/driver"
+	"encoding/hex"
 	"errors"
+	"fmt"
 
 	jsoniter "github.com/json-iterator/go"
 )
@@ -12,13 +15,44 @@ const (
 )
 
 type User struct {
-	Id       uint       `gorm:"id" json:"id"`
-	Username string     `gorm:"username" json:"username"`
-	Password string     `gorm:"password" json:"password"`
-	Email    string     `gorm:"email" json:"email"`
-	Binding  BindingMap `gorm:"binding" json:"binding"`
-	Ctime    uint32     `gorm:"ctime,autoCreateTime" json:"ctime"`
-	Mtime    uint32     `gorm:"mtime,autoUpdateTime" json:"mtime"`
+	Id        uint       `gorm:"column:id" json:"id"`
+	TelNo     string     `gorm:"column:tel_no" json:"tel_no"`
+	Email     string     `gorm:"column:email" json:"email"`
+	SecretKey string     `gorm:"column:secret_key" json:"secret_key"`
+	Binding   BindingMap `gorm:"column:binding" json:"binding"`
+	Ctime     uint32     `gorm:"column:ctime;autoCreateTime" json:"ctime"`
+	Mtime     uint32     `gorm:"column:mtime;autoUpdateTime" json:"mtime"`
+}
+
+// GenerateSecretKey 根据secret和用户ID生成加密后的密钥
+func GenerateSecretKey(secret string, userId uint) string {
+	combined := fmt.Sprintf("%s:%d", secret, userId)
+	hash := sha256.Sum256([]byte(combined))
+	return hex.EncodeToString(hash[:])
+}
+
+// VerifySecretKey 验证密钥是否正确
+func (u *User) VerifySecretKey(secret string) bool {
+	expectedKey := GenerateSecretKey(secret, u.Id)
+	return u.SecretKey == expectedKey
+}
+
+// HasBinding 检查用户是否已绑定指定业务平台
+func (u *User) HasBinding(bizCode string) bool {
+	if u.Binding == nil {
+		return false
+	}
+	_, exists := u.Binding[bizCode]
+	return exists
+}
+
+// GetBinding 获取指定业务平台的绑定信息
+func (u *User) GetBinding(bizCode string) (BindingInfo, bool) {
+	if u.Binding == nil {
+		return BindingInfo{}, false
+	}
+	info, exists := u.Binding[bizCode]
+	return info, exists
 }
 
 func (u *User) TableName() string {
