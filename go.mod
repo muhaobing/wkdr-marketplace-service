@@ -5,7 +5,8 @@ go 1.18
 require (
 	github.com/gin-gonic/gin v1.9.1
 	github.com/json-iterator/go v1.1.12
-	github.com/muhaobing-eng/std-go v0.0.3
+	github.com/muhaobing-eng/std-go v0.0.4
+	gorm.io/gorm v1.31.1
 )
 
 require (
@@ -41,7 +42,6 @@ require (
 	google.golang.org/protobuf v1.36.9 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	gorm.io/driver/mysql v1.6.0 // indirect
-	gorm.io/gorm v1.31.1 // indirect
 )
 
 replace (
