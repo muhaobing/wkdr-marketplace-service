@@ -68,7 +68,7 @@ func (u *User) Unbind(bizType string) {
 }
 
 type BindingInfo struct {
-	BizId uint64 `json:"biz_id"`
+	BizUserId uint64 `json:"biz_user_id"`
 }
 
 type BindingMap map[string]BindingInfo

@@ -8,11 +8,11 @@ import (
 
 // BindUserRequest 用户绑定请求
 type BindUserRequest struct {
-	BizCode string `json:"biz_code"` // 业务平台代码
-	BizId   uint64 `json:"biz_id"`   // 业务平台用户ID
-	TelNo   string `json:"tel_no"`   // 手机号（优先）
-	Email   string `json:"email"`    // 邮箱（tel_no为空时使用）
-	Secret  string `json:"secret"`   // 用户密钥（用于生成secret_key）
+	BizCode   string `json:"biz_code"`    // 业务平台代码
+	BizUserId uint64 `json:"biz_user_id"` // 业务平台用户ID
+	TelNo     string `json:"tel_no"`      // 手机号（优先）
+	Email     string `json:"email"`       // 邮箱（tel_no为空时使用）
+	Secret    string `json:"secret"`      // 用户密钥（用于生成secret_key）
 }
 
 // BindUserResponse 用户绑定响应

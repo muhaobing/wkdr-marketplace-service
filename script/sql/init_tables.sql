@@ -63,3 +63,27 @@ CREATE TABLE `ecoin_transaction_tab` (
     KEY `idx_source` (`source_type`, `source_id`),
     KEY `idx_ctime` (`ctime`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='积分流水表';
+
+-- -----------------------------------------------------------
+-- 4. 商品表 (sku_tab)
+-- 记录商城商品信息
+-- sku_status: 0-未上架, 1-已上架
+-- -----------------------------------------------------------
+DROP TABLE IF EXISTS `sku_tab`;
+CREATE TABLE `sku_tab` (
+    `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '商品ID',
+    `biz_code` VARCHAR(32) NOT NULL DEFAULT '' COMMENT '商品所属的业务编码',
+    `sku_code` VARCHAR(64) NOT NULL DEFAULT '' COMMENT '商品代码，在biz_code下唯一',
+    `sku_name` VARCHAR(128) NOT NULL DEFAULT '' COMMENT '商品名称',
+    `sku_avatar` VARCHAR(512) NOT NULL DEFAULT '' COMMENT '商品图标URL',
+    `sku_desc` TEXT COMMENT '商品描述',
+    `sku_status` TINYINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '上架状态: 0-未上架, 1-已上架',
+    `cost` DECIMAL(16,2) NOT NULL DEFAULT 0.00 COMMENT '商品售价(积分)',
+    `delivery_method` VARCHAR(512) NOT NULL DEFAULT '' COMMENT '商品履约回调接口URL',
+    `ctime` INT UNSIGNED NOT NULL DEFAULT 0 COMMENT '创建时间戳',
+    `mtime` INT UNSIGNED NOT NULL DEFAULT 0 COMMENT '更新时间戳',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_biz_sku` (`biz_code`, `sku_code`),
+    KEY `idx_biz_code` (`biz_code`),
+    KEY `idx_sku_status` (`sku_status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='商品表';

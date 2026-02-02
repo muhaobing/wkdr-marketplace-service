@@ -31,8 +31,8 @@ func (s *userServiceImpl) BindUser(ctx context.Context, req *BindUserRequest) (*
 	if req.BizCode == "" {
 		return nil, errors.New("biz_code is required")
 	}
-	if req.BizId == 0 {
-		return nil, errors.New("biz_id is required")
+	if req.BizUserId == 0 {
+		return nil, errors.New("biz_user_id is required")
 	}
 	if req.TelNo == "" && req.Email == "" {
 		return nil, errors.New("tel_no or email is required")
@@ -67,7 +67,7 @@ func (s *userServiceImpl) BindUser(ctx context.Context, req *BindUserRequest) (*
 		// 检查是否已绑定该业务平台
 		if user.HasBinding(req.BizCode) {
 			existingBinding, _ := user.GetBinding(req.BizCode)
-			if existingBinding.BizId == req.BizId {
+			if existingBinding.BizUserId == req.BizUserId {
 				// 已绑定相同的业务ID，直接返回
 				response = &BindUserResponse{
 					UserId:    user.Id,
@@ -75,11 +75,11 @@ func (s *userServiceImpl) BindUser(ctx context.Context, req *BindUserRequest) (*
 				}
 				return nil
 			}
-			return fmt.Errorf("user already bindded to biz_code %s with different biz_id", req.BizCode)
+			return fmt.Errorf("user already bindded to biz_code %s with different biz_user_id", req.BizCode)
 		}
 
 		// 绑定业务平台
-		user.Bind(req.BizCode, usermodel.BindingInfo{BizId: req.BizId})
+		user.Bind(req.BizCode, usermodel.BindingInfo{BizUserId: req.BizUserId})
 		if err = s.userRepo.UpdateUserBinding(ctx, user.Id, user.Binding); err != nil {
 			return fmt.Errorf("failed to update user binding: %w", err)
 		}
