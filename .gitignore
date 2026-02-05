@@ -31,3 +31,9 @@ go.sum
 # Editor/IDE
 .idea/
 .vscode/
+
+# Node.js
+node_modules/
+dist/
+.npm
+*.log
