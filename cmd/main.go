@@ -10,11 +10,15 @@ import (
 	"github.com/muhaobing-eng/std-go/restserver/registry"
 
 	"wdkr-marketplace-service/bootstrap"
-	"wdkr-marketplace-service/internal/resource/healthy"
+	"wdkr-marketplace-service/internal/common/config"
+	"wdkr-marketplace-service/internal/resource"
 )
 
 func main() {
 	// 0. set environments
+	if err := config.Init(); err != nil {
+		log.Fatalf("init config failed: %v", err)
+	}
 
 	// 1. register rest server handler
 	handler.RegisterHandler(&database.DatabaseHandler{})
@@ -27,7 +31,7 @@ func main() {
 			cache.CacheHandlerKey,
 		),
 		registry.RouterRegistry(
-			healthy.NewHealthyResource(),
+			resource.InitializeResources(),
 		),
 	); err != nil {
 		log.Fatalf("init rest server failed: %v", err)

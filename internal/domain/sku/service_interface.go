@@ -67,10 +67,10 @@ type SkuService interface {
 	// EditSku 编辑商品信息
 	EditSku(ctx context.Context, req *EditSkuRequest) (*skumodel.Sku, error)
 
-	// ListSku 上架商品（将商品状态改为已上架）
+	// ListingSku 上架商品（将商品状态改为已上架）
 	ListingSku(ctx context.Context, id uint64) error
 
-	// DelistSku 下架商品（将商品状态改为未上架）
+	// DelistingSku 下架商品（将商品状态改为未上架）
 	DelistingSku(ctx context.Context, id uint64) error
 
 	// ListSkus 获取商品列表

@@ -87,3 +87,120 @@ CREATE TABLE `sku_tab` (
     KEY `idx_biz_code` (`biz_code`),
     KEY `idx_sku_status` (`sku_status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='商品表';
+
+-- -----------------------------------------------------------
+-- 5. 订单表 (order_tab)
+-- 记录商城订单信息，支持同时下单多个SKU
+-- status: 0-待支付, 1-已支付, 2-已履约, 3-已取消, 4-已退款
+-- pay_type: ecoin-积分支付, money-货币支付
+-- -----------------------------------------------------------
+DROP TABLE IF EXISTS `order_tab`;
+CREATE TABLE `order_tab` (
+    `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    `order_no` VARCHAR(64) NOT NULL DEFAULT '' COMMENT '订单号',
+    `user_id` BIGINT UNSIGNED NOT NULL COMMENT '用户ID',
+    `item_count` INT NOT NULL DEFAULT 0 COMMENT '商品种类数量',
+    `total_quantity` INT NOT NULL DEFAULT 0 COMMENT '商品总数量',
+    `original_amount` DECIMAL(16,2) NOT NULL DEFAULT 0.00 COMMENT '原价',
+    `pay_amount` DECIMAL(16,2) NOT NULL DEFAULT 0.00 COMMENT '实付金额',
+    `pay_type` VARCHAR(32) NOT NULL DEFAULT '' COMMENT '支付类型: ecoin/money',
+    `payment_order_no` VARCHAR(64) NOT NULL DEFAULT '' COMMENT '支付订单号(货币支付)',
+    `status` TINYINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '状态: 0-待支付, 1-已支付, 2-已履约, 3-已取消, 4-已退款',
+    `pay_time` INT UNSIGNED NOT NULL DEFAULT 0 COMMENT '支付时间戳',
+    `fulfill_time` INT UNSIGNED NOT NULL DEFAULT 0 COMMENT '履约时间戳',
+    `cancel_time` INT UNSIGNED NOT NULL DEFAULT 0 COMMENT '取消时间戳',
+    `cancel_reason` VARCHAR(256) NOT NULL DEFAULT '' COMMENT '取消原因',
+    `remark` VARCHAR(512) NOT NULL DEFAULT '' COMMENT '备注',
+    `ctime` INT UNSIGNED NOT NULL DEFAULT 0 COMMENT '创建时间戳',
+    `mtime` INT UNSIGNED NOT NULL DEFAULT 0 COMMENT '更新时间戳',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_order_no` (`order_no`),
+    KEY `idx_user_id` (`user_id`),
+    KEY `idx_status` (`status`),
+    KEY `idx_ctime` (`ctime`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='订单表';
+
+-- -----------------------------------------------------------
+-- 6. 订单明细表 (order_item_tab)
+-- 记录订单包含的SKU明细
+-- fulfill_status: 0-待履约, 1-履约成功, 2-履约失败
+-- -----------------------------------------------------------
+DROP TABLE IF EXISTS `order_item_tab`;
+CREATE TABLE `order_item_tab` (
+    `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    `order_id` BIGINT UNSIGNED NOT NULL COMMENT '订单ID',
+    `order_no` VARCHAR(64) NOT NULL DEFAULT '' COMMENT '订单号',
+    `sku_id` BIGINT UNSIGNED NOT NULL COMMENT 'SKU ID',
+    `sku_code` VARCHAR(64) NOT NULL DEFAULT '' COMMENT 'SKU编码',
+    `sku_name` VARCHAR(128) NOT NULL DEFAULT '' COMMENT 'SKU名称',
+    `sku_avatar` VARCHAR(512) NOT NULL DEFAULT '' COMMENT 'SKU图标',
+    `quantity` INT NOT NULL DEFAULT 1 COMMENT '数量',
+    `unit_price` DECIMAL(16,2) NOT NULL DEFAULT 0.00 COMMENT '单价',
+    `total_price` DECIMAL(16,2) NOT NULL DEFAULT 0.00 COMMENT '小计',
+    `fulfill_status` TINYINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '履约状态: 0-待履约, 1-成功, 2-失败',
+    `fulfill_time` INT UNSIGNED NOT NULL DEFAULT 0 COMMENT '履约时间戳',
+    `fulfill_msg` VARCHAR(512) NOT NULL DEFAULT '' COMMENT '履约消息',
+    `ctime` INT UNSIGNED NOT NULL DEFAULT 0 COMMENT '创建时间戳',
+    `mtime` INT UNSIGNED NOT NULL DEFAULT 0 COMMENT '更新时间戳',
+    PRIMARY KEY (`id`),
+    KEY `idx_order_id` (`order_id`),
+    KEY `idx_order_no` (`order_no`),
+    KEY `idx_sku_id` (`sku_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='订单明细表';
+
+-- -----------------------------------------------------------
+-- 7. 支付订单表 (payment_order_tab)
+-- 记录支付订单信息
+-- status: 0-待支付, 1-已支付, 2-已关闭, 3-已退款
+-- biz_type: recharge-充值积分, purchase-购买商品
+-- channel: wechat-微信支付, alipay-支付宝
+-- pay_method: native-扫码支付, jsapi-JSAPI支付, h5-H5支付
+-- -----------------------------------------------------------
+DROP TABLE IF EXISTS `payment_order_tab`;
+CREATE TABLE `payment_order_tab` (
+    `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    `order_no` VARCHAR(64) NOT NULL DEFAULT '' COMMENT '支付订单号',
+    `biz_order_no` VARCHAR(64) NOT NULL DEFAULT '' COMMENT '业务订单号',
+    `biz_type` VARCHAR(32) NOT NULL DEFAULT '' COMMENT '业务类型: recharge/purchase',
+    `user_id` BIGINT UNSIGNED NOT NULL COMMENT '用户ID',
+    `channel` VARCHAR(32) NOT NULL DEFAULT '' COMMENT '支付渠道: wechat/alipay',
+    `pay_method` VARCHAR(32) NOT NULL DEFAULT '' COMMENT '支付方式: native/jsapi/h5',
+    `amount` BIGINT NOT NULL DEFAULT 0 COMMENT '支付金额(分)',
+    `status` TINYINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '状态: 0-待支付, 1-已支付, 2-已关闭, 3-已退款',
+    `channel_order_no` VARCHAR(64) NOT NULL DEFAULT '' COMMENT '渠道订单号(如微信交易号)',
+    `pay_time` INT UNSIGNED NOT NULL DEFAULT 0 COMMENT '支付时间戳',
+    `expire_time` INT UNSIGNED NOT NULL DEFAULT 0 COMMENT '过期时间戳',
+    `notify_url` VARCHAR(512) NOT NULL DEFAULT '' COMMENT '回调通知URL',
+    `extra` JSON COMMENT '扩展信息',
+    `ctime` INT UNSIGNED NOT NULL DEFAULT 0 COMMENT '创建时间戳',
+    `mtime` INT UNSIGNED NOT NULL DEFAULT 0 COMMENT '更新时间戳',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_order_no` (`order_no`),
+    KEY `idx_biz_order_no` (`biz_order_no`),
+    KEY `idx_user_id` (`user_id`),
+    KEY `idx_status` (`status`),
+    KEY `idx_ctime` (`ctime`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='支付订单表';
+
+-- -----------------------------------------------------------
+-- 8. 退款记录表 (payment_refund_tab)
+-- 记录退款信息
+-- status: 0-处理中, 1-退款成功, 2-退款失败
+-- -----------------------------------------------------------
+DROP TABLE IF EXISTS `payment_refund_tab`;
+CREATE TABLE `payment_refund_tab` (
+    `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    `refund_no` VARCHAR(64) NOT NULL DEFAULT '' COMMENT '退款单号',
+    `order_no` VARCHAR(64) NOT NULL DEFAULT '' COMMENT '关联支付订单号',
+    `channel` VARCHAR(32) NOT NULL DEFAULT '' COMMENT '支付渠道',
+    `amount` BIGINT NOT NULL DEFAULT 0 COMMENT '退款金额(分)',
+    `reason` VARCHAR(256) NOT NULL DEFAULT '' COMMENT '退款原因',
+    `status` TINYINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '状态: 0-处理中, 1-成功, 2-失败',
+    `channel_refund_no` VARCHAR(64) NOT NULL DEFAULT '' COMMENT '渠道退款号',
+    `ctime` INT UNSIGNED NOT NULL DEFAULT 0 COMMENT '创建时间戳',
+    `mtime` INT UNSIGNED NOT NULL DEFAULT 0 COMMENT '更新时间戳',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_refund_no` (`refund_no`),
+    KEY `idx_order_no` (`order_no`),
+    KEY `idx_status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='退款记录表';

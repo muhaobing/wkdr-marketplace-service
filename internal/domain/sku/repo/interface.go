@@ -11,6 +11,9 @@ type SkuRepo interface {
 	// GetSkuById 根据ID获取商品
 	GetSkuById(ctx context.Context, id uint64) (*skumodel.Sku, error)
 
+	// GetSkusByIds 根据ID列表批量获取商品
+	GetSkusByIds(ctx context.Context, ids []uint64) ([]*skumodel.Sku, error)
+
 	// GetSkuByCode 根据业务编码和商品编码获取商品
 	GetSkuByCode(ctx context.Context, bizCode, skuCode string) (*skumodel.Sku, error)
 

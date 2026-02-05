@@ -114,3 +114,13 @@ func (r *skuRepoImpl) CountSkusByBizCode(ctx context.Context, bizCode string, st
 	err := query.Count(&count).Error
 	return count, err
 }
+
+// GetSkusByIds 根据ID列表批量获取商品
+func (r *skuRepoImpl) GetSkusByIds(ctx context.Context, ids []uint64) ([]*skumodel.Sku, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	var skus []*skumodel.Sku
+	err := database.FromContext(ctx).Where("id IN ?", ids).Find(&skus).Error
+	return skus, err
+}

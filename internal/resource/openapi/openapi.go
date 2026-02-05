@@ -1,0 +1,267 @@
+package openapi
+
+import (
+	"io"
+	"net/http"
+	"strconv"
+
+	"github.com/gin-gonic/gin"
+	"github.com/muhaobing-eng/std-go/restserver/registry"
+
+	"wdkr-marketplace-service/internal/common/utils/http_utils"
+	"wdkr-marketplace-service/internal/domain/ecoin"
+	"wdkr-marketplace-service/internal/domain/payment"
+)
+
+// OpenAPIResource OpenAPI接口资源（面向内部平台及外部支付回调）
+type OpenAPIResource struct {
+	ecoinService   ecoin.EcoinService
+	paymentService payment.PaymentService
+}
+
+// NewOpenAPIResource 创建OpenAPI资源实例
+func NewOpenAPIResource(ecoinService ecoin.EcoinService, paymentService payment.PaymentService) *OpenAPIResource {
+	return &OpenAPIResource{
+		ecoinService:   ecoinService,
+		paymentService: paymentService,
+	}
+}
+
+// ==================== 积分接口 ====================
+
+// AddEcoinRequest 增加积分请求
+type AddEcoinRequest struct {
+	UserId      uint64  `json:"user_id" binding:"required"`     // 用户ID
+	Amount      float64 `json:"amount" binding:"required,gt=0"` // 积分数量（必须大于0）
+	SourceType  string  `json:"source_type" binding:"required"` // 来源类型
+	SourceId    string  `json:"source_id"`                      // 来源业务ID
+	Description string  `json:"description"`                    // 描述
+}
+
+// AddEcoin 增加积分
+// POST /openapi/ecoin/add
+func (r *OpenAPIResource) AddEcoin(ctx *gin.Context) {
+	var req AddEcoinRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		http_utils.WriteResponse(ctx, nil, err)
+		return
+	}
+
+	transaction, err := r.ecoinService.AddEcoin(ctx.Request.Context(), &ecoin.AddEcoinRequest{
+		UserId:      req.UserId,
+		Amount:      req.Amount,
+		SourceType:  req.SourceType,
+		SourceId:    req.SourceId,
+		Description: req.Description,
+	})
+	if err != nil {
+		http_utils.WriteResponse(ctx, nil, err)
+		return
+	}
+
+	http_utils.WriteResponse(ctx, transaction, nil)
+}
+
+// DeductEcoinRequest 扣除积分请求
+type DeductEcoinRequest struct {
+	UserId      uint64  `json:"user_id" binding:"required"`     // 用户ID
+	Amount      float64 `json:"amount" binding:"required,gt=0"` // 积分数量（必须大于0）
+	SourceType  string  `json:"source_type" binding:"required"` // 来源类型
+	SourceId    string  `json:"source_id"`                      // 来源业务ID
+	Description string  `json:"description"`                    // 描述
+}
+
+// DeductEcoin 扣除积分
+// POST /openapi/ecoin/deduct
+func (r *OpenAPIResource) DeductEcoin(ctx *gin.Context) {
+	var req DeductEcoinRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		http_utils.WriteResponse(ctx, nil, err)
+		return
+	}
+
+	transaction, err := r.ecoinService.DeductEcoin(ctx.Request.Context(), &ecoin.DeductEcoinRequest{
+		UserId:      req.UserId,
+		Amount:      req.Amount,
+		SourceType:  req.SourceType,
+		SourceId:    req.SourceId,
+		Description: req.Description,
+	})
+	if err != nil {
+		http_utils.WriteResponse(ctx, nil, err)
+		return
+	}
+
+	http_utils.WriteResponse(ctx, transaction, nil)
+}
+
+// GetUserEcoin 获取用户积分信息
+// GET /openapi/ecoin/:user_id
+func (r *OpenAPIResource) GetUserEcoin(ctx *gin.Context) {
+	userIdStr := ctx.Param("user_id")
+	userId, err := strconv.ParseUint(userIdStr, 10, 64)
+	if err != nil {
+		http_utils.WriteResponse(ctx, nil, err)
+		return
+	}
+
+	ecoinInfo, err := r.ecoinService.GetUserEcoin(ctx.Request.Context(), userId)
+	if err != nil {
+		http_utils.WriteResponse(ctx, nil, err)
+		return
+	}
+
+	http_utils.WriteResponse(ctx, ecoinInfo, nil)
+}
+
+// InitUserEcoin 初始化用户积分账户
+// POST /openapi/ecoin/init
+func (r *OpenAPIResource) InitUserEcoin(ctx *gin.Context) {
+	type InitRequest struct {
+		UserId uint64 `json:"user_id" binding:"required"` // 用户ID
+	}
+
+	var req InitRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		http_utils.WriteResponse(ctx, nil, err)
+		return
+	}
+
+	ecoinInfo, err := r.ecoinService.InitUserEcoin(ctx.Request.Context(), req.UserId)
+	if err != nil {
+		http_utils.WriteResponse(ctx, nil, err)
+		return
+	}
+
+	http_utils.WriteResponse(ctx, ecoinInfo, nil)
+}
+
+// GetEcoinTransactions 获取积分流水列表
+// GET /openapi/ecoin/:user_id/transactions
+func (r *OpenAPIResource) GetEcoinTransactions(ctx *gin.Context) {
+	userIdStr := ctx.Param("user_id")
+	userId, err := strconv.ParseUint(userIdStr, 10, 64)
+	if err != nil {
+		http_utils.WriteResponse(ctx, nil, err)
+		return
+	}
+
+	type ListRequest struct {
+		Offset int `form:"offset"` // 偏移量
+		Limit  int `form:"limit"`  // 每页数量
+	}
+
+	var req ListRequest
+	if err := ctx.ShouldBindQuery(&req); err != nil {
+		http_utils.WriteResponse(ctx, nil, err)
+		return
+	}
+
+	transactions, err := r.ecoinService.GetEcoinTransactionList(ctx.Request.Context(), &ecoin.EcoinTransactionListRequest{
+		UserId: userId,
+		Offset: req.Offset,
+		Limit:  req.Limit,
+	})
+	if err != nil {
+		http_utils.WriteResponse(ctx, nil, err)
+		return
+	}
+
+	http_utils.WriteResponse(ctx, transactions, nil)
+}
+
+// ==================== 支付回调接口 ====================
+
+// WechatPayNotify 微信支付回调
+// POST /openapi/callback/wechat/pay
+func (r *OpenAPIResource) WechatPayNotify(ctx *gin.Context) {
+	body, err := io.ReadAll(ctx.Request.Body)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{
+			"code":    "FAIL",
+			"message": "read body failed",
+		})
+		return
+	}
+
+	err = r.paymentService.HandleNotify(ctx.Request.Context(), "wechat", body)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{
+			"code":    "FAIL",
+			"message": err.Error(),
+		})
+		return
+	}
+
+	// 返回成功响应（微信支付V3 API要求的格式）
+	ctx.JSON(http.StatusOK, gin.H{
+		"code":    "SUCCESS",
+		"message": "成功",
+	})
+}
+
+// WechatRefundNotify 微信退款回调
+// POST /openapi/callback/wechat/refund
+func (r *OpenAPIResource) WechatRefundNotify(ctx *gin.Context) {
+	body, err := io.ReadAll(ctx.Request.Body)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{
+			"code":    "FAIL",
+			"message": "read body failed",
+		})
+		return
+	}
+
+	err = r.paymentService.HandleNotify(ctx.Request.Context(), "wechat_refund", body)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{
+			"code":    "FAIL",
+			"message": err.Error(),
+		})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{
+		"code":    "SUCCESS",
+		"message": "成功",
+	})
+}
+
+// AlipayPayNotify 支付宝支付回调（预留）
+// POST /openapi/callback/alipay/pay
+func (r *OpenAPIResource) AlipayPayNotify(ctx *gin.Context) {
+	body, err := io.ReadAll(ctx.Request.Body)
+	if err != nil {
+		ctx.String(http.StatusBadRequest, "fail")
+		return
+	}
+
+	err = r.paymentService.HandleNotify(ctx.Request.Context(), "alipay", body)
+	if err != nil {
+		ctx.String(http.StatusInternalServerError, "fail")
+		return
+	}
+
+	// 返回成功响应（支付宝要求的格式）
+	ctx.String(http.StatusOK, "success")
+}
+
+// Router 注册路由
+func (r *OpenAPIResource) Router() registry.Registry {
+	return func(router *gin.Engine) {
+		group := router.Group("/openapi")
+		{
+			// 积分接口
+			group.POST("/ecoin/add", r.AddEcoin)
+			group.POST("/ecoin/deduct", r.DeductEcoin)
+			group.POST("/ecoin/init", r.InitUserEcoin)
+			group.GET("/ecoin/:user_id", r.GetUserEcoin)
+			group.GET("/ecoin/:user_id/transactions", r.GetEcoinTransactions)
+
+			// 支付回调接口
+			group.POST("/callback/wechat/pay", r.WechatPayNotify)
+			group.POST("/callback/wechat/refund", r.WechatRefundNotify)
+			group.POST("/callback/alipay/pay", r.AlipayPayNotify)
+		}
+	}
+}

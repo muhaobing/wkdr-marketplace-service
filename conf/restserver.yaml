@@ -15,3 +15,18 @@ restserver:
 #    username: "redis_user"
 #    password: "RDBA_powermind"
 #    db: 0
+
+# 业务配置
+config:
+  # 微信支付配置
+  wechat_pay:
+    app_id: "wx_mock_appid"           # TODO: 替换为真实的微信AppID
+    mch_id: "1234567890"              # TODO: 替换为真实的商户号
+    api_key: "mock_api_key_32bytes"   # TODO: 替换为真实的APIv3密钥（32字节）
+    serial_no: "MOCK_SERIAL_NO"       # TODO: 替换为真实的证书序列号
+    private_key: |                    # TODO: 替换为真实的商户私钥
+      -----BEGIN PRIVATE KEY-----
+      MOCK_PRIVATE_KEY_REPLACE_ME
+      -----END PRIVATE KEY-----
+    notify_url: "https://your-domain.com/openapi/callback/wechat/pay"
+    refund_notify_url: "https://your-domain.com/openapi/callback/wechat/refund"
