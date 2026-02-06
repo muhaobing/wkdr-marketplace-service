@@ -86,30 +86,44 @@ func (r *skuRepoImpl) DeleteSku(ctx context.Context, id uint64) error {
 	return database.FromContext(ctx).Where("id = ?", id).Delete(&skumodel.Sku{}).Error
 }
 
-// ListSkusByBizCode 根据业务编码获取商品列表
-func (r *skuRepoImpl) ListSkusByBizCode(ctx context.Context, bizCode string, status *uint8, offset, limit int) ([]*skumodel.Sku, error) {
-	var skus []*skumodel.Sku
-	query := database.FromContext(ctx).Where("biz_code = ?", bizCode)
+// buildSkuListQuery 构建商品列表查询条件
+func (r *skuRepoImpl) buildSkuListQuery(ctx context.Context, filter *SkuListFilter) *gorm.DB {
+	query := database.FromContext(ctx).Model(&skumodel.Sku{})
 
-	if status != nil {
-		query = query.Where("sku_status = ?", *status)
+	if filter.BizCode != "" {
+		query = query.Where("biz_code = ?", filter.BizCode)
 	}
 
+	if filter.SkuName != "" {
+		query = query.Where("sku_name LIKE ?", "%"+filter.SkuName+"%")
+	}
+
+	if filter.Status != nil {
+		query = query.Where("sku_status = ?", *filter.Status)
+	}
+
+	return query
+}
+
+// ListSkus 获取商品列表（支持多条件查询）
+func (r *skuRepoImpl) ListSkus(ctx context.Context, filter *SkuListFilter) ([]*skumodel.Sku, error) {
+	var skus []*skumodel.Sku
+
+	query := r.buildSkuListQuery(ctx, filter)
+
 	err := query.Order("id DESC").
-		Offset(offset).
-		Limit(limit).
+		Offset(filter.Offset).
+		Limit(filter.Limit).
 		Find(&skus).Error
+
 	return skus, err
 }
 
-// CountSkusByBizCode 统计业务编码下的商品数量
-func (r *skuRepoImpl) CountSkusByBizCode(ctx context.Context, bizCode string, status *uint8) (int64, error) {
+// CountSkus 统计商品数量
+func (r *skuRepoImpl) CountSkus(ctx context.Context, filter *SkuListFilter) (int64, error) {
 	var count int64
-	query := database.FromContext(ctx).Model(&skumodel.Sku{}).Where("biz_code = ?", bizCode)
 
-	if status != nil {
-		query = query.Where("sku_status = ?", *status)
-	}
+	query := r.buildSkuListQuery(ctx, filter)
 
 	err := query.Count(&count).Error
 	return count, err

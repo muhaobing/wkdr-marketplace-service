@@ -41,12 +41,12 @@ func NewMarketplaceResource(
 
 // ListSkusRequest 商品列表请求
 type ListSkusRequest struct {
-	BizCode string `form:"biz_code" binding:"required"` // 业务编码
-	Offset  int    `form:"offset"`                      // 偏移量
-	Limit   int    `form:"limit"`                       // 每页数量
+	SkuName string `form:"sku_name"` // 商品名称（模糊查询，可选）
+	Offset  int    `form:"offset"`   // 偏移量
+	Limit   int    `form:"limit"`    // 每页数量
 }
 
-// ListSkus 获取商品列表（仅上架商品）
+// ListSkus 获取商品列表（仅上架商品，支持商品名模糊查询）
 // GET /marketplace/skus
 func (r *MarketplaceResource) ListSkus(ctx *gin.Context) {
 	var req ListSkusRequest
@@ -58,7 +58,7 @@ func (r *MarketplaceResource) ListSkus(ctx *gin.Context) {
 	// 只查询已上架的商品
 	onlineStatus := skumodel.SkuStatusOnline
 	resp, err := r.skuService.ListSkus(ctx.Request.Context(), &sku.ListSkuRequest{
-		BizCode: req.BizCode,
+		SkuName: req.SkuName,
 		Status:  &onlineStatus,
 		Offset:  req.Offset,
 		Limit:   req.Limit,
@@ -386,7 +386,7 @@ func (r *MarketplaceResource) Router() registry.Registry {
 			group.GET("/skus/:id", r.GetSkuDetail)
 
 			// 订单接口
-			group.POST("/orders", r.CreateOrder)
+			group.POST("/checkout", r.CreateOrder)
 			group.GET("/orders", r.ListOrders)
 			group.GET("/orders/:order_no", r.GetOrderDetail)
 			group.POST("/orders/:order_no/cancel", r.CancelOrder)

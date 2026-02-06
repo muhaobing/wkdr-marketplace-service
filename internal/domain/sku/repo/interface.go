@@ -6,6 +6,15 @@ import (
 	skumodel "wdkr-marketplace-service/internal/domain/sku/sku_model"
 )
 
+// SkuListFilter 商品列表查询条件
+type SkuListFilter struct {
+	BizCode string // 业务编码（可选）
+	SkuName string // 商品名称（模糊查询，可选）
+	Status  *uint8 // 上架状态（可选）
+	Offset  int    // 偏移量
+	Limit   int    // 每页数量
+}
+
 // SkuRepo SKU仓储接口
 type SkuRepo interface {
 	// GetSkuById 根据ID获取商品
@@ -32,9 +41,9 @@ type SkuRepo interface {
 	// DeleteSku 删除商品
 	DeleteSku(ctx context.Context, id uint64) error
 
-	// ListSkusByBizCode 根据业务编码获取商品列表
-	ListSkusByBizCode(ctx context.Context, bizCode string, status *uint8, offset, limit int) ([]*skumodel.Sku, error)
+	// ListSkus 获取商品列表（支持多条件查询）
+	ListSkus(ctx context.Context, filter *SkuListFilter) ([]*skumodel.Sku, error)
 
-	// CountSkusByBizCode 统计业务编码下的商品数量
-	CountSkusByBizCode(ctx context.Context, bizCode string, status *uint8) (int64, error)
+	// CountSkus 统计商品数量
+	CountSkus(ctx context.Context, filter *SkuListFilter) (int64, error)
 }

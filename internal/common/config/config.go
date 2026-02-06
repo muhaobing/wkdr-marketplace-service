@@ -6,13 +6,15 @@ import (
 
 // Conf 应用配置
 type Conf struct {
-	Auth      AuthConfig      `yaml:"config.auth"`       // 鉴权配置
-	WechatPay WechatPayConfig `yaml:"config.wechat_pay"` // 微信支付配置
+	Auth      AuthConfig      `yaml:"auth"`       // 鉴权配置
+	WechatPay WechatPayConfig `yaml:"wechat_pay"` // 微信支付配置
 }
 
 type AuthConfig struct {
-	AesKey     string `yaml:"aes_key"`
-	Expiration uint32 `yaml:"expiration"`
+	AesKey     string   `yaml:"aes_key"`     // AES加密密钥
+	Expiration uint32   `yaml:"expiration"`  // session过期时间（秒）
+	Whitelist  []string `yaml:"whitelist"`   // 不需要鉴权的路径白名单
+	AdminPaths []string `yaml:"admin_paths"` // 需要管理员权限的路径前缀
 }
 
 // WechatPayConfig 微信支付配置

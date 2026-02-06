@@ -29,7 +29,8 @@ type EditSkuRequest struct {
 
 // ListSkuRequest 商品列表请求
 type ListSkuRequest struct {
-	BizCode string `json:"biz_code"` // 业务编码
+	BizCode string `json:"biz_code"` // 业务编码（可选）
+	SkuName string `json:"sku_name"` // 商品名称（模糊查询，可选）
 	Status  *uint8 `json:"status"`   // 上架状态过滤（可选）
 	Offset  int    `json:"offset"`   // 偏移量
 	Limit   int    `json:"limit"`    // 每页数量

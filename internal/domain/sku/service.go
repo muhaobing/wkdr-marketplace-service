@@ -212,11 +212,6 @@ func (s *skuServiceImpl) DelistingSku(ctx context.Context, id uint64) error {
 
 // ListSkus 获取商品列表
 func (s *skuServiceImpl) ListSkus(ctx context.Context, req *ListSkuRequest) (*ListSkuResponse, error) {
-	// 参数校验
-	if req.BizCode == "" {
-		return nil, errors.New("biz_code is required")
-	}
-
 	// 设置默认分页参数
 	if req.Limit <= 0 {
 		req.Limit = 20
@@ -225,14 +220,23 @@ func (s *skuServiceImpl) ListSkus(ctx context.Context, req *ListSkuRequest) (*Li
 		req.Limit = 100
 	}
 
+	// 构建查询条件
+	filter := &repo.SkuListFilter{
+		BizCode: req.BizCode,
+		SkuName: req.SkuName,
+		Status:  req.Status,
+		Offset:  req.Offset,
+		Limit:   req.Limit,
+	}
+
 	// 获取商品列表
-	skus, err := s.skuRepo.ListSkusByBizCode(ctx, req.BizCode, req.Status, req.Offset, req.Limit)
+	skus, err := s.skuRepo.ListSkus(ctx, filter)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list skus: %w", err)
 	}
 
 	// 获取总数
-	total, err := s.skuRepo.CountSkusByBizCode(ctx, req.BizCode, req.Status)
+	total, err := s.skuRepo.CountSkus(ctx, filter)
 	if err != nil {
 		return nil, fmt.Errorf("failed to count skus: %w", err)
 	}

@@ -22,16 +22,18 @@ func main() {
 	}
 
 	// 1. register rest server handler
-	handler.RegisterHandler(&middleware.AuthValidationHandler{})
 	handler.RegisterHandler(&database.DatabaseHandler{})
 	handler.RegisterHandler(&cache.CacheHandler{})
+	handler.RegisterHandler(&middleware.RecoveryHandler{})
+	handler.RegisterHandler(&middleware.AuthValidationHandler{})
 
 	// 2. init rest server
 	if err := restserver.Init(
 		registry.MiddlewareRegistry(
-			middleware.AuthValidationHandlerKey,
 			database.DatabaseHandlerKey,
 			cache.CacheHandlerKey,
+			middleware.RecoveryHandlerKey,
+			middleware.AuthValidationHandlerKey,
 		),
 		registry.RouterRegistry(
 			resource.InitializeResources(),
