@@ -12,6 +12,7 @@ import (
 	"wdkr-marketplace-service/bootstrap"
 	"wdkr-marketplace-service/internal/common/config"
 	"wdkr-marketplace-service/internal/resource"
+	"wdkr-marketplace-service/middleware"
 )
 
 func main() {
@@ -21,12 +22,14 @@ func main() {
 	}
 
 	// 1. register rest server handler
+	handler.RegisterHandler(&middleware.AuthValidationHandler{})
 	handler.RegisterHandler(&database.DatabaseHandler{})
 	handler.RegisterHandler(&cache.CacheHandler{})
 
 	// 2. init rest server
 	if err := restserver.Init(
 		registry.MiddlewareRegistry(
+			middleware.AuthValidationHandlerKey,
 			database.DatabaseHandlerKey,
 			cache.CacheHandlerKey,
 		),
