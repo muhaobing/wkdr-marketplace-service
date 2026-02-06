@@ -166,7 +166,7 @@ func (s *ecoinServiceImpl) DeductEcoin(ctx context.Context, req *DeductEcoinRequ
 }
 
 // GetEcoinTransactionList 获取积分流水列表
-func (s *ecoinServiceImpl) GetEcoinTransactionList(ctx context.Context, req *EcoinTransactionListRequest) ([]*ecoin_model.EcoinTransaction, error) {
+func (s *ecoinServiceImpl) GetEcoinTransactionList(ctx context.Context, req *EcoinTransactionListRequest) (*EcoinTransactionListResponse, error) {
 	if req.UserId == 0 {
 		return nil, errors.New("user id is required")
 	}
@@ -179,12 +179,22 @@ func (s *ecoinServiceImpl) GetEcoinTransactionList(ctx context.Context, req *Eco
 		req.Limit = 100
 	}
 
+	// 获取总数
+	total, err := s.ecoinRepo.CountEcoinTransactionsByUserId(ctx, req.UserId)
+	if err != nil {
+		return nil, fmt.Errorf("failed to count ecoin transactions: %w", err)
+	}
+
+	// 获取列表
 	transactions, err := s.ecoinRepo.GetEcoinTransactionsByUserId(ctx, req.UserId, req.Offset, req.Limit)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get ecoin transactions: %w", err)
 	}
 
-	return transactions, nil
+	return &EcoinTransactionListResponse{
+		Total: total,
+		List:  transactions,
+	}, nil
 }
 
 // GetEcoinTransaction 根据ID获取积分流水

@@ -278,28 +278,113 @@ func (r *MarketplaceResource) SyncOrderStatus(ctx *gin.Context) {
 
 // ==================== 积分接口 ====================
 
-// GetUserEcoin 获取用户积分
-// GET /marketplace/ecoin
-func (r *MarketplaceResource) GetUserEcoin(ctx *gin.Context) {
-	userIdStr := ctx.Query("user_id")
-	if userIdStr == "" {
-		http_utils.WriteResponse(ctx, nil, nil)
-		return
-	}
+// GetEcoinBalanceRequest 获取积分余额请求
+type GetEcoinBalanceRequest struct {
+	UserId uint64 `form:"user_id" binding:"required"` // 用户ID
+}
 
-	userId, err := strconv.ParseUint(userIdStr, 10, 64)
-	if err != nil {
+// GetEcoinBalance 获取用户积分余额
+// GET /marketplace/ecoin/balance
+func (r *MarketplaceResource) GetEcoinBalance(ctx *gin.Context) {
+	var req GetEcoinBalanceRequest
+	if err := ctx.ShouldBindQuery(&req); err != nil {
 		http_utils.WriteResponse(ctx, nil, err)
 		return
 	}
 
-	ecoinInfo, err := r.ecoinService.GetUserEcoin(ctx.Request.Context(), userId)
+	ecoinInfo, err := r.ecoinService.GetUserEcoin(ctx.Request.Context(), req.UserId)
 	if err != nil {
 		http_utils.WriteResponse(ctx, nil, err)
 		return
 	}
 
 	http_utils.WriteResponse(ctx, ecoinInfo, nil)
+}
+
+// GetEcoinTransactionsRequest 获取积分流水请求
+type GetEcoinTransactionsRequest struct {
+	UserId uint64 `form:"user_id" binding:"required"` // 用户ID
+	Offset int    `form:"offset"`                     // 偏移量
+	Limit  int    `form:"limit"`                      // 每页数量
+}
+
+// GetEcoinTransactions 获取积分流水列表
+// GET /marketplace/ecoin/transactions
+func (r *MarketplaceResource) GetEcoinTransactions(ctx *gin.Context) {
+	var req GetEcoinTransactionsRequest
+	if err := ctx.ShouldBindQuery(&req); err != nil {
+		http_utils.WriteResponse(ctx, nil, err)
+		return
+	}
+
+	resp, err := r.ecoinService.GetEcoinTransactionList(ctx.Request.Context(), &ecoin.EcoinTransactionListRequest{
+		UserId: req.UserId,
+		Offset: req.Offset,
+		Limit:  req.Limit,
+	})
+	if err != nil {
+		http_utils.WriteResponse(ctx, nil, err)
+		return
+	}
+
+	http_utils.WriteResponse(ctx, resp, nil)
+}
+
+// RechargeEcoinRequest 积分充值请求
+type RechargeEcoinRequest struct {
+	UserId    uint64 `json:"user_id" binding:"required"`  // 用户ID
+	Amount    int    `json:"amount" binding:"required"`   // 充值积分数量
+	PayType   string `json:"pay_type" binding:"required"` // 支付类型：money
+	Channel   string `json:"channel"`                     // 支付渠道：wechat
+	PayMethod string `json:"pay_method"`                  // 支付方式：native/jsapi/h5
+}
+
+// RechargeEcoin 积分充值
+// POST /marketplace/ecoin/recharge
+func (r *MarketplaceResource) RechargeEcoin(ctx *gin.Context) {
+	var req RechargeEcoinRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		http_utils.WriteResponse(ctx, nil, err)
+		return
+	}
+
+	// 创建充值订单（不需要SKU，直接使用特殊参数）
+	orderResp, err := r.orderService.CreateOrder(ctx.Request.Context(), &order.CreateOrderRequest{
+		UserId:          req.UserId,
+		SkuItems:        nil,
+		PayType:         req.PayType,
+		Remark:          "积分充值",
+		IsEcoinRecharge: true,
+		EcoinUnits:      req.Amount,
+	})
+	if err != nil {
+		http_utils.WriteResponse(ctx, nil, err)
+		return
+	}
+
+	// 如果是货币支付，需要发起支付
+	if req.PayType == "money" && req.Channel != "" {
+		clientIP := ctx.ClientIP()
+		payResp, err := r.orderService.PayOrder(ctx.Request.Context(), &order.PayOrderRequest{
+			OrderNo:   orderResp.Order.OrderNo,
+			Channel:   req.Channel,
+			PayMethod: req.PayMethod,
+			ClientIP:  clientIP,
+		})
+		if err != nil {
+			http_utils.WriteResponse(ctx, nil, err)
+			return
+		}
+
+		// 返回支付信息
+		http_utils.WriteResponse(ctx, map[string]interface{}{
+			"order":        orderResp.Order,
+			"payment_info": payResp,
+		}, nil)
+		return
+	}
+
+	http_utils.WriteResponse(ctx, orderResp, nil)
 }
 
 // ==================== 支付方式 ====================
@@ -562,7 +647,12 @@ func (r *MarketplaceResource) Router() registry.Registry {
 			group.POST("/orders/:order_no/sync", r.SyncOrderStatus)
 
 			// 积分接口
-			group.GET("/ecoin", r.GetUserEcoin)
+			ecoinGroup := group.Group("/ecoin")
+			{
+				ecoinGroup.GET("/balance", r.GetEcoinBalance)
+				ecoinGroup.GET("/transactions", r.GetEcoinTransactions)
+				ecoinGroup.POST("/recharge", r.RechargeEcoin)
+			}
 
 			// 支付方式
 			group.GET("/payment-methods", r.GetPaymentMethods)

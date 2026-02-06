@@ -59,6 +59,16 @@ func (r *ecoinRepoImpl) GetEcoinTransactionsByUserId(ctx context.Context, userId
 	return transactions, err
 }
 
+// CountEcoinTransactionsByUserId 统计用户积分流水数量
+func (r *ecoinRepoImpl) CountEcoinTransactionsByUserId(ctx context.Context, userId uint64) (int64, error) {
+	var count int64
+	err := database.FromContext(ctx).
+		Model(&ecoin_model.EcoinTransaction{}).
+		Where("user_id = ?", userId).
+		Count(&count).Error
+	return count, err
+}
+
 // GetEcoinTransactionById 根据ID获取积分流水记录
 func (r *ecoinRepoImpl) GetEcoinTransactionById(ctx context.Context, id uint64) (*ecoin_model.EcoinTransaction, error) {
 	var transaction ecoin_model.EcoinTransaction

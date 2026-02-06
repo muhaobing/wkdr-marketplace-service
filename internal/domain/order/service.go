@@ -55,7 +55,7 @@ func (s *orderServiceImpl) CreateOrder(ctx context.Context, req *CreateOrderRequ
 	if !req.IsEcoinRecharge && len(req.SkuItems) == 0 {
 		return nil, errors.New("at least one sku_item is required")
 	}
-	if req.IsEcoinRecharge && req.EcoinStock <= 0 {
+	if req.IsEcoinRecharge && req.EcoinUnits <= 0 {
 		return nil, errors.New("ecoin stock should be greater than zero")
 	}
 	if req.IsEcoinRecharge && req.PayType == ordermodel.PayTypeEcoin {
@@ -146,8 +146,8 @@ func (s *orderServiceImpl) buildOrder(ctx context.Context, req *CreateOrderReque
 	if req.IsEcoinRecharge {
 		// 计算价格
 		unitPrice := config.GetConf().EcoinUnitPrice
-		totalAmount = float32(req.EcoinStock) * unitPrice
-		totalQuantity = req.EcoinStock
+		totalAmount = float32(req.EcoinUnits) * unitPrice
+		totalQuantity = req.EcoinUnits
 
 		// 构建订单明细
 		orderItem := &ordermodel.OrderItem{
@@ -156,7 +156,7 @@ func (s *orderServiceImpl) buildOrder(ctx context.Context, req *CreateOrderReque
 			SkuCode:       "ecoin",
 			SkuName:       "积分",
 			SkuAvatar:     "",
-			Quantity:      req.EcoinStock,
+			Quantity:      req.EcoinUnits,
 			UnitPrice:     unitPrice,
 			TotalPrice:    totalAmount,
 			FulfillStatus: ordermodel.FulfillStatusPending,

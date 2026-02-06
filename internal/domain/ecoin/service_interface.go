@@ -31,6 +31,12 @@ type EcoinTransactionListRequest struct {
 	Limit  int    `json:"limit"`
 }
 
+// EcoinTransactionListResponse 积分流水查询响应
+type EcoinTransactionListResponse struct {
+	Total int64                           `json:"total"`
+	List  []*ecoin_model.EcoinTransaction `json:"list"`
+}
+
 // EcoinService 积分服务接口
 type EcoinService interface {
 	// GetUserEcoin 获取用户积分信息
@@ -43,7 +49,7 @@ type EcoinService interface {
 	DeductEcoin(ctx context.Context, req *DeductEcoinRequest) (*ecoin_model.EcoinTransaction, error)
 
 	// GetEcoinTransactionList 获取积分流水列表
-	GetEcoinTransactionList(ctx context.Context, req *EcoinTransactionListRequest) ([]*ecoin_model.EcoinTransaction, error)
+	GetEcoinTransactionList(ctx context.Context, req *EcoinTransactionListRequest) (*EcoinTransactionListResponse, error)
 
 	// GetEcoinTransaction 根据ID获取积分流水
 	GetEcoinTransaction(ctx context.Context, id uint64) (*ecoin_model.EcoinTransaction, error)

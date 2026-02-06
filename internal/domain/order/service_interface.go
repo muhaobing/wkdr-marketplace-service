@@ -19,7 +19,7 @@ type CreateOrderRequest struct {
 	PayType         string          `json:"pay_type"`  // 支付类型：ecoin/money
 	Remark          string          `json:"remark"`    // 备注
 	IsEcoinRecharge bool            `json:"is_ecoin_recharge"`
-	EcoinStock      int             `json:"ecoin_stock"`
+	EcoinUnits      int             `json:"ecoin_units"`
 }
 
 // CreateOrderResponse 创建订单响应

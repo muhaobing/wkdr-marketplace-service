@@ -13,7 +13,7 @@ export const useUserStore = defineStore('user', () => {
   const isLoggedIn = computed(() => !!token.value && !!user.value)
   const userId = computed(() => user.value?.id || 0)
   const userName = computed(() => user.value?.name || user.value?.email || user.value?.tel_no || '')
-  const balance = computed(() => ecoin.value?.balance || 0)
+  const balance = computed(() => ecoin.value?.available_stock || 0)
   const isAdmin = computed(() => user.value?.role === 1)
 
   // 初始化 - 从 localStorage 恢复登录状态
@@ -71,7 +71,7 @@ export const useUserStore = defineStore('user', () => {
     
     loading.value = true
     try {
-      ecoin.value = await ecoinApi.get(user.value.id)
+      ecoin.value = await ecoinApi.getBalance(user.value.id)
     } catch (error) {
       console.error('获取积分失败:', error)
       // Mock 数据

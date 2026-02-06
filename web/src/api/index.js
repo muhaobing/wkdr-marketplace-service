@@ -139,9 +139,17 @@ export const cartApi = {
 
 // 积分相关 API
 export const ecoinApi = {
-  // 获取用户积分
-  get(userId) {
-    return api.get('/ecoin', { params: { user_id: userId } })
+  // 获取用户积分余额
+  getBalance(userId) {
+    return api.get('/ecoin/balance', { params: { user_id: userId } })
+  },
+  // 获取积分流水列表
+  getTransactions(params) {
+    return api.get('/ecoin/transactions', { params })
+  },
+  // 积分充值
+  recharge(data) {
+    return api.post('/ecoin/recharge', data)
   }
 }
 

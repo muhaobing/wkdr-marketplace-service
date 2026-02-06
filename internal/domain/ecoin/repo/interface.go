@@ -23,6 +23,9 @@ type EcoinRepo interface {
 	// GetEcoinTransactionsByUserId 根据用户ID获取积分流水记录
 	GetEcoinTransactionsByUserId(ctx context.Context, userId uint64, offset, limit int) ([]*ecoin_model.EcoinTransaction, error)
 
+	// CountEcoinTransactionsByUserId 统计用户积分流水数量
+	CountEcoinTransactionsByUserId(ctx context.Context, userId uint64) (int64, error)
+
 	// GetEcoinTransactionById 根据ID获取积分流水记录
 	GetEcoinTransactionById(ctx context.Context, id uint64) (*ecoin_model.EcoinTransaction, error)
 
