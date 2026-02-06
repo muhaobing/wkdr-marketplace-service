@@ -7,6 +7,8 @@
 package resource
 
 import (
+	"wdkr-marketplace-service/internal/domain/cart"
+	cartrepo "wdkr-marketplace-service/internal/domain/cart/repo"
 	"wdkr-marketplace-service/internal/domain/ecoin"
 	ecoinrepo "wdkr-marketplace-service/internal/domain/ecoin/repo"
 	"wdkr-marketplace-service/internal/domain/order"
@@ -32,6 +34,7 @@ func InitializeResources() *Resources {
 	ecoinRepo := ecoinrepo.NewEcoinRepo()
 	userRepo := userrepo.NewUserRepo()
 	userBindingRepo := userrepo.NewUserBindingRepo()
+	cartRepo := cartrepo.NewCartRepo()
 
 	// 初始化支付渠道
 	wechatPayConfig := payment.NewWechatPayConfig()
@@ -44,10 +47,11 @@ func InitializeResources() *Resources {
 	paymentService := payment.ProvidePaymentService(paymentRepo, paymentChannels)
 	orderService := order.NewOrderService(orderRepo, skuService, ecoinService, paymentService)
 	userService := user.NewUserService(userRepo, userBindingRepo, ecoinService)
+	cartService := cart.NewCartService(cartRepo, skuService, orderService)
 
 	// 初始化 Resources
 	healthyResource := healthy.NewHealthyResource()
-	marketplaceResource := marketplace.NewMarketplaceResource(skuService, orderService, ecoinService, userService)
+	marketplaceResource := marketplace.NewMarketplaceResource(skuService, orderService, ecoinService, userService, cartService)
 	opsResource := ops.NewOpsResource(skuService, orderService)
 	openAPIResource := openapi.NewOpenAPIResource(ecoinService, paymentService, userService)
 

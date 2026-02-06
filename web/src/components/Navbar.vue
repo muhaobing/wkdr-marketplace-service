@@ -44,6 +44,17 @@
           <span>积分: {{ balance.toFixed(2) }}</span>
         </div>
 
+        <!-- 运营中心（仅管理员可见） -->
+        <router-link v-if="isAdmin" to="/ops" class="nav-item ops-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="7" height="7"/>
+            <rect x="14" y="3" width="7" height="7"/>
+            <rect x="14" y="14" width="7" height="7"/>
+            <rect x="3" y="14" width="7" height="7"/>
+          </svg>
+          <span>运营中心</span>
+        </router-link>
+
         <!-- 用户信息下拉菜单 -->
         <div class="nav-item user-item" @click="toggleDropdown">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -88,6 +99,7 @@ const cartCount = computed(() => cartStore.count)
 const userId = computed(() => userStore.userId)
 const userName = computed(() => userStore.userName)
 const balance = computed(() => userStore.balance)
+const isAdmin = computed(() => userStore.isAdmin)
 
 function toggleDropdown() {
   showDropdown.value = !showDropdown.value
@@ -95,6 +107,8 @@ function toggleDropdown() {
 
 function handleLogout() {
   userStore.logout()
+  // 清空购物车本地数据
+  localStorage.removeItem('cart_selected')
   showDropdown.value = false
   router.push('/login')
 }
@@ -108,6 +122,7 @@ function handleClickOutside(event) {
 
 onMounted(() => {
   userStore.fetchEcoin()
+  cartStore.init()
   document.addEventListener('click', handleClickOutside)
 })
 
@@ -201,6 +216,19 @@ onUnmounted(() => {
 .ecoin-item {
   color: var(--warning);
   font-weight: 500;
+}
+
+.ops-item {
+  padding: 6px 12px;
+  background-color: var(--primary-color);
+  color: white !important;
+  border-radius: 6px;
+  font-weight: 500;
+}
+
+.ops-item:hover {
+  background-color: #152a47;
+  color: white !important;
 }
 
 .user-item {

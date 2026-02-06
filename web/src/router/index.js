@@ -36,6 +36,30 @@ const routes = [
     name: 'OrderDetail',
     component: () => import('../views/OrderDetail.vue'),
     meta: { requiresAuth: true }
+  },
+  // 运营中心路由
+  {
+    path: '/ops',
+    component: () => import('../components/OpsLayout.vue'),
+    meta: { requiresAuth: true, requiresAdmin: true },
+    children: [
+      {
+        path: '',
+        redirect: '/ops/skus'
+      },
+      {
+        path: 'skus',
+        name: 'OpsSkuManagement',
+        component: () => import('../views/ops/SkuManagement.vue'),
+        meta: { requiresAuth: true, requiresAdmin: true }
+      },
+      {
+        path: 'data',
+        name: 'OpsDataCenter',
+        component: () => import('../views/ops/DataCenter.vue'),
+        meta: { requiresAuth: true, requiresAdmin: true }
+      }
+    ]
   }
 ]
 
@@ -44,9 +68,10 @@ const router = createRouter({
   routes
 })
 
-// 路由守卫 - 检查登录状态
+// 路由守卫 - 检查登录状态和权限
 router.beforeEach((to, from, next) => {
   const token = localStorage.getItem('token')
+  const userStr = localStorage.getItem('user')
   const isLoggedIn = !!token
 
   // 如果页面需要登录但用户未登录
@@ -62,6 +87,21 @@ router.beforeEach((to, from, next) => {
   if (to.name === 'Login' && isLoggedIn) {
     next({ name: 'Home' })
     return
+  }
+
+  // 检查管理员权限
+  if (to.meta.requiresAdmin && isLoggedIn) {
+    try {
+      const user = JSON.parse(userStr)
+      if (user.role !== 1) {
+        alert('没有访问权限')
+        next({ name: 'Home' })
+        return
+      }
+    } catch (e) {
+      next({ name: 'Home' })
+      return
+    }
   }
 
   next()

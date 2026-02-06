@@ -5,7 +5,12 @@
         <h1>购物车</h1>
       </div>
 
-      <div v-if="cartItems.length === 0" class="empty-state">
+      <!-- 加载状态 -->
+      <div v-if="loading" class="loading-state">
+        <p>加载中...</p>
+      </div>
+
+      <div v-else-if="cartItems.length === 0" class="empty-state">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
           <circle cx="9" cy="21" r="1"/>
           <circle cx="20" cy="21" r="1"/>
@@ -32,12 +37,12 @@
 
           <!-- 商品列表 -->
           <div class="cart-list">
-            <div v-for="item in cartItems" :key="item.id" class="cart-item">
+            <div v-for="item in cartItems" :key="item.sku_id" class="cart-item" :class="{ 'offline': item.sku_status !== 1 }">
               <label class="item-checkbox">
-                <input type="checkbox" :checked="item.selected" @change="toggleSelect(item.id)">
+                <input type="checkbox" :checked="item.selected" @change="toggleSelect(item.sku_id)" :disabled="item.sku_status !== 1">
               </label>
               
-              <div class="item-product" @click="goToDetail(item.id)">
+              <div class="item-product" @click="goToDetail(item.sku_id)">
                 <div class="product-image">
                   <img v-if="item.sku_avatar" :src="item.sku_avatar" :alt="item.sku_name">
                   <div v-else class="image-placeholder">
@@ -49,6 +54,7 @@
                 <div class="product-info">
                   <h4>{{ item.sku_name }}</h4>
                   <p>{{ item.sku_code }}</p>
+                  <span v-if="item.sku_status !== 1" class="offline-badge">已下架</span>
                 </div>
               </div>
 
@@ -69,7 +75,7 @@
               </div>
 
               <div class="item-action">
-                <button class="delete-btn" @click="removeItem(item.id)">
+                <button class="delete-btn" @click="removeItem(item.sku_id)">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <polyline points="3 6 5 6 21 6"/>
                     <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
@@ -137,7 +143,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useCartStore } from '../stores/cart'
 import { useUserStore } from '../stores/user'
@@ -147,57 +153,62 @@ const router = useRouter()
 const cartStore = useCartStore()
 const userStore = useUserStore()
 
-const cartItems = computed(() => cartStore.items)
+const cartItems = computed(() => cartStore.itemsWithSelected)
 const selectedItems = computed(() => cartStore.selectedItems)
 const selectedTotalPrice = computed(() => cartStore.selectedTotalPrice)
 const isAllSelected = computed(() => cartStore.isAllSelected)
+const loading = computed(() => cartStore.loading)
 
 const showPaymentModal = ref(false)
 const paymentMethods = ref([])
 const selectedPayment = ref(null)
 const ordering = ref(false)
 
-function toggleSelect(id) {
-  cartStore.toggleSelect(id)
+onMounted(() => {
+  cartStore.init()
+})
+
+function toggleSelect(skuId) {
+  cartStore.toggleSelect(skuId)
 }
 
 function toggleSelectAll() {
   cartStore.toggleSelectAll()
 }
 
-function decreaseQty(item) {
+async function decreaseQty(item) {
   if (item.quantity > 1) {
-    cartStore.updateQuantity(item.id, item.quantity - 1)
+    await cartStore.updateQuantity(item.sku_id, item.quantity - 1)
   }
 }
 
-function increaseQty(item) {
+async function increaseQty(item) {
   if (item.quantity < 99) {
-    cartStore.updateQuantity(item.id, item.quantity + 1)
+    await cartStore.updateQuantity(item.sku_id, item.quantity + 1)
   }
 }
 
-function updateQty(item, event) {
+async function updateQty(item, event) {
   const value = parseInt(event.target.value)
   if (value >= 1 && value <= 99) {
-    cartStore.updateQuantity(item.id, value)
+    await cartStore.updateQuantity(item.sku_id, value)
   }
 }
 
-function removeItem(id) {
+async function removeItem(skuId) {
   if (confirm('确定要删除这个商品吗？')) {
-    cartStore.removeItem(id)
+    await cartStore.removeItem(skuId)
   }
 }
 
-function clearSelected() {
+async function clearSelected() {
   if (confirm('确定要删除选中的商品吗？')) {
-    cartStore.clearSelected()
+    await cartStore.clearSelected()
   }
 }
 
-function goToDetail(id) {
-  router.push(`/product/${id}`)
+function goToDetail(skuId) {
+  router.push(`/product/${skuId}`)
 }
 
 async function fetchPaymentMethods() {
@@ -227,28 +238,16 @@ async function confirmOrder() {
   
   ordering.value = true
   try {
-    // 构建订单商品列表
-    const skuItems = selectedItems.value.map(item => ({
-      sku_id: item.id,
-      quantity: item.quantity
-    }))
-
-    // 创建订单
-    const orderRes = await orderApi.create({
-      user_id: userStore.userId,
-      sku_items: skuItems,
-      pay_type: selectedPayment.value.channel === 'ecoin' ? 'ecoin' : 'money'
-    })
-
-    // 清空选中的商品
-    cartStore.clearSelected()
+    // 使用购物车下单接口
+    const payType = selectedPayment.value.channel === 'ecoin' ? 'ecoin' : 'money'
+    const orderRes = await cartStore.checkout(payType)
 
     if (selectedPayment.value.channel === 'ecoin') {
       alert('下单成功！')
       userStore.refreshEcoin()
-      router.push(`/orders/${orderRes.order_no}`)
+      router.push(`/orders/${orderRes.order.order_no}`)
     } else {
-      const payRes = await orderApi.pay(orderRes.order_no, {
+      const payRes = await orderApi.pay(orderRes.order.order_no, {
         channel: selectedPayment.value.channel,
         pay_method: selectedPayment.value.pay_method
       })
@@ -256,7 +255,7 @@ async function confirmOrder() {
       if (payRes.code_url) {
         alert(`请使用微信扫描二维码完成支付\n${payRes.code_url}`)
       }
-      router.push(`/orders/${orderRes.order_no}`)
+      router.push(`/orders/${orderRes.order.order_no}`)
     }
     closePaymentModal()
   } catch (error) {
@@ -270,6 +269,12 @@ async function confirmOrder() {
 <style scoped>
 .cart-page {
   padding-top: 20px;
+}
+
+.loading-state {
+  text-align: center;
+  padding: 60px 0;
+  color: var(--gray-500);
 }
 
 .cart-content {
@@ -324,6 +329,10 @@ async function confirmOrder() {
   border-bottom: none;
 }
 
+.cart-item.offline {
+  opacity: 0.6;
+}
+
 .item-checkbox input {
   width: 18px;
   height: 18px;
@@ -375,6 +384,16 @@ async function confirmOrder() {
 .product-info p {
   font-size: 12px;
   color: var(--gray-400);
+}
+
+.offline-badge {
+  display: inline-block;
+  margin-top: 4px;
+  padding: 2px 8px;
+  font-size: 11px;
+  color: var(--danger);
+  background-color: rgba(220, 53, 69, 0.1);
+  border-radius: 4px;
 }
 
 .item-price {

@@ -223,3 +223,20 @@ CREATE TABLE `payment_refund_tab` (
     KEY `idx_order_no` (`order_no`),
     KEY `idx_status` (`status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='退款记录表';
+
+-- -----------------------------------------------------------
+-- 9. 购物车表 (cart_item_tab)
+-- 记录用户购物车商品
+-- -----------------------------------------------------------
+DROP TABLE IF EXISTS `cart_item_tab`;
+CREATE TABLE `cart_item_tab` (
+    `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    `user_id` BIGINT UNSIGNED NOT NULL COMMENT '用户ID',
+    `sku_id` BIGINT UNSIGNED NOT NULL COMMENT '商品ID',
+    `quantity` INT NOT NULL DEFAULT 1 COMMENT '数量',
+    `ctime` INT UNSIGNED NOT NULL DEFAULT 0 COMMENT '创建时间戳',
+    `mtime` INT UNSIGNED NOT NULL DEFAULT 0 COMMENT '更新时间戳',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_user_sku` (`user_id`, `sku_id`),
+    KEY `idx_user_id` (`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='购物车表';

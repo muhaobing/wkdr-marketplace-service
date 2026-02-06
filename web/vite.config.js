@@ -9,6 +9,10 @@ export default defineConfig({
       '/marketplace': {
         target: 'http://localhost:9090',
         changeOrigin: true
+      },
+      '/ops': {
+        target: 'http://localhost:9090',
+        changeOrigin: true
       }
     }
   }

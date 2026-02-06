@@ -6,8 +6,9 @@ import (
 
 // Conf 应用配置
 type Conf struct {
-	Auth      AuthConfig      `yaml:"auth"`       // 鉴权配置
-	WechatPay WechatPayConfig `yaml:"wechat_pay"` // 微信支付配置
+	Auth           AuthConfig      `yaml:"auth"`       // 鉴权配置
+	WechatPay      WechatPayConfig `yaml:"wechat_pay"` // 微信支付配置
+	EcoinUnitPrice float32         `yaml:"ecoin_unit_price"`
 }
 
 type AuthConfig struct {

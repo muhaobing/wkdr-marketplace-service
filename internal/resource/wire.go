@@ -6,6 +6,8 @@ package resource
 import (
 	"github.com/google/wire"
 
+	"wdkr-marketplace-service/internal/domain/cart"
+	cartrepo "wdkr-marketplace-service/internal/domain/cart/repo"
 	"wdkr-marketplace-service/internal/domain/ecoin"
 	ecoinrepo "wdkr-marketplace-service/internal/domain/ecoin/repo"
 	"wdkr-marketplace-service/internal/domain/order"
@@ -30,6 +32,7 @@ var RepoSet = wire.NewSet(
 	ecoinrepo.NewEcoinRepo,
 	userrepo.NewUserRepo,
 	userrepo.NewUserBindingRepo,
+	cartrepo.NewCartRepo,
 )
 
 // PaymentSet 提供支付相关实例（支付渠道 + 支付服务）
@@ -46,6 +49,7 @@ var ServiceSet = wire.NewSet(
 	sku.NewSkuService,
 	order.NewOrderService,
 	user.NewUserService,
+	cart.NewCartService,
 )
 
 // ResourceSet 提供所有 Resource 实例

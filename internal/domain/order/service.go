@@ -8,6 +8,7 @@ import (
 
 	"github.com/muhaobing-eng/std-go/go-common/database"
 
+	"wdkr-marketplace-service/internal/common/config"
 	"wdkr-marketplace-service/internal/domain/ecoin"
 	ordermodel "wdkr-marketplace-service/internal/domain/order/order_model"
 	"wdkr-marketplace-service/internal/domain/order/repo"
@@ -51,8 +52,14 @@ func (s *orderServiceImpl) CreateOrder(ctx context.Context, req *CreateOrderRequ
 	if req.PayType != ordermodel.PayTypeEcoin && req.PayType != ordermodel.PayTypeMoney {
 		return nil, errors.New("invalid pay_type, must be ecoin or money")
 	}
-	if len(req.SkuItems) == 0 {
+	if !req.IsEcoinRecharge && len(req.SkuItems) == 0 {
 		return nil, errors.New("at least one sku_item is required")
+	}
+	if req.IsEcoinRecharge && req.EcoinStock <= 0 {
+		return nil, errors.New("ecoin stock should be greater than zero")
+	}
+	if req.IsEcoinRecharge && req.PayType == ordermodel.PayTypeEcoin {
+		return nil, errors.New("ecoin recharge not support ecoin pay type")
 	}
 
 	// 构建订单和明细
@@ -136,44 +143,65 @@ func (s *orderServiceImpl) buildOrder(ctx context.Context, req *CreateOrderReque
 	var totalAmount float32
 	var totalQuantity int
 
-	// 处理 SKU 单品
-	for _, skuItem := range req.SkuItems {
-		if skuItem.SkuId == 0 {
-			return nil, nil, errors.New("sku_id is required in sku_items")
-		}
-		if skuItem.Quantity <= 0 {
-			skuItem.Quantity = 1
-		}
-
-		// 获取SKU信息
-		skuInfo, err := s.skuService.GetSkuById(ctx, skuItem.SkuId)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to get sku %d: %w", skuItem.SkuId, err)
-		}
-
-		// 验证SKU状态
-		if !skuInfo.IsOnline() {
-			return nil, nil, fmt.Errorf("sku %d is not available", skuItem.SkuId)
-		}
-
+	if req.IsEcoinRecharge {
 		// 计算价格
-		itemTotal := skuInfo.Cost * float32(skuItem.Quantity)
-		totalAmount += itemTotal
-		totalQuantity += skuItem.Quantity
+		unitPrice := config.GetConf().EcoinUnitPrice
+		totalAmount = float32(req.EcoinStock) * unitPrice
+		totalQuantity = req.EcoinStock
 
 		// 构建订单明细
 		orderItem := &ordermodel.OrderItem{
 			OrderNo:       orderNo,
-			SkuId:         skuInfo.Id,
-			SkuCode:       skuInfo.SkuCode,
-			SkuName:       skuInfo.SkuName,
-			SkuAvatar:     skuInfo.SkuAvatar,
-			Quantity:      skuItem.Quantity,
-			UnitPrice:     skuInfo.Cost,
-			TotalPrice:    itemTotal,
+			SkuId:         0,
+			SkuCode:       "ecoin",
+			SkuName:       "积分",
+			SkuAvatar:     "",
+			Quantity:      req.EcoinStock,
+			UnitPrice:     unitPrice,
+			TotalPrice:    totalAmount,
 			FulfillStatus: ordermodel.FulfillStatusPending,
 		}
 		orderItems = append(orderItems, orderItem)
+	} else {
+		// 处理 SKU 单品
+		for _, skuItem := range req.SkuItems {
+			if skuItem.SkuId == 0 {
+				return nil, nil, errors.New("sku_id is required in sku_items")
+			}
+			if skuItem.Quantity <= 0 {
+				skuItem.Quantity = 1
+			}
+
+			// 获取SKU信息
+			skuInfo, err := s.skuService.GetSkuById(ctx, skuItem.SkuId)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to get sku %d: %w", skuItem.SkuId, err)
+			}
+
+			// 验证SKU状态
+			if !skuInfo.IsOnline() {
+				return nil, nil, fmt.Errorf("sku %d is not available", skuItem.SkuId)
+			}
+
+			// 计算价格
+			itemTotal := skuInfo.Cost * float32(skuItem.Quantity)
+			totalAmount += itemTotal
+			totalQuantity += skuItem.Quantity
+
+			// 构建订单明细
+			orderItem := &ordermodel.OrderItem{
+				OrderNo:       orderNo,
+				SkuId:         skuInfo.Id,
+				SkuCode:       skuInfo.SkuCode,
+				SkuName:       skuInfo.SkuName,
+				SkuAvatar:     skuInfo.SkuAvatar,
+				Quantity:      skuItem.Quantity,
+				UnitPrice:     skuInfo.Cost,
+				TotalPrice:    itemTotal,
+				FulfillStatus: ordermodel.FulfillStatusPending,
+			}
+			orderItems = append(orderItems, orderItem)
+		}
 	}
 
 	if len(orderItems) == 0 {

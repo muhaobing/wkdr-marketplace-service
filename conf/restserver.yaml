@@ -43,3 +43,4 @@ config:
       -----END PRIVATE KEY-----"
     notify_url: "https://your-domain.com/openapi/callback/wechat/pay"
     refund_notify_url: "https://your-domain.com/openapi/callback/wechat/refund"
+  ecoin_unit_price: 1

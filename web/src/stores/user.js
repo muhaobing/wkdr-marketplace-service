@@ -14,6 +14,7 @@ export const useUserStore = defineStore('user', () => {
   const userId = computed(() => user.value?.id || 0)
   const userName = computed(() => user.value?.name || user.value?.email || user.value?.tel_no || '')
   const balance = computed(() => ecoin.value?.balance || 0)
+  const isAdmin = computed(() => user.value?.role === 1)
 
   // 初始化 - 从 localStorage 恢复登录状态
   function init() {
@@ -94,6 +95,7 @@ export const useUserStore = defineStore('user', () => {
     ecoin,
     loading,
     isLoggedIn,
+    isAdmin,
     userId,
     userName,
     balance,

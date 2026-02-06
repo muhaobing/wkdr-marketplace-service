@@ -14,8 +14,10 @@ import Navbar from './components/Navbar.vue'
 
 const route = useRoute()
 
-// 登录页面不显示导航栏
-const showNavbar = computed(() => route.name !== 'Login')
+// 登录页面和运营页面不显示商城导航栏
+const showNavbar = computed(() => {
+  return route.name !== 'Login' && !route.path.startsWith('/ops')
+})
 </script>
 
 <style scoped>

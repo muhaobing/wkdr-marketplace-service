@@ -14,10 +14,12 @@ type SkuOrderItem struct {
 
 // CreateOrderRequest 创建订单请求
 type CreateOrderRequest struct {
-	UserId   uint64          `json:"user_id"`   // 用户ID
-	SkuItems []*SkuOrderItem `json:"sku_items"` // SKU列表
-	PayType  string          `json:"pay_type"`  // 支付类型：ecoin/money
-	Remark   string          `json:"remark"`    // 备注
+	UserId          uint64          `json:"user_id"`   // 用户ID
+	SkuItems        []*SkuOrderItem `json:"sku_items"` // SKU列表
+	PayType         string          `json:"pay_type"`  // 支付类型：ecoin/money
+	Remark          string          `json:"remark"`    // 备注
+	IsEcoinRecharge bool            `json:"is_ecoin_recharge"`
+	EcoinStock      int             `json:"ecoin_stock"`
 }
 
 // CreateOrderResponse 创建订单响应

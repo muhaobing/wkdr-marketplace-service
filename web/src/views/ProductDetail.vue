@@ -175,9 +175,13 @@ function goBack() {
   router.back()
 }
 
-function addToCart() {
-  cartStore.addItem(product.value, quantity.value)
-  alert('已加入购物车')
+async function addToCart() {
+  try {
+    await cartStore.addItem(product.value, quantity.value)
+    alert('已加入购物车')
+  } catch (error) {
+    alert('添加失败: ' + error.message)
+  }
 }
 
 function buyNow() {
@@ -202,14 +206,16 @@ async function confirmOrder() {
       pay_type: selectedPayment.value.channel === 'ecoin' ? 'ecoin' : 'money'
     })
 
+    const orderNo = orderRes.order?.order_no || orderRes.order_no
+
     // 如果是积分支付，直接成功
     if (selectedPayment.value.channel === 'ecoin') {
       alert('下单成功！')
       userStore.refreshEcoin()
-      router.push(`/orders/${orderRes.order_no}`)
+      router.push(`/orders/${orderNo}`)
     } else {
       // 发起支付
-      const payRes = await orderApi.pay(orderRes.order_no, {
+      const payRes = await orderApi.pay(orderNo, {
         channel: selectedPayment.value.channel,
         pay_method: selectedPayment.value.pay_method
       })
@@ -218,7 +224,7 @@ async function confirmOrder() {
       if (payRes.code_url) {
         alert(`请使用微信扫描二维码完成支付\n${payRes.code_url}`)
       }
-      router.push(`/orders/${orderRes.order_no}`)
+      router.push(`/orders/${orderNo}`)
     }
     closePaymentModal()
   } catch (error) {

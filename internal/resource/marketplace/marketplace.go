@@ -7,6 +7,7 @@ import (
 	"github.com/muhaobing-eng/std-go/restserver/registry"
 
 	"wdkr-marketplace-service/internal/common/utils/http_utils"
+	"wdkr-marketplace-service/internal/domain/cart"
 	"wdkr-marketplace-service/internal/domain/ecoin"
 	"wdkr-marketplace-service/internal/domain/order"
 	"wdkr-marketplace-service/internal/domain/sku"
@@ -20,6 +21,7 @@ type MarketplaceResource struct {
 	orderService order.OrderService
 	ecoinService ecoin.EcoinService
 	userService  user.UserService
+	cartService  cart.CartService
 }
 
 // NewMarketplaceResource 创建商城资源实例
@@ -28,12 +30,14 @@ func NewMarketplaceResource(
 	orderService order.OrderService,
 	ecoinService ecoin.EcoinService,
 	userService user.UserService,
+	cartService cart.CartService,
 ) *MarketplaceResource {
 	return &MarketplaceResource{
 		skuService:   skuService,
 		orderService: orderService,
 		ecoinService: ecoinService,
 		userService:  userService,
+		cartService:  cartService,
 	}
 }
 
@@ -107,7 +111,7 @@ type CreateOrderRequest struct {
 }
 
 // CreateOrder 创建订单
-// POST /marketplace/orders
+// POST /marketplace/checkout
 func (r *MarketplaceResource) CreateOrder(ctx *gin.Context) {
 	var req CreateOrderRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
@@ -373,6 +377,170 @@ func (r *MarketplaceResource) Login(ctx *gin.Context) {
 	http_utils.WriteResponse(ctx, resp, nil)
 }
 
+// ==================== 购物车接口 ====================
+
+// AddToCartRequest 添加购物车请求
+type AddToCartRequest struct {
+	UserId   uint64 `json:"user_id" binding:"required"`  // 用户ID
+	SkuId    uint64 `json:"sku_id" binding:"required"`   // 商品ID
+	Quantity int    `json:"quantity" binding:"required"` // 数量
+}
+
+// AddToCart 添加商品到购物车
+// POST /marketplace/shopping_cart/add
+func (r *MarketplaceResource) AddToCart(ctx *gin.Context) {
+	var req AddToCartRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		http_utils.WriteResponse(ctx, nil, err)
+		return
+	}
+
+	item, err := r.cartService.AddToCart(ctx.Request.Context(), &cart.AddToCartRequest{
+		UserId:   req.UserId,
+		SkuId:    req.SkuId,
+		Quantity: req.Quantity,
+	})
+	if err != nil {
+		http_utils.WriteResponse(ctx, nil, err)
+		return
+	}
+
+	http_utils.WriteResponse(ctx, item, nil)
+}
+
+// RemoveFromCartRequest 移除购物车请求
+type RemoveFromCartRequest struct {
+	UserId uint64 `json:"user_id" binding:"required"` // 用户ID
+	SkuId  uint64 `json:"sku_id" binding:"required"`  // 商品ID
+}
+
+// RemoveFromCart 从购物车移除商品
+// POST /marketplace/shopping_cart/remove
+func (r *MarketplaceResource) RemoveFromCart(ctx *gin.Context) {
+	var req RemoveFromCartRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		http_utils.WriteResponse(ctx, nil, err)
+		return
+	}
+
+	err := r.cartService.RemoveFromCart(ctx.Request.Context(), &cart.RemoveFromCartRequest{
+		UserId: req.UserId,
+		SkuId:  req.SkuId,
+	})
+	if err != nil {
+		http_utils.WriteResponse(ctx, nil, err)
+		return
+	}
+
+	http_utils.WriteResponse(ctx, nil, nil)
+}
+
+// UpdateCartItemRequest 更新购物车商品数量请求
+type UpdateCartItemRequest struct {
+	UserId   uint64 `json:"user_id" binding:"required"` // 用户ID
+	SkuId    uint64 `json:"sku_id" binding:"required"`  // 商品ID
+	Quantity int    `json:"quantity"`                   // 数量（0表示删除）
+}
+
+// UpdateCartItem 更新购物车商品数量
+// POST /marketplace/shopping_cart/update
+func (r *MarketplaceResource) UpdateCartItem(ctx *gin.Context) {
+	var req UpdateCartItemRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		http_utils.WriteResponse(ctx, nil, err)
+		return
+	}
+
+	item, err := r.cartService.UpdateCartItem(ctx.Request.Context(), &cart.UpdateCartItemRequest{
+		UserId:   req.UserId,
+		SkuId:    req.SkuId,
+		Quantity: req.Quantity,
+	})
+	if err != nil {
+		http_utils.WriteResponse(ctx, nil, err)
+		return
+	}
+
+	http_utils.WriteResponse(ctx, item, nil)
+}
+
+// ClearCartRequest 清空购物车请求
+type ClearCartRequest struct {
+	UserId uint64 `json:"user_id" binding:"required"` // 用户ID
+}
+
+// ClearCart 清空购物车
+// POST /marketplace/shopping_cart/clear
+func (r *MarketplaceResource) ClearCart(ctx *gin.Context) {
+	var req ClearCartRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		http_utils.WriteResponse(ctx, nil, err)
+		return
+	}
+
+	err := r.cartService.ClearCart(ctx.Request.Context(), req.UserId)
+	if err != nil {
+		http_utils.WriteResponse(ctx, nil, err)
+		return
+	}
+
+	http_utils.WriteResponse(ctx, nil, nil)
+}
+
+// GetCartListRequest 获取购物车列表请求
+type GetCartListRequest struct {
+	UserId uint64 `form:"user_id" binding:"required"` // 用户ID
+}
+
+// GetCartList 获取购物车列表
+// GET /marketplace/shopping_cart/list
+func (r *MarketplaceResource) GetCartList(ctx *gin.Context) {
+	var req GetCartListRequest
+	if err := ctx.ShouldBindQuery(&req); err != nil {
+		http_utils.WriteResponse(ctx, nil, err)
+		return
+	}
+
+	resp, err := r.cartService.GetCartList(ctx.Request.Context(), req.UserId)
+	if err != nil {
+		http_utils.WriteResponse(ctx, nil, err)
+		return
+	}
+
+	http_utils.WriteResponse(ctx, resp, nil)
+}
+
+// CartCheckoutRequest 购物车下单请求
+type CartCheckoutRequest struct {
+	UserId  uint64   `json:"user_id" binding:"required"`  // 用户ID
+	SkuIds  []uint64 `json:"sku_ids" binding:"required"`  // 要下单的商品ID列表
+	PayType string   `json:"pay_type" binding:"required"` // 支付类型：ecoin/money
+	Remark  string   `json:"remark"`                      // 备注
+}
+
+// CartCheckout 购物车下单（下单并移除对应商品）
+// POST /marketplace/shopping_cart/checkout
+func (r *MarketplaceResource) CartCheckout(ctx *gin.Context) {
+	var req CartCheckoutRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		http_utils.WriteResponse(ctx, nil, err)
+		return
+	}
+
+	resp, err := r.cartService.Checkout(ctx.Request.Context(), &cart.CheckoutRequest{
+		UserId:  req.UserId,
+		SkuIds:  req.SkuIds,
+		PayType: req.PayType,
+		Remark:  req.Remark,
+	})
+	if err != nil {
+		http_utils.WriteResponse(ctx, nil, err)
+		return
+	}
+
+	http_utils.WriteResponse(ctx, resp, nil)
+}
+
 // Router 注册路由
 func (r *MarketplaceResource) Router() registry.Registry {
 	return func(router *gin.Engine) {
@@ -398,6 +566,17 @@ func (r *MarketplaceResource) Router() registry.Registry {
 
 			// 支付方式
 			group.GET("/payment-methods", r.GetPaymentMethods)
+
+			// 购物车接口
+			cartGroup := group.Group("/shopping_cart")
+			{
+				cartGroup.POST("/add", r.AddToCart)
+				cartGroup.POST("/remove", r.RemoveFromCart)
+				cartGroup.POST("/update", r.UpdateCartItem)
+				cartGroup.POST("/clear", r.ClearCart)
+				cartGroup.GET("/list", r.GetCartList)
+				cartGroup.POST("/checkout", r.CartCheckout)
+			}
 		}
 	}
 }
