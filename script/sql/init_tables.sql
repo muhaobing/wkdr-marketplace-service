@@ -6,7 +6,8 @@
 
 -- -----------------------------------------------------------
 -- 1. 用户表 (user_tab)
--- 商城中心用户表，支持多业务平台绑定
+-- 商城中心用户表
+-- role: 0-普通用户, 1-管理员
 -- -----------------------------------------------------------
 DROP TABLE IF EXISTS `user_tab`;
 CREATE TABLE `user_tab` (
@@ -14,13 +15,31 @@ CREATE TABLE `user_tab` (
     `tel_no` VARCHAR(20) NOT NULL DEFAULT '' COMMENT '手机号',
     `email` VARCHAR(128) NOT NULL DEFAULT '' COMMENT '邮箱',
     `secret_key` VARCHAR(64) NOT NULL DEFAULT '' COMMENT '用户密钥(SHA256加密)',
-    `binding` JSON COMMENT '业务平台绑定信息，格式: {"biz_code": {"biz_id": 123}}',
+    `role` TINYINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '用户角色: 0-User, 1-Admin',
     `ctime` INT UNSIGNED NOT NULL DEFAULT 0 COMMENT '创建时间戳',
     `mtime` INT UNSIGNED NOT NULL DEFAULT 0 COMMENT '更新时间戳',
     PRIMARY KEY (`id`),
     UNIQUE KEY `uk_tel_no` (`tel_no`),
     UNIQUE KEY `uk_email` (`email`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户表';
+
+-- -----------------------------------------------------------
+-- 1.1 用户绑定表 (user_binding_tab)
+-- 记录用户与业务平台的绑定关系
+-- 唯一键: user_id + biz_code + biz_user_id（同业务域同账号只允许绑定一个商城账号）
+-- -----------------------------------------------------------
+DROP TABLE IF EXISTS `user_binding_tab`;
+CREATE TABLE `user_binding_tab` (
+    `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    `user_id` INT UNSIGNED NOT NULL COMMENT '商城用户ID',
+    `biz_code` VARCHAR(32) NOT NULL DEFAULT '' COMMENT '业务平台代码',
+    `biz_user_id` BIGINT UNSIGNED NOT NULL COMMENT '业务平台用户ID',
+    `ctime` INT UNSIGNED NOT NULL DEFAULT 0 COMMENT '创建时间戳',
+    `mtime` INT UNSIGNED NOT NULL DEFAULT 0 COMMENT '更新时间戳',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_biz_binding` (`biz_code`, `biz_user_id`),
+    KEY `idx_user_id` (`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户绑定表';
 
 -- -----------------------------------------------------------
 -- 2. 用户积分表 (user_ecoin_tab)

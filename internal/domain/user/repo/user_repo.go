@@ -32,6 +32,9 @@ func (r *userRepoImpl) GetUserById(ctx context.Context, id uint) (*usermodel.Use
 
 // GetUserByTelNo 根据手机号获取用户
 func (r *userRepoImpl) GetUserByTelNo(ctx context.Context, telNo string) (*usermodel.User, error) {
+	if telNo == "" {
+		return nil, nil
+	}
 	var user usermodel.User
 	err := database.FromContext(ctx).Where("tel_no = ?", telNo).First(&user).Error
 	if err != nil {
@@ -45,6 +48,9 @@ func (r *userRepoImpl) GetUserByTelNo(ctx context.Context, telNo string) (*userm
 
 // GetUserByEmail 根据邮箱获取用户
 func (r *userRepoImpl) GetUserByEmail(ctx context.Context, email string) (*usermodel.User, error) {
+	if email == "" {
+		return nil, nil
+	}
 	var user usermodel.User
 	err := database.FromContext(ctx).Where("email = ?", email).First(&user).Error
 	if err != nil {
@@ -59,13 +65,6 @@ func (r *userRepoImpl) GetUserByEmail(ctx context.Context, email string) (*userm
 // CreateUser 创建用户
 func (r *userRepoImpl) CreateUser(ctx context.Context, user *usermodel.User) error {
 	return database.FromContext(ctx).Create(user).Error
-}
-
-// UpdateUserBinding 更新用户绑定信息
-func (r *userRepoImpl) UpdateUserBinding(ctx context.Context, id uint, binding usermodel.BindingMap) error {
-	return database.FromContext(ctx).Model(&usermodel.User{}).
-		Where("id = ?", id).
-		Update("binding", binding).Error
 }
 
 // UpdateUserSecretKey 更新用户密钥

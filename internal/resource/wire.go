@@ -14,6 +14,8 @@ import (
 	paymentrepo "wdkr-marketplace-service/internal/domain/payment/repo"
 	"wdkr-marketplace-service/internal/domain/sku"
 	skurepo "wdkr-marketplace-service/internal/domain/sku/repo"
+	"wdkr-marketplace-service/internal/domain/user"
+	userrepo "wdkr-marketplace-service/internal/domain/user/repo"
 	"wdkr-marketplace-service/internal/resource/healthy"
 	"wdkr-marketplace-service/internal/resource/marketplace"
 	"wdkr-marketplace-service/internal/resource/openapi"
@@ -26,6 +28,8 @@ var RepoSet = wire.NewSet(
 	orderrepo.NewOrderRepo,
 	paymentrepo.NewPaymentRepo,
 	ecoinrepo.NewEcoinRepo,
+	userrepo.NewUserRepo,
+	userrepo.NewUserBindingRepo,
 )
 
 // PaymentSet 提供支付相关实例（支付渠道 + 支付服务）
@@ -41,6 +45,7 @@ var ServiceSet = wire.NewSet(
 	ecoin.NewEcoinService,
 	sku.NewSkuService,
 	order.NewOrderService,
+	user.NewUserService,
 )
 
 // ResourceSet 提供所有 Resource 实例

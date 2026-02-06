@@ -15,6 +15,8 @@ import (
 	paymentrepo "wdkr-marketplace-service/internal/domain/payment/repo"
 	"wdkr-marketplace-service/internal/domain/sku"
 	skurepo "wdkr-marketplace-service/internal/domain/sku/repo"
+	"wdkr-marketplace-service/internal/domain/user"
+	userrepo "wdkr-marketplace-service/internal/domain/user/repo"
 	"wdkr-marketplace-service/internal/resource/healthy"
 	"wdkr-marketplace-service/internal/resource/marketplace"
 	"wdkr-marketplace-service/internal/resource/openapi"
@@ -28,6 +30,8 @@ func InitializeResources() *Resources {
 	orderRepo := orderrepo.NewOrderRepo()
 	paymentRepo := paymentrepo.NewPaymentRepo()
 	ecoinRepo := ecoinrepo.NewEcoinRepo()
+	userRepo := userrepo.NewUserRepo()
+	userBindingRepo := userrepo.NewUserBindingRepo()
 
 	// 初始化支付渠道
 	wechatPayConfig := payment.NewWechatPayConfig()
@@ -39,12 +43,13 @@ func InitializeResources() *Resources {
 	skuService := sku.NewSkuService(skuRepo)
 	paymentService := payment.ProvidePaymentService(paymentRepo, paymentChannels)
 	orderService := order.NewOrderService(orderRepo, skuService, ecoinService, paymentService)
+	userService := user.NewUserService(userRepo, userBindingRepo, ecoinService)
 
 	// 初始化 Resources
 	healthyResource := healthy.NewHealthyResource()
-	marketplaceResource := marketplace.NewMarketplaceResource(skuService, orderService, ecoinService)
+	marketplaceResource := marketplace.NewMarketplaceResource(skuService, orderService, ecoinService, userService)
 	opsResource := ops.NewOpsResource(skuService, orderService)
-	openAPIResource := openapi.NewOpenAPIResource(ecoinService, paymentService)
+	openAPIResource := openapi.NewOpenAPIResource(ecoinService, paymentService, userService)
 
 	// 聚合返回
 	resources := NewResources(healthyResource, marketplaceResource, opsResource, openAPIResource)

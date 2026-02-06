@@ -8,6 +8,20 @@ const api = axios.create({
   }
 })
 
+// 请求拦截器 - 添加 token
+api.interceptors.request.use(
+  config => {
+    const token = localStorage.getItem('token')
+    if (token) {
+      config.headers['Authorization'] = `Bearer ${token}`
+    }
+    return config
+  },
+  error => {
+    return Promise.reject(error)
+  }
+)
+
 // 响应拦截器
 api.interceptors.response.use(
   response => {
@@ -18,9 +32,23 @@ api.interceptors.response.use(
     return Promise.reject(new Error(data.message || '请求失败'))
   },
   error => {
+    // 401 未授权，跳转到登录页
+    if (error.response && error.response.status === 401) {
+      localStorage.removeItem('token')
+      localStorage.removeItem('user')
+      window.location.href = '/login'
+    }
     return Promise.reject(error)
   }
 )
+
+// 用户认证相关 API
+export const authApi = {
+  // 登录（电话号码/邮箱）
+  login(data) {
+    return api.post('/login', data)
+  }
+}
 
 // 商品相关 API
 export const skuApi = {

@@ -4,24 +4,30 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
+	"github.com/muhaobing-eng/std-go/go-common/cache"
 	"github.com/muhaobing-eng/std-go/go-common/database"
 
+	"wdkr-marketplace-service/internal/common/config"
+	"wdkr-marketplace-service/internal/common/utils/auth_utils"
 	"wdkr-marketplace-service/internal/domain/ecoin"
 	"wdkr-marketplace-service/internal/domain/user/repo"
 	usermodel "wdkr-marketplace-service/internal/domain/user/user_model"
 )
 
 type userServiceImpl struct {
-	userRepo repo.UserRepo
-	ecoinSvc ecoin.EcoinService
+	userRepo    repo.UserRepo
+	bindingRepo repo.UserBindingRepo
+	ecoinSvc    ecoin.EcoinService
 }
 
 // NewUserService 创建用户服务实例
-func NewUserService(userRepo repo.UserRepo, ecoinSvc ecoin.EcoinService) UserService {
+func NewUserService(userRepo repo.UserRepo, bindingRepo repo.UserBindingRepo, ecoinSvc ecoin.EcoinService) UserService {
 	return &userServiceImpl{
-		userRepo: userRepo,
-		ecoinSvc: ecoinSvc,
+		userRepo:    userRepo,
+		bindingRepo: bindingRepo,
+		ecoinSvc:    ecoinSvc,
 	}
 }
 
@@ -41,8 +47,21 @@ func (s *userServiceImpl) BindUser(ctx context.Context, req *BindUserRequest) (*
 		return nil, errors.New("secret is required")
 	}
 
+	// 检查该业务账号是否已绑定其他用户
+	existingBinding, err := s.bindingRepo.GetBindingByBiz(ctx, req.BizCode, req.BizUserId)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check existing binding: %w", err)
+	}
+	if existingBinding != nil {
+		// 已绑定，返回已绑定的用户信息
+		return &BindUserResponse{
+			UserId:    existingBinding.UserId,
+			IsNewUser: false,
+		}, nil
+	}
+
 	var response *BindUserResponse
-	err := database.Transaction(ctx, func(ctx context.Context) error {
+	err = database.Transaction(ctx, func(ctx context.Context) error {
 		// 根据身份标识查找用户（优先手机号，其次邮箱）
 		user, err := s.findUserByIdentity(ctx, req.TelNo, req.Email)
 		if err != nil {
@@ -64,24 +83,14 @@ func (s *userServiceImpl) BindUser(ctx context.Context, req *BindUserRequest) (*
 			}
 		}
 
-		// 检查是否已绑定该业务平台
-		if user.HasBinding(req.BizCode) {
-			existingBinding, _ := user.GetBinding(req.BizCode)
-			if existingBinding.BizUserId == req.BizUserId {
-				// 已绑定相同的业务ID，直接返回
-				response = &BindUserResponse{
-					UserId:    user.Id,
-					IsNewUser: false,
-				}
-				return nil
-			}
-			return fmt.Errorf("user already bindded to biz_code %s with different biz_user_id", req.BizCode)
+		// 创建绑定记录
+		binding := &usermodel.UserBinding{
+			UserId:    user.Id,
+			BizCode:   req.BizCode,
+			BizUserId: req.BizUserId,
 		}
-
-		// 绑定业务平台
-		user.Bind(req.BizCode, usermodel.BindingInfo{BizUserId: req.BizUserId})
-		if err = s.userRepo.UpdateUserBinding(ctx, user.Id, user.Binding); err != nil {
-			return fmt.Errorf("failed to update user binding: %w", err)
+		if err = s.bindingRepo.CreateBinding(ctx, binding); err != nil {
+			return fmt.Errorf("failed to create binding: %w", err)
 		}
 
 		response = &BindUserResponse{
@@ -112,29 +121,21 @@ func (s *userServiceImpl) UnbindUser(ctx context.Context, req *UnbindUserRequest
 		return errors.New("biz_code is required")
 	}
 
-	return database.Transaction(ctx, func(ctx context.Context) error {
-		// 获取用户信息（加锁）
-		user, err := s.userRepo.GetUserForUpdate(ctx, req.UserId)
-		if err != nil {
-			return fmt.Errorf("failed to get user for update: %w", err)
-		}
-		if user == nil {
-			return errors.New("user not found")
-		}
+	// 检查绑定是否存在
+	binding, err := s.bindingRepo.GetBindingByUserAndBiz(ctx, req.UserId, req.BizCode)
+	if err != nil {
+		return fmt.Errorf("failed to get binding: %w", err)
+	}
+	if binding == nil {
+		return fmt.Errorf("user not bindded to biz_code %s", req.BizCode)
+	}
 
-		// 检查是否已绑定该业务平台
-		if !user.HasBinding(req.BizCode) {
-			return fmt.Errorf("user not bindded to biz_code %s", req.BizCode)
-		}
+	// 删除绑定记录
+	if err = s.bindingRepo.DeleteBinding(ctx, req.UserId, req.BizCode); err != nil {
+		return fmt.Errorf("failed to delete binding: %w", err)
+	}
 
-		// 解绑业务平台
-		user.Unbind(req.BizCode)
-		if err = s.userRepo.UpdateUserBinding(ctx, user.Id, user.Binding); err != nil {
-			return fmt.Errorf("failed to update user binding: %w", err)
-		}
-
-		return nil
-	})
+	return nil
 }
 
 // GetUserById 根据ID获取用户信息
@@ -164,6 +165,26 @@ func (s *userServiceImpl) GetUserByIdentity(ctx context.Context, telNo, email st
 	return s.findUserByIdentity(ctx, telNo, email)
 }
 
+// GetUserByBiz 根据业务信息获取用户
+func (s *userServiceImpl) GetUserByBiz(ctx context.Context, bizCode string, bizUserId uint64) (*usermodel.User, error) {
+	if bizCode == "" {
+		return nil, errors.New("biz_code is required")
+	}
+	if bizUserId == 0 {
+		return nil, errors.New("biz_user_id is required")
+	}
+
+	binding, err := s.bindingRepo.GetBindingByBiz(ctx, bizCode, bizUserId)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get binding: %w", err)
+	}
+	if binding == nil {
+		return nil, nil
+	}
+
+	return s.userRepo.GetUserById(ctx, binding.UserId)
+}
+
 // VerifyUserSecret 验证用户密钥
 func (s *userServiceImpl) VerifyUserSecret(ctx context.Context, userId uint, secret string) (bool, error) {
 	if userId == 0 {
@@ -183,6 +204,123 @@ func (s *userServiceImpl) VerifyUserSecret(ctx context.Context, userId uint, sec
 	}
 
 	return user.VerifySecretKey(secret), nil
+}
+
+// Login 用户登录（电话号码/邮箱）
+func (s *userServiceImpl) Login(ctx context.Context, req *LoginRequest) (*LoginResponse, error) {
+	// 参数校验
+	if req.TelNo == "" && req.Email == "" {
+		return nil, errors.New("tel_no or email is required")
+	}
+	if req.Secret == "" {
+		return nil, errors.New("secret is required")
+	}
+
+	// 查找用户
+	user, err := s.findUserByIdentity(ctx, req.TelNo, req.Email)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find user: %w", err)
+	}
+	if user == nil {
+		return nil, errors.New("user not found")
+	}
+
+	// 验证密钥
+	if !user.VerifySecretKey(req.Secret) {
+		return nil, errors.New("invalid secret")
+	}
+
+	// 生成登录响应
+	return s.generateLoginResponse(ctx, user)
+}
+
+// BizLogin 业务平台登录
+func (s *userServiceImpl) BizLogin(ctx context.Context, req *BizLoginRequest) (*LoginResponse, error) {
+	// 参数校验
+	if req.BizCode == "" {
+		return nil, errors.New("biz_code is required")
+	}
+	if req.BizUserId == 0 {
+		return nil, errors.New("biz_user_id is required")
+	}
+	if req.Secret == "" {
+		return nil, errors.New("secret is required")
+	}
+
+	// 查找绑定记录
+	binding, err := s.bindingRepo.GetBindingByBiz(ctx, req.BizCode, req.BizUserId)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get binding: %w", err)
+	}
+	if binding == nil {
+		return nil, errors.New("binding not found")
+	}
+
+	// 获取用户
+	user, err := s.userRepo.GetUserById(ctx, binding.UserId)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user: %w", err)
+	}
+	if user == nil {
+		return nil, errors.New("user not found")
+	}
+
+	// 验证密钥
+	if !user.VerifySecretKey(req.Secret) {
+		return nil, errors.New("invalid secret")
+	}
+
+	// 生成登录响应
+	return s.generateLoginResponse(ctx, user)
+}
+
+// GetBindingsByUserId 获取用户所有绑定信息
+func (s *userServiceImpl) GetBindingsByUserId(ctx context.Context, userId uint) ([]*usermodel.UserBinding, error) {
+	if userId == 0 {
+		return nil, errors.New("user_id is required")
+	}
+	return s.bindingRepo.GetBindingsByUserId(ctx, userId)
+}
+
+// generateLoginResponse 生成登录响应（生成session、token并写入redis）
+func (s *userServiceImpl) generateLoginResponse(ctx context.Context, user *usermodel.User) (*LoginResponse, error) {
+	// 生成 session id: "session:$user_id:$login_timestamp"
+	loginTimestamp := time.Now().Unix()
+	sessionId := fmt.Sprintf("session:%d:%d", user.Id, loginTimestamp)
+
+	// 生成 session: user 序列化为 JSON
+	session, err := user.ToJSON()
+	if err != nil {
+		return nil, fmt.Errorf("failed to serialize user: %w", err)
+	}
+
+	// 获取配置
+	conf := config.GetConf()
+	if conf == nil {
+		return nil, errors.New("config not initialized")
+	}
+
+	// 生成 token
+	token, err := auth_utils.GenAuthToken(sessionId, conf.Auth.AesKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate token: %w", err)
+	}
+
+	// 将 session 写入 redis
+	expiration := time.Duration(conf.Auth.Expiration) * time.Second
+	redis := cache.FromContext(ctx)
+	if redis == nil {
+		return nil, errors.New("redis client not initialized")
+	}
+	if err = redis.Set(ctx, sessionId, session, expiration).Err(); err != nil {
+		return nil, fmt.Errorf("failed to save session to redis: %w", err)
+	}
+
+	return &LoginResponse{
+		Token:  token,
+		UserId: user.Id,
+		User:   user,
+	}, nil
 }
 
 // findUserByIdentity 根据身份标识查找用户（优先手机号，其次邮箱）
@@ -215,9 +353,9 @@ func (s *userServiceImpl) findUserByIdentity(ctx context.Context, telNo, email s
 // createUser 创建新用户
 func (s *userServiceImpl) createUser(ctx context.Context, req *BindUserRequest) (*usermodel.User, error) {
 	user := &usermodel.User{
-		TelNo:   req.TelNo,
-		Email:   req.Email,
-		Binding: make(usermodel.BindingMap),
+		TelNo: req.TelNo,
+		Email: req.Email,
+		Role:  usermodel.RoleUser, // 默认为普通用户
 	}
 
 	// 先创建用户以获取ID

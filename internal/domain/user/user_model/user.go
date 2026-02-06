@@ -2,9 +2,7 @@ package usermodel
 
 import (
 	"crypto/sha256"
-	"database/sql/driver"
 	"encoding/hex"
-	"errors"
 	"fmt"
 
 	jsoniter "github.com/json-iterator/go"
@@ -14,14 +12,20 @@ const (
 	UserTabName = "user_tab"
 )
 
+// 用户角色
+const (
+	RoleUser  uint8 = 0 // 普通用户
+	RoleAdmin uint8 = 1 // 管理员
+)
+
 type User struct {
-	Id        uint       `gorm:"column:id" json:"id"`
-	TelNo     string     `gorm:"column:tel_no" json:"tel_no"`
-	Email     string     `gorm:"column:email" json:"email"`
-	SecretKey string     `gorm:"column:secret_key" json:"secret_key"`
-	Binding   BindingMap `gorm:"column:binding" json:"binding"`
-	Ctime     uint32     `gorm:"column:ctime;autoCreateTime" json:"ctime"`
-	Mtime     uint32     `gorm:"column:mtime;autoUpdateTime" json:"mtime"`
+	Id        uint   `gorm:"column:id" json:"id"`
+	TelNo     string `gorm:"column:tel_no" json:"tel_no"`
+	Email     string `gorm:"column:email" json:"email"`
+	SecretKey string `gorm:"column:secret_key" json:"-"` // 密钥不对外暴露
+	Role      uint8  `gorm:"column:role" json:"role"`
+	Ctime     uint32 `gorm:"column:ctime;autoCreateTime" json:"ctime"`
+	Mtime     uint32 `gorm:"column:mtime;autoUpdateTime" json:"mtime"`
 }
 
 // GenerateSecretKey 根据secret和用户ID生成加密后的密钥
@@ -37,50 +41,29 @@ func (u *User) VerifySecretKey(secret string) bool {
 	return u.SecretKey == expectedKey
 }
 
-// HasBinding 检查用户是否已绑定指定业务平台
-func (u *User) HasBinding(bizCode string) bool {
-	if u.Binding == nil {
-		return false
-	}
-	_, exists := u.Binding[bizCode]
-	return exists
-}
-
-// GetBinding 获取指定业务平台的绑定信息
-func (u *User) GetBinding(bizCode string) (BindingInfo, bool) {
-	if u.Binding == nil {
-		return BindingInfo{}, false
-	}
-	info, exists := u.Binding[bizCode]
-	return info, exists
+// IsAdmin 判断是否为管理员
+func (u *User) IsAdmin() bool {
+	return u.Role == RoleAdmin
 }
 
 func (u *User) TableName() string {
 	return UserTabName
 }
 
-func (u *User) Bind(bizType string, info BindingInfo) {
-	u.Binding[bizType] = info
-}
-
-func (u *User) Unbind(bizType string) {
-	delete(u.Binding, bizType)
-}
-
-type BindingInfo struct {
-	BizUserId uint64 `json:"biz_user_id"`
-}
-
-type BindingMap map[string]BindingInfo
-
-func (b BindingMap) Scan(value interface{}) error {
-	bytes, ok := value.([]byte)
-	if !ok {
-		return errors.New("invalid type")
+// ToJSON 序列化为 JSON 字符串（用于 session）
+func (u *User) ToJSON() (string, error) {
+	bytes, err := jsoniter.Marshal(u)
+	if err != nil {
+		return "", err
 	}
-	return jsoniter.Unmarshal(bytes, b)
+	return string(bytes), nil
 }
 
-func (b BindingMap) Value() (driver.Value, error) {
-	return jsoniter.Marshal(b)
+// UserFromJSON 从 JSON 字符串反序列化用户
+func UserFromJSON(jsonStr string) (*User, error) {
+	var user User
+	if err := jsoniter.Unmarshal([]byte(jsonStr), &user); err != nil {
+		return nil, err
+	}
+	return &user, nil
 }

@@ -11,20 +11,133 @@ import (
 	"wdkr-marketplace-service/internal/common/utils/http_utils"
 	"wdkr-marketplace-service/internal/domain/ecoin"
 	"wdkr-marketplace-service/internal/domain/payment"
+	"wdkr-marketplace-service/internal/domain/user"
 )
 
 // OpenAPIResource OpenAPI接口资源（面向内部平台及外部支付回调）
 type OpenAPIResource struct {
 	ecoinService   ecoin.EcoinService
 	paymentService payment.PaymentService
+	userService    user.UserService
 }
 
 // NewOpenAPIResource 创建OpenAPI资源实例
-func NewOpenAPIResource(ecoinService ecoin.EcoinService, paymentService payment.PaymentService) *OpenAPIResource {
+func NewOpenAPIResource(ecoinService ecoin.EcoinService, paymentService payment.PaymentService, userService user.UserService) *OpenAPIResource {
 	return &OpenAPIResource{
 		ecoinService:   ecoinService,
 		paymentService: paymentService,
+		userService:    userService,
 	}
+}
+
+// ==================== 用户接口 ====================
+
+// BindUserRequest 用户绑定请求
+type BindUserRequest struct {
+	BizCode   string `json:"biz_code" binding:"required"`    // 业务平台代码
+	BizUserId uint64 `json:"biz_user_id" binding:"required"` // 业务平台用户ID
+	TelNo     string `json:"tel_no"`                         // 手机号
+	Email     string `json:"email"`                          // 邮箱
+	Secret    string `json:"secret" binding:"required"`      // 用户密钥
+}
+
+// BindUser 绑定用户
+// POST /openapi/user/bind
+func (r *OpenAPIResource) BindUser(ctx *gin.Context) {
+	var req BindUserRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		http_utils.WriteResponse(ctx, nil, err)
+		return
+	}
+
+	resp, err := r.userService.BindUser(ctx.Request.Context(), &user.BindUserRequest{
+		BizCode:   req.BizCode,
+		BizUserId: req.BizUserId,
+		TelNo:     req.TelNo,
+		Email:     req.Email,
+		Secret:    req.Secret,
+	})
+	if err != nil {
+		http_utils.WriteResponse(ctx, nil, err)
+		return
+	}
+
+	http_utils.WriteResponse(ctx, resp, nil)
+}
+
+// UnbindUserRequest 用户解绑请求
+type UnbindUserRequest struct {
+	UserId  uint   `json:"user_id" binding:"required"`  // 商城用户ID
+	BizCode string `json:"biz_code" binding:"required"` // 业务平台代码
+}
+
+// UnbindUser 解绑用户
+// POST /openapi/user/unbind
+func (r *OpenAPIResource) UnbindUser(ctx *gin.Context) {
+	var req UnbindUserRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		http_utils.WriteResponse(ctx, nil, err)
+		return
+	}
+
+	err := r.userService.UnbindUser(ctx.Request.Context(), &user.UnbindUserRequest{
+		UserId:  req.UserId,
+		BizCode: req.BizCode,
+	})
+	if err != nil {
+		http_utils.WriteResponse(ctx, nil, err)
+		return
+	}
+
+	http_utils.WriteResponse(ctx, nil, nil)
+}
+
+// BizLoginRequest 业务平台登录请求
+type BizLoginRequest struct {
+	BizCode   string `json:"biz_code" binding:"required"`    // 业务平台代码
+	BizUserId uint64 `json:"biz_user_id" binding:"required"` // 业务平台用户ID
+	Secret    string `json:"secret" binding:"required"`      // 用户密钥
+}
+
+// BizLogin 业务平台登录
+// POST /openapi/user/login
+func (r *OpenAPIResource) BizLogin(ctx *gin.Context) {
+	var req BizLoginRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		http_utils.WriteResponse(ctx, nil, err)
+		return
+	}
+
+	resp, err := r.userService.BizLogin(ctx.Request.Context(), &user.BizLoginRequest{
+		BizCode:   req.BizCode,
+		BizUserId: req.BizUserId,
+		Secret:    req.Secret,
+	})
+	if err != nil {
+		http_utils.WriteResponse(ctx, nil, err)
+		return
+	}
+
+	http_utils.WriteResponse(ctx, resp, nil)
+}
+
+// GetUserBindings 获取用户绑定信息
+// GET /openapi/user/:user_id/bindings
+func (r *OpenAPIResource) GetUserBindings(ctx *gin.Context) {
+	userIdStr := ctx.Param("user_id")
+	userId, err := strconv.ParseUint(userIdStr, 10, 32)
+	if err != nil {
+		http_utils.WriteResponse(ctx, nil, err)
+		return
+	}
+
+	bindings, err := r.userService.GetBindingsByUserId(ctx.Request.Context(), uint(userId))
+	if err != nil {
+		http_utils.WriteResponse(ctx, nil, err)
+		return
+	}
+
+	http_utils.WriteResponse(ctx, bindings, nil)
 }
 
 // ==================== 积分接口 ====================
@@ -251,6 +364,12 @@ func (r *OpenAPIResource) Router() registry.Registry {
 	return func(router *gin.Engine) {
 		group := router.Group("/openapi")
 		{
+			// 用户接口
+			group.POST("/user/bind", r.BindUser)
+			group.POST("/user/unbind", r.UnbindUser)
+			group.POST("/user/login", r.BizLogin)
+			group.GET("/user/:user_id/bindings", r.GetUserBindings)
+
 			// 积分接口
 			group.POST("/ecoin/add", r.AddEcoin)
 			group.POST("/ecoin/deduct", r.DeductEcoin)

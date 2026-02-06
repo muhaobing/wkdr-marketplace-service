@@ -11,6 +11,7 @@ import (
 	"wdkr-marketplace-service/internal/domain/order"
 	"wdkr-marketplace-service/internal/domain/sku"
 	skumodel "wdkr-marketplace-service/internal/domain/sku/sku_model"
+	"wdkr-marketplace-service/internal/domain/user"
 )
 
 // MarketplaceResource 商城接口资源（面向用户）
@@ -18,6 +19,7 @@ type MarketplaceResource struct {
 	skuService   sku.SkuService
 	orderService order.OrderService
 	ecoinService ecoin.EcoinService
+	userService  user.UserService
 }
 
 // NewMarketplaceResource 创建商城资源实例
@@ -25,11 +27,13 @@ func NewMarketplaceResource(
 	skuService sku.SkuService,
 	orderService order.OrderService,
 	ecoinService ecoin.EcoinService,
+	userService user.UserService,
 ) *MarketplaceResource {
 	return &MarketplaceResource{
 		skuService:   skuService,
 		orderService: orderService,
 		ecoinService: ecoinService,
+		userService:  userService,
 	}
 }
 
@@ -338,11 +342,45 @@ func (r *MarketplaceResource) GetPaymentMethods(ctx *gin.Context) {
 	http_utils.WriteResponse(ctx, methods, nil)
 }
 
+// ==================== 用户登录接口 ====================
+
+// LoginRequest 登录请求（电话号码/邮箱登录）
+type LoginRequest struct {
+	TelNo  string `json:"tel_no"` // 手机号
+	Email  string `json:"email"`  // 邮箱
+	Secret string `json:"secret"` // 用户密钥
+}
+
+// Login 用户登录（电话号码/邮箱）
+// POST /marketplace/login
+func (r *MarketplaceResource) Login(ctx *gin.Context) {
+	var req LoginRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		http_utils.WriteResponse(ctx, nil, err)
+		return
+	}
+
+	resp, err := r.userService.Login(ctx.Request.Context(), &user.LoginRequest{
+		TelNo:  req.TelNo,
+		Email:  req.Email,
+		Secret: req.Secret,
+	})
+	if err != nil {
+		http_utils.WriteResponse(ctx, nil, err)
+		return
+	}
+
+	http_utils.WriteResponse(ctx, resp, nil)
+}
+
 // Router 注册路由
 func (r *MarketplaceResource) Router() registry.Registry {
 	return func(router *gin.Engine) {
 		group := router.Group("/marketplace")
 		{
+			// 用户登录接口
+			group.POST("/login", r.Login)
+
 			// 商品接口
 			group.GET("/skus", r.ListSkus)
 			group.GET("/skus/:id", r.GetSkuDetail)

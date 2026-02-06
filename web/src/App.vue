@@ -1,14 +1,21 @@
 <template>
   <div class="app">
-    <Navbar />
-    <main class="main-content">
+    <Navbar v-if="showNavbar" />
+    <main :class="['main-content', { 'no-navbar': !showNavbar }]">
       <router-view />
     </main>
   </div>
 </template>
 
 <script setup>
+import { computed } from 'vue'
+import { useRoute } from 'vue-router'
 import Navbar from './components/Navbar.vue'
+
+const route = useRoute()
+
+// 登录页面不显示导航栏
+const showNavbar = computed(() => route.name !== 'Login')
 </script>
 
 <style scoped>
@@ -22,5 +29,9 @@ import Navbar from './components/Navbar.vue'
   flex: 1;
   padding-top: 70px;
   padding-bottom: 40px;
+}
+
+.main-content.no-navbar {
+  padding-top: 0;
 }
 </style>

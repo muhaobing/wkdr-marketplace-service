@@ -44,13 +44,28 @@
           <span>积分: {{ balance.toFixed(2) }}</span>
         </div>
 
-        <!-- 用户ID -->
-        <div class="nav-item user-item">
+        <!-- 用户信息下拉菜单 -->
+        <div class="nav-item user-item" @click="toggleDropdown">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
             <circle cx="12" cy="7" r="4"/>
           </svg>
           <span>{{ userName }} ({{ userId }})</span>
+          <svg class="dropdown-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="6 9 12 15 18 9"/>
+          </svg>
+          
+          <!-- 下拉菜单 -->
+          <div v-if="showDropdown" class="dropdown-menu" @click.stop>
+            <button @click="handleLogout" class="dropdown-item logout-btn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                <polyline points="16 17 21 12 16 7"/>
+                <line x1="21" y1="12" x2="9" y2="12"/>
+              </svg>
+              <span>退出登录</span>
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -58,20 +73,46 @@
 </template>
 
 <script setup>
-import { computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { useCartStore } from '../stores/cart'
 import { useUserStore } from '../stores/user'
 
+const router = useRouter()
 const cartStore = useCartStore()
 const userStore = useUserStore()
+
+const showDropdown = ref(false)
 
 const cartCount = computed(() => cartStore.count)
 const userId = computed(() => userStore.userId)
 const userName = computed(() => userStore.userName)
 const balance = computed(() => userStore.balance)
 
+function toggleDropdown() {
+  showDropdown.value = !showDropdown.value
+}
+
+function handleLogout() {
+  userStore.logout()
+  showDropdown.value = false
+  router.push('/login')
+}
+
+// 点击外部关闭下拉菜单
+function handleClickOutside(event) {
+  if (!event.target.closest('.user-item')) {
+    showDropdown.value = false
+  }
+}
+
 onMounted(() => {
   userStore.fetchEcoin()
+  document.addEventListener('click', handleClickOutside)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('click', handleClickOutside)
 })
 </script>
 
@@ -166,6 +207,62 @@ onMounted(() => {
   padding: 6px 12px;
   background-color: var(--gray-100);
   border-radius: 20px;
+  cursor: pointer;
+  position: relative;
+}
+
+.user-item:hover {
+  background-color: var(--gray-200);
+}
+
+.dropdown-arrow {
+  width: 16px;
+  height: 16px;
+  transition: transform 0.2s;
+}
+
+.dropdown-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 8px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  min-width: 160px;
+  padding: 8px 0;
+  z-index: 1001;
+}
+
+.dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 16px;
+  border: none;
+  background: transparent;
+  font-size: 14px;
+  color: var(--gray-600);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.dropdown-item:hover {
+  background-color: var(--gray-100);
+}
+
+.dropdown-item svg {
+  width: 18px;
+  height: 18px;
+}
+
+.logout-btn {
+  color: var(--danger);
+}
+
+.logout-btn:hover {
+  background-color: #fff5f5;
 }
 
 @media (max-width: 768px) {
