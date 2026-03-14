@@ -1,11 +1,13 @@
 package marketplace
 
 import (
+	"math"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/muhaobing-eng/std-go/restserver/registry"
 
+	"wdkr-marketplace-service/internal/common/config"
 	"wdkr-marketplace-service/internal/common/utils/http_utils"
 	"wdkr-marketplace-service/internal/domain/cart"
 	"wdkr-marketplace-service/internal/domain/ecoin"
@@ -331,6 +333,22 @@ func (r *MarketplaceResource) GetEcoinTransactions(ctx *gin.Context) {
 }
 
 // RechargeEcoinRequest 积分充值请求
+// GetRechargeConfig 获取积分充值配置
+// GET /marketplace/ecoin/recharge_config
+func (r *MarketplaceResource) GetRechargeConfig(ctx *gin.Context) {
+	unitPrice := config.GetConf().EcoinUnitPrice
+	// 最低充值数量 = ceil(0.01 / unitPrice)，保证支付金额 >= 1 分
+	minAmount := int(math.Ceil(0.01 / float64(unitPrice)))
+	if minAmount < 1 {
+		minAmount = 1
+	}
+
+	http_utils.WriteResponse(ctx, map[string]interface{}{
+		"unit_price": unitPrice,
+		"min_amount": minAmount,
+	}, nil)
+}
+
 type RechargeEcoinRequest struct {
 	UserId    uint64 `json:"user_id" binding:"required"`  // 用户ID
 	Amount    int    `json:"amount" binding:"required"`   // 充值积分数量
@@ -651,6 +669,7 @@ func (r *MarketplaceResource) Router() registry.Registry {
 			{
 				ecoinGroup.GET("/balance", r.GetEcoinBalance)
 				ecoinGroup.GET("/transactions", r.GetEcoinTransactions)
+				ecoinGroup.GET("/recharge_config", r.GetRechargeConfig)
 				ecoinGroup.POST("/recharge", r.RechargeEcoin)
 			}
 

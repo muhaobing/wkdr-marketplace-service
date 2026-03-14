@@ -26,7 +26,7 @@
           <div class="order-header">
             <div class="order-info">
               <span class="order-no">订单号: {{ order.order_no }}</span>
-              <span class="order-time">{{ formatTime(order.created_at) }}</span>
+              <span class="order-time">{{ formatTime(order.ctime) }}</span>
             </div>
             <span class="order-status" :class="getStatusClass(order.status)">
               {{ getStatusText(order.status) }}
@@ -48,7 +48,7 @@
                 <p>x{{ item.quantity }}</p>
               </div>
               <div class="item-price">
-                {{ item.price.toFixed(2) }} 积分
+                {{ (item.unit_price || 0).toFixed(2) }} 积分
               </div>
             </div>
           </div>
@@ -56,7 +56,7 @@
           <div class="order-footer">
             <div class="order-total">
               共 {{ getTotalQuantity(order) }} 件商品，合计: 
-              <strong>{{ order.total_amount.toFixed(2) }}</strong> 积分
+              <strong>{{ (order.pay_amount || 0).toFixed(2) }}</strong> 积分
             </div>
             <div class="order-actions" @click.stop>
               <button 
@@ -82,7 +82,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import { orderApi } from '../api'
 import { useUserStore } from '../stores/user'
@@ -92,6 +92,7 @@ const userStore = useUserStore()
 
 const orders = ref([])
 const loading = ref(false)
+let pollTimer = null
 
 // 订单状态映射
 const statusMap = {
@@ -146,20 +147,20 @@ async function fetchOrders() {
       {
         order_no: 'ORD20240101001',
         status: 0,
-        total_amount: 300,
-        created_at: Date.now() / 1000 - 3600,
+        pay_amount: 300,
+        ctime: Date.now() / 1000 - 3600,
         items: [
-          { id: 1, sku_name: '虚拟商品A', sku_avatar: '', quantity: 2, price: 100 },
-          { id: 2, sku_name: '虚拟商品B', sku_avatar: '', quantity: 1, price: 100 }
+          { id: 1, sku_name: '虚拟商品A', sku_avatar: '', quantity: 2, unit_price: 100 },
+          { id: 2, sku_name: '虚拟商品B', sku_avatar: '', quantity: 1, unit_price: 100 }
         ]
       },
       {
         order_no: 'ORD20240101002',
         status: 2,
-        total_amount: 500,
-        created_at: Date.now() / 1000 - 86400,
+        pay_amount: 500,
+        ctime: Date.now() / 1000 - 86400,
         items: [
-          { id: 3, sku_name: '高级会员', sku_avatar: '', quantity: 1, price: 500 }
+          { id: 3, sku_name: '高级会员', sku_avatar: '', quantity: 1, unit_price: 500 }
         ]
       }
     ]
@@ -189,8 +190,47 @@ function payOrder(order) {
   router.push(`/orders/${order.order_no}`)
 }
 
-onMounted(() => {
-  fetchOrders()
+// 轮询同步待支付订单状态
+async function pollPendingOrders() {
+  const pendingOrders = orders.value.filter(o => o.status === 0 || o.status === 1)
+  if (pendingOrders.length === 0) return
+
+  let changed = false
+  for (const order of pendingOrders) {
+    try {
+      const updated = await orderApi.sync(order.order_no)
+      if (updated && updated.status !== order.status) {
+        changed = true
+      }
+    } catch (e) {
+      // 忽略单个同步失败
+    }
+  }
+  if (changed) {
+    await fetchOrders()
+    userStore.refreshEcoin()
+  }
+}
+
+function startPolling() {
+  stopPolling()
+  pollTimer = setInterval(pollPendingOrders, 5000)
+}
+
+function stopPolling() {
+  if (pollTimer) {
+    clearInterval(pollTimer)
+    pollTimer = null
+  }
+}
+
+onMounted(async () => {
+  await fetchOrders()
+  startPolling()
+})
+
+onBeforeUnmount(() => {
+  stopPolling()
 })
 </script>
 

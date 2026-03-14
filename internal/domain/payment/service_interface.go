@@ -54,16 +54,21 @@ type ListPaymentOrdersResponse struct {
 	List  []*payment_model.PaymentOrder `json:"list"`  // 订单列表
 }
 
+// PaymentNotifyResult 支付回调处理结果
+type PaymentNotifyResult struct {
+	BizOrderNo string // 业务订单号
+	Status     uint8  // 支付状态（PaymentStatusPaid / PaymentStatusClosed）
+	PayTime    uint32 // 支付时间
+}
+
 // PaymentService 支付服务接口
 type PaymentService interface {
 	// CreatePayment 创建支付订单
 	// 返回支付凭证（二维码URL/H5链接/JSAPI参数）
 	CreatePayment(ctx context.Context, req *CreatePaymentRequest) (*CreatePaymentResponse, error)
 
-	// HandleNotify 处理支付回调
-	// channel: 支付渠道（wechat/alipay）
-	// data: 回调原始数据
-	HandleNotify(ctx context.Context, channel string, data []byte) error
+	// HandleNotify 处理支付回调，返回处理结果供上层联动业务订单
+	HandleNotify(ctx context.Context, channel string, data []byte) (*PaymentNotifyResult, error)
 
 	// QueryPayment 查询支付状态
 	// 返回最新的支付订单信息

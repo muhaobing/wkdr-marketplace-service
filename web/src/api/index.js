@@ -147,6 +147,10 @@ export const ecoinApi = {
   getTransactions(params) {
     return api.get('/ecoin/transactions', { params })
   },
+  // 获取充值配置
+  getRechargeConfig() {
+    return api.get('/ecoin/recharge_config')
+  },
   // 积分充值
   recharge(data) {
     return api.post('/ecoin/recharge', data)

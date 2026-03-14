@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/muhaobing-eng/std-go/go-common/database"
@@ -23,6 +24,18 @@ type orderServiceImpl struct {
 	skuService sku.SkuService
 	ecoinSvc   ecoin.EcoinService
 	paymentSvc payment.PaymentService
+	userSvc    UserServiceForOrder
+}
+
+// UserServiceForOrder 订单服务所需的用户服务接口（避免直接依赖 user 包）
+type UserServiceForOrder interface {
+	GetBindingsByUserId(ctx context.Context, userId uint) ([]UserBinding, error)
+}
+
+// UserBinding 用于履约时查找业务用户ID
+type UserBinding struct {
+	BizCode   string
+	BizUserId uint64
 }
 
 // NewOrderService 创建订单服务实例
@@ -31,12 +44,14 @@ func NewOrderService(
 	skuService sku.SkuService,
 	ecoinSvc ecoin.EcoinService,
 	paymentSvc payment.PaymentService,
+	userSvc UserServiceForOrder,
 ) OrderService {
 	return &orderServiceImpl{
 		orderRepo:  orderRepo,
 		skuService: skuService,
 		ecoinSvc:   ecoinSvc,
 		paymentSvc: paymentSvc,
+		userSvc:    userSvc,
 	}
 }
 
@@ -71,12 +86,10 @@ func (s *orderServiceImpl) CreateOrder(ctx context.Context, req *CreateOrderRequ
 	// 积分支付需要立即扣除积分
 	if req.PayType == ordermodel.PayTypeEcoin {
 		err := database.Transaction(ctx, func(ctx context.Context) error {
-			// 创建订单
 			if err := s.orderRepo.CreateOrder(ctx, order); err != nil {
 				return fmt.Errorf("failed to create order: %w", err)
 			}
 
-			// 创建订单明细
 			for _, item := range orderItems {
 				item.OrderId = order.Id
 			}
@@ -84,7 +97,6 @@ func (s *orderServiceImpl) CreateOrder(ctx context.Context, req *CreateOrderRequ
 				return fmt.Errorf("failed to create order items: %w", err)
 			}
 
-			// 扣除积分
 			_, err := s.ecoinSvc.DeductEcoin(ctx, &ecoin.DeductEcoinRequest{
 				UserId:      req.UserId,
 				Amount:      float64(order.PayAmount),
@@ -96,7 +108,6 @@ func (s *orderServiceImpl) CreateOrder(ctx context.Context, req *CreateOrderRequ
 				return fmt.Errorf("failed to deduct ecoin: %w", err)
 			}
 
-			// 更新订单为已支付
 			payTime := uint32(time.Now().Unix())
 			if err := s.orderRepo.UpdateOrderToPaid(ctx, order.OrderNo, payTime); err != nil {
 				return fmt.Errorf("failed to update order to paid: %w", err)
@@ -109,6 +120,13 @@ func (s *orderServiceImpl) CreateOrder(ctx context.Context, req *CreateOrderRequ
 		if err != nil {
 			return nil, err
 		}
+
+		// 积分支付成功后自动履约
+		go func() {
+			if fulfillErr := s.autoFulfill(context.Background(), order.OrderNo); fulfillErr != nil {
+				fmt.Printf("[WARN] auto fulfill failed for order %s: %v\n", order.OrderNo, fulfillErr)
+			}
+		}()
 	} else {
 		// 货币支付创建待支付订单
 		err := database.Transaction(ctx, func(ctx context.Context) error {
@@ -144,12 +162,16 @@ func (s *orderServiceImpl) buildOrder(ctx context.Context, req *CreateOrderReque
 	var totalQuantity int
 
 	if req.IsEcoinRecharge {
-		// 计算价格
 		unitPrice := config.GetConf().EcoinUnitPrice
 		totalAmount = float32(req.EcoinUnits) * unitPrice
 		totalQuantity = req.EcoinUnits
 
-		// 构建订单明细
+		// 校验支付金额不低于1分钱
+		if int64(totalAmount*100) < 1 {
+			return nil, nil, fmt.Errorf("充值金额过低，最低支付金额为1分钱，当前积分单价为%.4f元，请至少充值%d积分",
+				unitPrice, int(math.Ceil(0.01/float64(unitPrice))))
+		}
+
 		orderItem := &ordermodel.OrderItem{
 			OrderNo:       orderNo,
 			SkuId:         0,
@@ -362,14 +384,13 @@ func (s *orderServiceImpl) CancelOrder(ctx context.Context, req *CancelOrderRequ
 	})
 }
 
-// HandlePaymentSuccess 处理支付成功回调
+// HandlePaymentSuccess 处理支付成功：更新订单状态 + 自动履约
 func (s *orderServiceImpl) HandlePaymentSuccess(ctx context.Context, orderNo string, payTime uint32) error {
 	if orderNo == "" {
 		return errors.New("order_no is required")
 	}
 
-	return database.Transaction(ctx, func(ctx context.Context) error {
-		// 获取订单（加锁）
+	err := database.Transaction(ctx, func(ctx context.Context) error {
 		order, err := s.orderRepo.GetOrderForUpdate(ctx, orderNo)
 		if err != nil {
 			return fmt.Errorf("failed to get order: %w", err)
@@ -378,22 +399,31 @@ func (s *orderServiceImpl) HandlePaymentSuccess(ctx context.Context, orderNo str
 			return errors.New("order not found")
 		}
 
-		// 检查订单状态
 		if !order.IsPending() {
-			// 订单已处理，忽略重复回调
 			return nil
 		}
 
-		// 更新订单为已支付
 		if err := s.orderRepo.UpdateOrderToPaid(ctx, orderNo, payTime); err != nil {
 			return fmt.Errorf("failed to update order to paid: %w", err)
 		}
 
 		return nil
 	})
+	if err != nil {
+		return err
+	}
+
+	// 支付成功后异步尝试自动履约（不阻塞支付流程）
+	go func() {
+		if fulfillErr := s.autoFulfill(context.Background(), orderNo); fulfillErr != nil {
+			fmt.Printf("[WARN] auto fulfill failed for order %s: %v\n", orderNo, fulfillErr)
+		}
+	}()
+
+	return nil
 }
 
-// FulfillOrder 履约订单
+// FulfillOrder 手动履约订单（运营后台调用）
 func (s *orderServiceImpl) FulfillOrder(ctx context.Context, orderNo string, bizUserId string) error {
 	if orderNo == "" {
 		return errors.New("order_no is required")
@@ -401,8 +431,11 @@ func (s *orderServiceImpl) FulfillOrder(ctx context.Context, orderNo string, biz
 	if bizUserId == "" {
 		return errors.New("biz_user_id is required")
 	}
+	return s.doFulfill(ctx, orderNo, bizUserId)
+}
 
-	// 获取订单
+// autoFulfill 支付成功后自动履约
+func (s *orderServiceImpl) autoFulfill(ctx context.Context, orderNo string) error {
 	order, err := s.orderRepo.GetOrderByOrderNo(ctx, orderNo)
 	if err != nil {
 		return fmt.Errorf("failed to get order: %w", err)
@@ -410,28 +443,169 @@ func (s *orderServiceImpl) FulfillOrder(ctx context.Context, orderNo string, biz
 	if order == nil {
 		return errors.New("order not found")
 	}
+	if !order.IsPaid() {
+		return nil
+	}
 
-	// 验证订单状态（已支付才能履约）
+	items, err := s.orderRepo.GetOrderItemsByOrderId(ctx, order.Id)
+	if err != nil {
+		return fmt.Errorf("failed to get order items: %w", err)
+	}
+
+	// 判断是否为积分充值订单
+	if s.isEcoinRechargeOrder(items) {
+		return s.fulfillEcoinRecharge(ctx, order, items)
+	}
+
+	// 普通商品订单：查找用户绑定信息后履约
+	bizUserIdMap := s.buildBizUserIdMap(ctx, order.UserId)
+	return s.fulfillSkuItems(ctx, order, items, bizUserIdMap)
+}
+
+// isEcoinRechargeOrder 判断是否为积分充值订单
+func (s *orderServiceImpl) isEcoinRechargeOrder(items []*ordermodel.OrderItem) bool {
+	return len(items) == 1 && items[0].SkuId == 0 && items[0].SkuCode == "ecoin"
+}
+
+// fulfillEcoinRecharge 积分充值履约：给用户增加积分
+func (s *orderServiceImpl) fulfillEcoinRecharge(ctx context.Context, order *ordermodel.Order, items []*ordermodel.OrderItem) error {
+	item := items[0]
+	if !item.IsFulfillPending() {
+		return nil
+	}
+
+	_, err := s.ecoinSvc.AddEcoin(ctx, &ecoin.AddEcoinRequest{
+		UserId:      order.UserId,
+		Amount:      float64(item.Quantity),
+		SourceType:  "recharge",
+		SourceId:    order.OrderNo,
+		Description: fmt.Sprintf("积分充值 - 订单号: %s", order.OrderNo),
+	})
+
+	fulfillTime := uint32(time.Now().Unix())
+	if err != nil {
+		_ = s.orderRepo.UpdateOrderItemFulfillStatus(ctx, item.Id, ordermodel.FulfillStatusFailed, fulfillTime, err.Error())
+		return fmt.Errorf("failed to add ecoin: %w", err)
+	}
+
+	if err := s.orderRepo.UpdateOrderItemFulfillStatus(ctx, item.Id, ordermodel.FulfillStatusSuccess, fulfillTime, "积分充值成功"); err != nil {
+		return err
+	}
+	return s.orderRepo.UpdateOrderToFulfilled(ctx, order.OrderNo, fulfillTime)
+}
+
+// buildBizUserIdMap 构建 bizCode -> bizUserId 映射
+func (s *orderServiceImpl) buildBizUserIdMap(ctx context.Context, userId uint64) map[string]string {
+	result := make(map[string]string)
+	if s.userSvc == nil {
+		return result
+	}
+
+	bindings, err := s.userSvc.GetBindingsByUserId(ctx, uint(userId))
+	if err != nil {
+		fmt.Printf("[WARN] failed to get user bindings for userId %d: %v\n", userId, err)
+		return result
+	}
+	for _, b := range bindings {
+		result[b.BizCode] = fmt.Sprintf("%d", b.BizUserId)
+	}
+	return result
+}
+
+// fulfillSkuItems 普通商品履约
+func (s *orderServiceImpl) fulfillSkuItems(ctx context.Context, order *ordermodel.Order, items []*ordermodel.OrderItem, bizUserIdMap map[string]string) error {
+	pendingItems := make([]*ordermodel.OrderItem, 0)
+	for _, item := range items {
+		if item.IsFulfillPending() {
+			pendingItems = append(pendingItems, item)
+		}
+	}
+	if len(pendingItems) == 0 {
+		fulfillTime := uint32(time.Now().Unix())
+		return s.orderRepo.UpdateOrderToFulfilled(ctx, order.OrderNo, fulfillTime)
+	}
+
+	allSuccess := true
+	for _, item := range pendingItems {
+		skuInfo, err := s.skuService.GetSkuById(ctx, item.SkuId)
+
+		fulfillTime := uint32(time.Now().Unix())
+		var fulfillStatus uint8
+		var fulfillMsg string
+
+		if err != nil {
+			fulfillStatus = ordermodel.FulfillStatusFailed
+			fulfillMsg = fmt.Sprintf("get sku failed: %v", err)
+			allSuccess = false
+		} else if skuInfo.DeliveryMethod == "" {
+			// 没有履约接口，直接标记成功
+			fulfillStatus = ordermodel.FulfillStatusSuccess
+			fulfillMsg = "no delivery method, auto fulfilled"
+		} else {
+			// 查找 bizUserId
+			bizUserId := bizUserIdMap[skuInfo.BizCode]
+			if bizUserId == "" {
+				bizUserId = fmt.Sprintf("%d", order.UserId)
+			}
+
+			resp, err := s.skuService.FulfillSku(ctx, &sku.FulfillSkuRequest{
+				SkuId:     item.SkuId,
+				BizUserId: bizUserId,
+			})
+
+			if err != nil {
+				fulfillStatus = ordermodel.FulfillStatusFailed
+				fulfillMsg = fmt.Sprintf("fulfill error: %v", err)
+				allSuccess = false
+			} else if !resp.Success {
+				fulfillStatus = ordermodel.FulfillStatusFailed
+				fulfillMsg = resp.Message
+				allSuccess = false
+			} else {
+				fulfillStatus = ordermodel.FulfillStatusSuccess
+				fulfillMsg = resp.Message
+			}
+		}
+
+		if err := s.orderRepo.UpdateOrderItemFulfillStatus(ctx, item.Id, fulfillStatus, fulfillTime, fulfillMsg); err != nil {
+			return fmt.Errorf("failed to update order item fulfill status: %w", err)
+		}
+	}
+
+	if allSuccess {
+		fulfillTime := uint32(time.Now().Unix())
+		if err := s.orderRepo.UpdateOrderToFulfilled(ctx, order.OrderNo, fulfillTime); err != nil {
+			return fmt.Errorf("failed to update order to fulfilled: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// doFulfill 执行履约（手动调用时使用指定的 bizUserId）
+func (s *orderServiceImpl) doFulfill(ctx context.Context, orderNo string, bizUserId string) error {
+	order, err := s.orderRepo.GetOrderByOrderNo(ctx, orderNo)
+	if err != nil {
+		return fmt.Errorf("failed to get order: %w", err)
+	}
+	if order == nil {
+		return errors.New("order not found")
+	}
 	if !order.IsPaid() {
 		return fmt.Errorf("order is not paid, current status: %d", order.Status)
 	}
 
-	// 获取待履约的订单明细
 	items, err := s.orderRepo.GetPendingFulfillItems(ctx, orderNo)
 	if err != nil {
 		return fmt.Errorf("failed to get pending fulfill items: %w", err)
 	}
-
 	if len(items) == 0 {
-		// 所有商品已履约，更新订单状态
 		fulfillTime := uint32(time.Now().Unix())
 		return s.orderRepo.UpdateOrderToFulfilled(ctx, orderNo, fulfillTime)
 	}
 
-	// 逐个履约
 	allSuccess := true
 	for _, item := range items {
-		// 调用SKU履约接口
 		resp, err := s.skuService.FulfillSku(ctx, &sku.FulfillSkuRequest{
 			SkuId:     item.SkuId,
 			BizUserId: bizUserId,
@@ -454,13 +628,11 @@ func (s *orderServiceImpl) FulfillOrder(ctx context.Context, orderNo string, biz
 			fulfillMsg = resp.Message
 		}
 
-		// 更新明细履约状态
 		if err := s.orderRepo.UpdateOrderItemFulfillStatus(ctx, item.Id, fulfillStatus, fulfillTime, fulfillMsg); err != nil {
 			return fmt.Errorf("failed to update order item fulfill status: %w", err)
 		}
 	}
 
-	// 如果全部履约成功，更新订单状态
 	if allSuccess {
 		fulfillTime := uint32(time.Now().Unix())
 		if err := s.orderRepo.UpdateOrderToFulfilled(ctx, orderNo, fulfillTime); err != nil {
@@ -589,14 +761,12 @@ func (s *orderServiceImpl) SyncOrderStatus(ctx context.Context, orderNo string) 
 		}
 
 		if paymentOrder.IsPaid() {
-			// 支付成功，更新订单状态
 			if err := s.HandlePaymentSuccess(ctx, orderNo, paymentOrder.PayTime); err != nil {
 				return nil, err
 			}
 			order.Status = ordermodel.OrderStatusPaid
 			order.PayTime = paymentOrder.PayTime
 		} else if paymentOrder.IsClosed() {
-			// 支付关闭，取消订单
 			cancelTime := uint32(time.Now().Unix())
 			if err := s.orderRepo.UpdateOrderToCancelled(ctx, orderNo, cancelTime, "支付超时关闭"); err != nil {
 				return nil, fmt.Errorf("failed to cancel order: %w", err)
@@ -605,6 +775,14 @@ func (s *orderServiceImpl) SyncOrderStatus(ctx context.Context, orderNo string) 
 			order.CancelTime = cancelTime
 			order.CancelReason = "支付超时关闭"
 		}
+	}
+
+	// 重新获取最新订单（可能已被 autoFulfill 更新）
+	latestOrder, err := s.orderRepo.GetOrderByOrderNo(ctx, orderNo)
+	if err == nil && latestOrder != nil {
+		items, _ := s.orderRepo.GetOrderItemsByOrderId(ctx, latestOrder.Id)
+		latestOrder.Items = items
+		return latestOrder, nil
 	}
 
 	return order, nil

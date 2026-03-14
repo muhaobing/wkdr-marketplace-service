@@ -77,23 +77,32 @@ func (p *PaymentOrder) IsRefunded() bool {
 // ExtraData 扩展数据
 type ExtraData map[string]interface{}
 
-func (e ExtraData) Scan(value interface{}) error {
+func (e ExtraData) GormDataType() string {
+	return "json"
+}
+
+func (e *ExtraData) Scan(value interface{}) error {
 	if value == nil {
 		return nil
 	}
-	bytes, ok := value.([]byte)
-	if !ok {
+	var bytes []byte
+	switch v := value.(type) {
+	case []byte:
+		bytes = v
+	case string:
+		bytes = []byte(v)
+	default:
 		return errors.New("invalid type for ExtraData")
 	}
 	if len(bytes) == 0 {
 		return nil
 	}
-	return jsoniter.Unmarshal(bytes, &e)
+	return jsoniter.Unmarshal(bytes, e)
 }
 
 func (e ExtraData) Value() (driver.Value, error) {
 	if e == nil {
 		return nil, nil
 	}
-	return jsoniter.Marshal(e)
+	return jsoniter.MarshalToString(e)
 }

@@ -24,7 +24,8 @@ type WechatPayConfig struct {
 	MchID           string `yaml:"mch_id"`            // 微信支付商户号
 	APIKey          string `yaml:"api_key"`           // APIv3密钥（32字节）
 	SerialNo        string `yaml:"serial_no"`         // 商户API证书序列号
-	PrivateKey      string `yaml:"private_key"`       // 商户API私钥（PEM格式）
+	PrivateKey      string `yaml:"private_key"`       // 商户API私钥（PEM内容，与 private_key_path 二选一）
+	PrivateKeyPath  string `yaml:"private_key_path"`  // 商户API私钥文件路径（优先级高于 private_key）
 	NotifyURL       string `yaml:"notify_url"`        // 支付结果回调通知地址
 	RefundNotifyURL string `yaml:"refund_notify_url"` // 退款结果回调通知地址（可选）
 }

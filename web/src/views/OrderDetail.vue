@@ -72,15 +72,15 @@
             </div>
             <div class="info-item">
               <span class="label">创建时间</span>
-              <span class="value">{{ formatTime(order.created_at) }}</span>
+              <span class="value">{{ formatTime(order.ctime) }}</span>
             </div>
             <div class="info-item">
               <span class="label">支付类型</span>
               <span class="value">{{ order.pay_type === 'ecoin' ? '积分支付' : '在线支付' }}</span>
             </div>
-            <div class="info-item" v-if="order.paid_at">
+            <div class="info-item" v-if="order.pay_time">
               <span class="label">支付时间</span>
-              <span class="value">{{ formatTime(order.paid_at) }}</span>
+              <span class="value">{{ formatTime(order.pay_time) }}</span>
             </div>
           </div>
         </div>
@@ -103,18 +103,18 @@
                 <p>{{ item.sku_code }}</p>
               </div>
               <div class="item-quantity">x{{ item.quantity }}</div>
-              <div class="item-price">{{ item.price.toFixed(2) }} 积分</div>
+              <div class="item-price">{{ (item.unit_price || 0).toFixed(2) }} 积分</div>
             </div>
           </div>
 
           <div class="items-summary">
             <div class="summary-row">
               <span>商品总价</span>
-              <span>{{ order.total_amount.toFixed(2) }} 积分</span>
+              <span>{{ (order.original_amount || 0).toFixed(2) }} 积分</span>
             </div>
             <div class="summary-row total">
               <span>实付金额</span>
-              <span>{{ order.total_amount.toFixed(2) }} 积分</span>
+              <span>{{ (order.pay_amount || 0).toFixed(2) }} 积分</span>
             </div>
           </div>
         </div>
@@ -144,11 +144,30 @@
         </div>
       </div>
     </div>
+
+    <!-- 支付二维码弹窗 -->
+    <div v-if="showQrcodeModal" class="modal-overlay" @click.self="closeQrcodeModal">
+      <div class="modal-content card qrcode-modal">
+        <h3>扫码支付</h3>
+        <div class="qrcode-body">
+          <div class="qrcode-container">
+            <img v-if="qrcodeUrl" :src="qrcodeUrl" alt="支付二维码">
+            <div v-else class="qrcode-placeholder">二维码加载中...</div>
+          </div>
+          <p class="qrcode-tip">请使用微信扫描二维码完成支付</p>
+          <p class="qrcode-amount">支付金额：<strong>{{ (order?.pay_amount || 0).toFixed(2) }} 积分</strong></p>
+          <p class="qrcode-polling">正在等待支付结果...</p>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" @click="closeQrcodeModal">关闭</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { orderApi, paymentApi } from '../api'
 import { useUserStore } from '../stores/user'
@@ -165,6 +184,10 @@ const paying = ref(false)
 const showPaymentModal = ref(false)
 const paymentMethods = ref([])
 const selectedPayment = ref(null)
+
+const showQrcodeModal = ref(false)
+const qrcodeUrl = ref('')
+let pollTimer = null
 
 const statusMap = {
   0: { text: '待支付', class: 'status-warning' },
@@ -214,11 +237,12 @@ async function fetchOrder() {
       order_no: route.params.orderNo,
       status: 0,
       pay_type: 'ecoin',
-      total_amount: 300,
-      created_at: Date.now() / 1000 - 3600,
+      original_amount: 300,
+      pay_amount: 300,
+      ctime: Date.now() / 1000 - 3600,
       items: [
-        { id: 1, sku_code: 'SKU001', sku_name: '虚拟商品A', sku_avatar: '', quantity: 2, price: 100 },
-        { id: 2, sku_code: 'SKU002', sku_name: '虚拟商品B', sku_avatar: '', quantity: 1, price: 100 }
+        { id: 1, sku_code: 'SKU001', sku_name: '虚拟商品A', sku_avatar: '', quantity: 2, unit_price: 100 },
+        { id: 2, sku_code: 'SKU002', sku_name: '虚拟商品B', sku_avatar: '', quantity: 1, unit_price: 100 }
       ]
     }
   } finally {
@@ -272,15 +296,19 @@ async function payOrder() {
       pay_method: selectedPayment.value.pay_method
     })
     
+    closePaymentModal()
+
     if (selectedPayment.value.channel === 'ecoin') {
       alert('支付成功！')
       userStore.refreshEcoin()
+      fetchOrder()
     } else if (payRes.code_url) {
-      alert(`请使用微信扫描二维码完成支付\n${payRes.code_url}`)
+      qrcodeUrl.value = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(payRes.code_url)}`
+      showQrcodeModal.value = true
+      startPolling()
+    } else {
+      fetchOrder()
     }
-    
-    closePaymentModal()
-    fetchOrder()
   } catch (error) {
     alert('支付失败: ' + error.message)
   } finally {
@@ -288,8 +316,54 @@ async function payOrder() {
   }
 }
 
-onMounted(() => {
-  fetchOrder()
+function closeQrcodeModal() {
+  showQrcodeModal.value = false
+  qrcodeUrl.value = ''
+  stopPolling()
+}
+
+async function pollOrderStatus() {
+  if (!order.value) return
+  try {
+    const updated = await orderApi.sync(order.value.order_no)
+    if (updated && updated.status !== 0) {
+      order.value = updated
+      userStore.refreshEcoin()
+      if (showQrcodeModal.value) {
+        closeQrcodeModal()
+        if (updated.status === 1 || updated.status === 2) {
+          alert('支付成功！')
+        }
+      }
+      stopPolling()
+    }
+  } catch (e) {
+    // 忽略
+  }
+}
+
+function startPolling() {
+  stopPolling()
+  pollTimer = setInterval(pollOrderStatus, 3000)
+}
+
+function stopPolling() {
+  if (pollTimer) {
+    clearInterval(pollTimer)
+    pollTimer = null
+  }
+}
+
+onMounted(async () => {
+  await fetchOrder()
+  // 待支付订单自动开始轮询
+  if (order.value && order.value.status === 0 && order.value.pay_type === 'money' && order.value.payment_order_no) {
+    startPolling()
+  }
+})
+
+onBeforeUnmount(() => {
+  stopPolling()
 })
 </script>
 
@@ -613,5 +687,65 @@ onMounted(() => {
     text-align: left;
     margin-top: 8px;
   }
+}
+
+/* 二维码弹窗 */
+.qrcode-modal {
+  max-width: 360px;
+}
+
+.qrcode-body {
+  padding: 20px;
+  text-align: center;
+}
+
+.qrcode-container {
+  width: 200px;
+  height: 200px;
+  margin: 0 auto 16px;
+  background-color: var(--gray-100);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.qrcode-container img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.qrcode-placeholder {
+  color: var(--gray-400);
+  font-size: 14px;
+}
+
+.qrcode-tip {
+  font-size: 14px;
+  color: var(--gray-500);
+  margin-bottom: 8px;
+}
+
+.qrcode-amount {
+  font-size: 14px;
+  color: var(--gray-600);
+  margin-bottom: 8px;
+}
+
+.qrcode-amount strong {
+  color: var(--primary-color);
+  font-size: 18px;
+}
+
+.qrcode-polling {
+  font-size: 12px;
+  color: var(--gray-400);
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
 }
 </style>

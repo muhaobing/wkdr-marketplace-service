@@ -8,6 +8,7 @@ import (
 
 	"github.com/muhaobing-eng/std-go/go-common/database"
 
+	"wdkr-marketplace-service/internal/common/config"
 	"wdkr-marketplace-service/internal/domain/payment/channel"
 	"wdkr-marketplace-service/internal/domain/payment/payment_model"
 	"wdkr-marketplace-service/internal/domain/payment/repo"
@@ -154,21 +155,19 @@ func (s *paymentServiceImpl) CreatePayment(ctx context.Context, req *CreatePayme
 }
 
 // HandleNotify 处理支付回调
-func (s *paymentServiceImpl) HandleNotify(ctx context.Context, channelCode string, data []byte) error {
-	// 获取支付渠道
+func (s *paymentServiceImpl) HandleNotify(ctx context.Context, channelCode string, data []byte) (*PaymentNotifyResult, error) {
 	ch, err := s.getChannel(channelCode)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	// 验证并解析回调数据
 	notify, err := ch.VerifyNotify(ctx, data)
 	if err != nil {
-		return fmt.Errorf("failed to verify notify: %w", err)
+		return nil, fmt.Errorf("failed to verify notify: %w", err)
 	}
 
-	return database.Transaction(ctx, func(ctx context.Context) error {
-		// 获取支付订单（加锁）
+	var result *PaymentNotifyResult
+	err = database.Transaction(ctx, func(ctx context.Context) error {
 		order, err := s.paymentRepo.GetPaymentOrderForUpdate(ctx, notify.OrderNo)
 		if err != nil {
 			return fmt.Errorf("failed to get payment order: %w", err)
@@ -177,18 +176,14 @@ func (s *paymentServiceImpl) HandleNotify(ctx context.Context, channelCode strin
 			return fmt.Errorf("payment order not found: %s", notify.OrderNo)
 		}
 
-		// 检查订单状态
 		if !order.IsPending() {
-			// 订单已处理，忽略重复回调
 			return nil
 		}
 
-		// 更新订单状态
 		var newStatus uint8
 		if notify.Status == channel.PayStatusSuccess {
 			newStatus = payment_model.PaymentStatusPaid
 		} else {
-			// 支付失败，关闭订单
 			newStatus = payment_model.PaymentStatusClosed
 		}
 
@@ -196,8 +191,19 @@ func (s *paymentServiceImpl) HandleNotify(ctx context.Context, channelCode strin
 			return fmt.Errorf("failed to update payment order status: %w", err)
 		}
 
+		result = &PaymentNotifyResult{
+			BizOrderNo: order.BizOrderNo,
+			Status:     newStatus,
+			PayTime:    uint32(notify.PayTime),
+		}
+
 		return nil
 	})
+	if err != nil {
+		return nil, err
+	}
+
+	return result, nil
 }
 
 // QueryPayment 查询支付状态
@@ -560,7 +566,9 @@ func (s *paymentServiceImpl) generateRefundNo() string {
 
 // getNotifyUrl 获取回调地址
 func (s *paymentServiceImpl) getNotifyUrl(channelCode string) string {
-	// TODO: 从配置中获取回调地址
-	// 这里返回一个示例地址
-	return fmt.Sprintf("https://your-domain.com/api/payment/notify/%s", channelCode)
+	cfg := config.GetWechatPayConfig()
+	if cfg != nil && channelCode == payment_model.ChannelWechat && cfg.NotifyURL != "" {
+		return cfg.NotifyURL
+	}
+	return fmt.Sprintf("https://your-domain.com/openapi/callback/%s/pay", channelCode)
 }

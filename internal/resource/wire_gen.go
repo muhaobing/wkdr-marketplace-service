@@ -7,6 +7,8 @@
 package resource
 
 import (
+	"context"
+
 	"wdkr-marketplace-service/internal/domain/cart"
 	cartrepo "wdkr-marketplace-service/internal/domain/cart/repo"
 	"wdkr-marketplace-service/internal/domain/ecoin"
@@ -24,6 +26,26 @@ import (
 	"wdkr-marketplace-service/internal/resource/openapi"
 	"wdkr-marketplace-service/internal/resource/ops"
 )
+
+// userServiceAdapter 适配 user.UserService 到 order.UserServiceForOrder
+type userServiceAdapter struct {
+	userSvc user.UserService
+}
+
+func (a *userServiceAdapter) GetBindingsByUserId(ctx context.Context, userId uint) ([]order.UserBinding, error) {
+	bindings, err := a.userSvc.GetBindingsByUserId(ctx, userId)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]order.UserBinding, len(bindings))
+	for i, b := range bindings {
+		result[i] = order.UserBinding{
+			BizCode:   b.BizCode,
+			BizUserId: b.BizUserId,
+		}
+	}
+	return result, nil
+}
 
 // InitializeResources 初始化所有 Resources
 func InitializeResources() *Resources {
@@ -45,15 +67,16 @@ func InitializeResources() *Resources {
 	ecoinService := ecoin.NewEcoinService(ecoinRepo)
 	skuService := sku.NewSkuService(skuRepo)
 	paymentService := payment.ProvidePaymentService(paymentRepo, paymentChannels)
-	orderService := order.NewOrderService(orderRepo, skuService, ecoinService, paymentService)
 	userService := user.NewUserService(userRepo, userBindingRepo, ecoinService)
+	userSvcAdapter := &userServiceAdapter{userSvc: userService}
+	orderService := order.NewOrderService(orderRepo, skuService, ecoinService, paymentService, userSvcAdapter)
 	cartService := cart.NewCartService(cartRepo, skuService, orderService)
 
 	// 初始化 Resources
 	healthyResource := healthy.NewHealthyResource()
 	marketplaceResource := marketplace.NewMarketplaceResource(skuService, orderService, ecoinService, userService, cartService)
 	opsResource := ops.NewOpsResource(skuService, orderService)
-	openAPIResource := openapi.NewOpenAPIResource(ecoinService, paymentService, userService)
+	openAPIResource := openapi.NewOpenAPIResource(ecoinService, paymentService, userService, orderService)
 
 	// 聚合返回
 	resources := NewResources(healthyResource, marketplaceResource, opsResource, openAPIResource)

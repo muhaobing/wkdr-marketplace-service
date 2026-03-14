@@ -33,14 +33,11 @@ config:
       - "/ops/"
   # 微信支付配置
   wechat_pay:
-    app_id: "wx_mock_appid"
-    mch_id: "1234567890"
-    api_key: "mock_api_key_32bytes"
-    serial_no: "MOCK_SERIAL_NO"
-    private_key: "|
-      -----BEGIN PRIVATE KEY-----
-      MOCK_PRIVATE_KEY_REPLACE_ME
-      -----END PRIVATE KEY-----"
+    app_id: "wxa73175af23fa8262"
+    mch_id: "1739371658"
+    api_key: "7H8j9K2s5D8f7G9h1J3k5L7m8N9b0V8z"
+    serial_no: "56FCA42324AD15BBE258203AB1AE6FA08FC473B3"
+    private_key_path: "script/keys/1739371658_20260213_cert/apiclient_key.pem"
     notify_url: "https://your-domain.com/openapi/callback/wechat/pay"
     refund_notify_url: "https://your-domain.com/openapi/callback/wechat/refund"
   ecoin_unit_price: 1

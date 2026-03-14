@@ -3,13 +3,20 @@ package wechat
 import (
 	"bytes"
 	"context"
+	"crypto"
+	"crypto/rand"
+	"crypto/rsa"
 	"crypto/sha256"
+	"crypto/x509"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"time"
 
 	"wdkr-marketplace-service/internal/domain/payment/channel"
@@ -21,17 +28,47 @@ type WechatPayChannel struct {
 	config     *WechatPayConfig
 	httpClient *http.Client
 	baseURL    string
+	privateKey *rsa.PrivateKey
 }
 
 // NewWechatPayChannel 创建微信支付渠道
 func NewWechatPayChannel(config *WechatPayConfig) *WechatPayChannel {
-	return &WechatPayChannel{
+	ch := &WechatPayChannel{
 		config: config,
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
 		},
 		baseURL: ProductionBaseURL,
 	}
+
+	if config.PrivateKey != "" {
+		key, err := parsePrivateKey(config.PrivateKey)
+		if err != nil {
+			fmt.Printf("[WARN] failed to parse wechat private key: %v\n", err)
+		} else {
+			ch.privateKey = key
+		}
+	}
+
+	return ch
+}
+
+func parsePrivateKey(pemStr string) (*rsa.PrivateKey, error) {
+	block, _ := pem.Decode([]byte(pemStr))
+	if block == nil {
+		return nil, errors.New("failed to decode PEM block")
+	}
+
+	key, err := x509.ParsePKCS8PrivateKey(block.Bytes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse PKCS8 private key: %w", err)
+	}
+
+	rsaKey, ok := key.(*rsa.PrivateKey)
+	if !ok {
+		return nil, errors.New("private key is not RSA")
+	}
+	return rsaKey, nil
 }
 
 // GetChannelCode 获取渠道代码
@@ -395,17 +432,22 @@ func (w *WechatPayChannel) VerifyNotify(ctx context.Context, data []byte) (*chan
 }
 
 // doRequest 发送HTTP请求
-func (w *WechatPayChannel) doRequest(ctx context.Context, method, url string, params interface{}) ([]byte, error) {
-	var body io.Reader
+func (w *WechatPayChannel) doRequest(ctx context.Context, method, fullURL string, params interface{}) ([]byte, error) {
+	var bodyBytes []byte
 	if params != nil {
-		jsonData, err := json.Marshal(params)
+		var err error
+		bodyBytes, err = json.Marshal(params)
 		if err != nil {
 			return nil, fmt.Errorf("marshal params failed: %w", err)
 		}
-		body = bytes.NewReader(jsonData)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, method, url, body)
+	var body io.Reader
+	if bodyBytes != nil {
+		body = bytes.NewReader(bodyBytes)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, method, fullURL, body)
 	if err != nil {
 		return nil, fmt.Errorf("create request failed: %w", err)
 	}
@@ -413,9 +455,17 @@ func (w *WechatPayChannel) doRequest(ctx context.Context, method, url string, pa
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
 
-	// 添加签名头
-	// TODO: 实际生产环境需要实现完整的签名逻辑
-	authorization := w.generateAuthorization(method, url, body)
+	// 提取 URL 路径部分（含 query string）用于签名
+	parsedURL, err := url.Parse(fullURL)
+	if err != nil {
+		return nil, fmt.Errorf("parse url failed: %w", err)
+	}
+	urlPath := parsedURL.RequestURI()
+
+	authorization, err := w.generateAuthorization(method, urlPath, bodyBytes)
+	if err != nil {
+		return nil, fmt.Errorf("generate authorization failed: %w", err)
+	}
 	req.Header.Set("Authorization", authorization)
 
 	resp, err := w.httpClient.Do(req)
@@ -429,7 +479,6 @@ func (w *WechatPayChannel) doRequest(ctx context.Context, method, url string, pa
 		return nil, fmt.Errorf("read response failed: %w", err)
 	}
 
-	// 检查HTTP状态码
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		var errResp struct {
 			Code    string `json:"code"`
@@ -444,40 +493,58 @@ func (w *WechatPayChannel) doRequest(ctx context.Context, method, url string, pa
 	return respBody, nil
 }
 
-// generateAuthorization 生成Authorization头
-// TODO: 生产环境需要实现完整的签名逻辑
-func (w *WechatPayChannel) generateAuthorization(method, url string, body io.Reader) string {
+// generateAuthorization 生成 APIv3 Authorization 头
+func (w *WechatPayChannel) generateAuthorization(method, urlPath string, bodyBytes []byte) (string, error) {
 	timestamp := fmt.Sprintf("%d", time.Now().Unix())
 	nonceStr := w.generateNonceStr()
 
-	// 构建签名串
-	// 实际需要使用私钥进行RSA-SHA256签名
-	message := fmt.Sprintf("%s\n%s\n%s\n%s\n", method, url, timestamp, nonceStr)
-	signature := w.signMessage(message)
+	bodyStr := ""
+	if bodyBytes != nil {
+		bodyStr = string(bodyBytes)
+	}
 
-	return fmt.Sprintf("WECHATPAY2-SHA256-RSA2048 mchid=\"%s\",nonce_str=\"%s\",signature=\"%s\",timestamp=\"%s\",serial_no=\"%s\"",
-		w.config.MchID, nonceStr, signature, timestamp, w.config.SerialNo)
+	// 构建签名串: HTTP请求方法\nURL\n请求时间戳\n请求随机串\n请求报文主体\n
+	message := fmt.Sprintf("%s\n%s\n%s\n%s\n%s\n", method, urlPath, timestamp, nonceStr, bodyStr)
+
+	signature, err := w.signMessage(message)
+	if err != nil {
+		return "", err
+	}
+
+	return fmt.Sprintf(`WECHATPAY2-SHA256-RSA2048 mchid="%s",nonce_str="%s",signature="%s",timestamp="%s",serial_no="%s"`,
+		w.config.MchID, nonceStr, signature, timestamp, w.config.SerialNo), nil
 }
 
-// signMessage 签名消息
-// TODO: 生产环境需要使用真实的RSA私钥签名
-func (w *WechatPayChannel) signMessage(message string) string {
-	// Mock签名 - 生产环境需要使用RSA私钥签名
-	hash := sha256.Sum256([]byte(message))
-	return hex.EncodeToString(hash[:])
+// signMessage 使用 RSA-SHA256 私钥签名
+func (w *WechatPayChannel) signMessage(message string) (string, error) {
+	if w.privateKey == nil {
+		return "", errors.New("private key not configured")
+	}
+
+	hashed := sha256.Sum256([]byte(message))
+	signature, err := rsa.SignPKCS1v15(rand.Reader, w.privateKey, crypto.SHA256, hashed[:])
+	if err != nil {
+		return "", fmt.Errorf("rsa sign failed: %w", err)
+	}
+	return base64.StdEncoding.EncodeToString(signature), nil
 }
 
-// generatePaySign 生成支付签名（JSAPI）
-// TODO: 生产环境需要使用真实的RSA私钥签名
+// generatePaySign 生成支付签名（JSAPI 前端调起支付）
 func (w *WechatPayChannel) generatePaySign(appId, timestamp, nonceStr, packageStr string) string {
 	message := fmt.Sprintf("%s\n%s\n%s\n%s\n", appId, timestamp, nonceStr, packageStr)
-	return w.signMessage(message)
+	sig, err := w.signMessage(message)
+	if err != nil {
+		fmt.Printf("[WARN] generate pay sign failed: %v\n", err)
+		return ""
+	}
+	return sig
 }
 
 // generateNonceStr 生成随机字符串
 func (w *WechatPayChannel) generateNonceStr() string {
-	hash := sha256.Sum256([]byte(fmt.Sprintf("%d", time.Now().UnixNano())))
-	return hex.EncodeToString(hash[:])[:32]
+	b := make([]byte, 16)
+	_, _ = rand.Read(b)
+	return hex.EncodeToString(b)
 }
 
 // convertTradeState 转换交易状态

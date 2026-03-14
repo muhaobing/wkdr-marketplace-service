@@ -1,6 +1,10 @@
 package payment
 
 import (
+	"fmt"
+	"os"
+	"strings"
+
 	"wdkr-marketplace-service/internal/common/config"
 	"wdkr-marketplace-service/internal/domain/payment/channel"
 	"wdkr-marketplace-service/internal/domain/payment/channel/wechat"
@@ -11,8 +15,17 @@ import (
 func NewWechatPayConfig() *wechat.WechatPayConfig {
 	cfg := config.GetWechatPayConfig()
 	if cfg == nil || cfg.AppID == "" {
-		// 配置未初始化或未配置，使用 Mock 配置（仅用于开发测试）
 		return wechat.NewMockConfig()
+	}
+
+	privateKey := cfg.PrivateKey
+	if cfg.PrivateKeyPath != "" {
+		data, err := os.ReadFile(cfg.PrivateKeyPath)
+		if err != nil {
+			fmt.Printf("[WARN] failed to read private key file: %s, err: %v\n", cfg.PrivateKeyPath, err)
+		} else {
+			privateKey = strings.TrimSpace(string(data))
+		}
 	}
 
 	return &wechat.WechatPayConfig{
@@ -20,7 +33,7 @@ func NewWechatPayConfig() *wechat.WechatPayConfig {
 		MchID:           cfg.MchID,
 		APIKey:          cfg.APIKey,
 		SerialNo:        cfg.SerialNo,
-		PrivateKey:      cfg.PrivateKey,
+		PrivateKey:      privateKey,
 		NotifyURL:       cfg.NotifyURL,
 		RefundNotifyURL: cfg.RefundNotifyURL,
 	}

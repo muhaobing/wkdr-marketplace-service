@@ -1,6 +1,7 @@
 package openapi
 
 import (
+	"fmt"
 	"io"
 	"net/http"
 	"strconv"
@@ -10,7 +11,9 @@ import (
 
 	"wdkr-marketplace-service/internal/common/utils/http_utils"
 	"wdkr-marketplace-service/internal/domain/ecoin"
+	"wdkr-marketplace-service/internal/domain/order"
 	"wdkr-marketplace-service/internal/domain/payment"
+	"wdkr-marketplace-service/internal/domain/payment/payment_model"
 	"wdkr-marketplace-service/internal/domain/user"
 )
 
@@ -19,14 +22,16 @@ type OpenAPIResource struct {
 	ecoinService   ecoin.EcoinService
 	paymentService payment.PaymentService
 	userService    user.UserService
+	orderService   order.OrderService
 }
 
 // NewOpenAPIResource 创建OpenAPI资源实例
-func NewOpenAPIResource(ecoinService ecoin.EcoinService, paymentService payment.PaymentService, userService user.UserService) *OpenAPIResource {
+func NewOpenAPIResource(ecoinService ecoin.EcoinService, paymentService payment.PaymentService, userService user.UserService, orderService order.OrderService) *OpenAPIResource {
 	return &OpenAPIResource{
 		ecoinService:   ecoinService,
 		paymentService: paymentService,
 		userService:    userService,
+		orderService:   orderService,
 	}
 }
 
@@ -297,7 +302,7 @@ func (r *OpenAPIResource) WechatPayNotify(ctx *gin.Context) {
 		return
 	}
 
-	err = r.paymentService.HandleNotify(ctx.Request.Context(), "wechat", body)
+	result, err := r.paymentService.HandleNotify(ctx.Request.Context(), "wechat", body)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{
 			"code":    "FAIL",
@@ -306,7 +311,13 @@ func (r *OpenAPIResource) WechatPayNotify(ctx *gin.Context) {
 		return
 	}
 
-	// 返回成功响应（微信支付V3 API要求的格式）
+	// 支付成功 → 联动更新业务订单并触发履约
+	if result != nil && result.Status == payment_model.PaymentStatusPaid {
+		if err := r.orderService.HandlePaymentSuccess(ctx.Request.Context(), result.BizOrderNo, result.PayTime); err != nil {
+			fmt.Printf("[WARN] handle payment success failed for order %s: %v\n", result.BizOrderNo, err)
+		}
+	}
+
 	ctx.JSON(http.StatusOK, gin.H{
 		"code":    "SUCCESS",
 		"message": "成功",
@@ -325,7 +336,7 @@ func (r *OpenAPIResource) WechatRefundNotify(ctx *gin.Context) {
 		return
 	}
 
-	err = r.paymentService.HandleNotify(ctx.Request.Context(), "wechat_refund", body)
+	_, err = r.paymentService.HandleNotify(ctx.Request.Context(), "wechat_refund", body)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{
 			"code":    "FAIL",
@@ -349,13 +360,18 @@ func (r *OpenAPIResource) AlipayPayNotify(ctx *gin.Context) {
 		return
 	}
 
-	err = r.paymentService.HandleNotify(ctx.Request.Context(), "alipay", body)
+	result, err := r.paymentService.HandleNotify(ctx.Request.Context(), "alipay", body)
 	if err != nil {
 		ctx.String(http.StatusInternalServerError, "fail")
 		return
 	}
 
-	// 返回成功响应（支付宝要求的格式）
+	if result != nil && result.Status == payment_model.PaymentStatusPaid {
+		if err := r.orderService.HandlePaymentSuccess(ctx.Request.Context(), result.BizOrderNo, result.PayTime); err != nil {
+			fmt.Printf("[WARN] handle payment success failed for order %s: %v\n", result.BizOrderNo, err)
+		}
+	}
+
 	ctx.String(http.StatusOK, "success")
 }
 

@@ -37,6 +37,12 @@ const routes = [
     component: () => import('../views/OrderDetail.vue'),
     meta: { requiresAuth: true }
   },
+  {
+    path: '/ecoin',
+    name: 'EcoinCenter',
+    component: () => import('../views/EcoinCenter.vue'),
+    meta: { requiresAuth: true }
+  },
   // 运营中心路由
   {
     path: '/ops',

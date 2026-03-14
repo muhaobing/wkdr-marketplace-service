@@ -35,14 +35,14 @@
           <span>订单中心</span>
         </router-link>
 
-        <!-- 用户积分 -->
-        <div class="nav-item ecoin-item">
+        <!-- 用户积分（点击跳转到积分中心） -->
+        <router-link to="/ecoin" class="nav-item ecoin-item">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="12" cy="12" r="10"/>
             <path d="M12 6v12M8 10h8M8 14h8"/>
           </svg>
           <span>积分: {{ balance.toFixed(2) }}</span>
-        </div>
+        </router-link>
 
         <!-- 运营中心（仅管理员可见） -->
         <router-link v-if="isAdmin" to="/ops" class="nav-item ops-item">
@@ -68,6 +68,13 @@
           
           <!-- 下拉菜单 -->
           <div v-if="showDropdown" class="dropdown-menu" @click.stop>
+            <router-link to="/ecoin" class="dropdown-item ecoin-center-btn" @click="showDropdown = false">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/>
+                <path d="M12 6v12M8 10h8M8 14h8"/>
+              </svg>
+              <span>积分中心</span>
+            </router-link>
             <button @click="handleLogout" class="dropdown-item logout-btn">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
@@ -283,6 +290,15 @@ onUnmounted(() => {
 .dropdown-item svg {
   width: 18px;
   height: 18px;
+}
+
+.ecoin-center-btn {
+  color: var(--warning);
+  text-decoration: none;
+}
+
+.ecoin-center-btn:hover {
+  background-color: #fffaf0;
 }
 
 .logout-btn {
