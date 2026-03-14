@@ -432,18 +432,6 @@ func (r *MarketplaceResource) GetPaymentMethods(ctx *gin.Context) {
 			PayMethod: "native",
 			Icon:      "",
 		},
-		{
-			Channel:   "wechat",
-			Name:      "微信H5支付",
-			PayMethod: "h5",
-			Icon:      "",
-		},
-		{
-			Channel:   "wechat",
-			Name:      "微信JSAPI支付",
-			PayMethod: "jsapi",
-			Icon:      "",
-		},
 	}
 
 	http_utils.WriteResponse(ctx, methods, nil)

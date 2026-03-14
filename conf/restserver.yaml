@@ -40,4 +40,4 @@ config:
     private_key_path: "script/keys/1739371658_20260213_cert/apiclient_key.pem"
     notify_url: "https://your-domain.com/openapi/callback/wechat/pay"
     refund_notify_url: "https://your-domain.com/openapi/callback/wechat/refund"
-  ecoin_unit_price: 1
+  ecoin_unit_price: 0.0001
