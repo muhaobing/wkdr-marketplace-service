@@ -37,7 +37,13 @@
           </div>
           <div class="status-info">
             <h2>{{ getStatusText(order.status) }}</h2>
-            <p v-if="order.status === 0">请在30分钟内完成支付</p>
+            <p v-if="order.status === 0" class="countdown-text">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="countdown-icon">
+                <circle cx="12" cy="12" r="10"/>
+                <polyline points="12 6 12 12 16 14"/>
+              </svg>
+              剩余支付时间：<strong>{{ countdownText }}</strong>
+            </p>
             <p v-else-if="order.status === 1">订单正在处理中</p>
             <p v-else-if="order.status === 2">订单已完成</p>
             <p v-else-if="order.status === 3">订单已取消</p>
@@ -167,7 +173,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { orderApi, paymentApi } from '../api'
 import { useUserStore } from '../stores/user'
@@ -175,6 +181,8 @@ import { useUserStore } from '../stores/user'
 const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
+
+const PAYMENT_TIMEOUT = 15 * 60
 
 const order = ref(null)
 const loading = ref(false)
@@ -188,6 +196,18 @@ const selectedPayment = ref(null)
 const showQrcodeModal = ref(false)
 const qrcodeUrl = ref('')
 let pollTimer = null
+
+const now = ref(Math.floor(Date.now() / 1000))
+let countdownTimer = null
+
+const countdownText = computed(() => {
+  if (!order.value) return ''
+  const remaining = (order.value.ctime + PAYMENT_TIMEOUT) - now.value
+  if (remaining <= 0) return '即将关闭'
+  const min = Math.floor(remaining / 60)
+  const sec = remaining % 60
+  return `${min}:${sec.toString().padStart(2, '0')}`
+})
 
 const statusMap = {
   0: { text: '待支付', class: 'status-warning' },
@@ -226,27 +246,28 @@ function formatTime(timestamp) {
   })
 }
 
-async function fetchOrder() {
-  loading.value = true
+async function fetchOrder(silent = false) {
+  if (!silent) loading.value = true
   try {
     order.value = await orderApi.detail(route.params.orderNo)
   } catch (error) {
     console.error('获取订单详情失败:', error)
-    // Mock 数据
-    order.value = {
-      order_no: route.params.orderNo,
-      status: 0,
-      pay_type: 'ecoin',
-      original_amount: 300,
-      pay_amount: 300,
-      ctime: Date.now() / 1000 - 3600,
-      items: [
-        { id: 1, sku_code: 'SKU001', sku_name: '虚拟商品A', sku_avatar: '', quantity: 2, unit_price: 100 },
-        { id: 2, sku_code: 'SKU002', sku_name: '虚拟商品B', sku_avatar: '', quantity: 1, unit_price: 100 }
-      ]
+    if (!silent) {
+      order.value = {
+        order_no: route.params.orderNo,
+        status: 0,
+        pay_type: 'ecoin',
+        original_amount: 300,
+        pay_amount: 300,
+        ctime: Date.now() / 1000 - 3600,
+        items: [
+          { id: 1, sku_code: 'SKU001', sku_name: '虚拟商品A', sku_avatar: '', quantity: 2, unit_price: 100 },
+          { id: 2, sku_code: 'SKU002', sku_name: '虚拟商品B', sku_avatar: '', quantity: 1, unit_price: 100 }
+        ]
+      }
     }
   } finally {
-    loading.value = false
+    if (!silent) loading.value = false
   }
 }
 
@@ -273,7 +294,7 @@ async function cancelOrder() {
     await orderApi.cancel(order.value.order_no, '用户主动取消')
     alert('订单已取消')
     userStore.refreshEcoin()
-    fetchOrder()
+    fetchOrder(true)
   } catch (error) {
     alert('取消订单失败: ' + error.message)
   } finally {
@@ -301,13 +322,13 @@ async function payOrder() {
     if (selectedPayment.value.channel === 'ecoin') {
       alert('支付成功！')
       userStore.refreshEcoin()
-      fetchOrder()
+      fetchOrder(true)
     } else if (payRes.code_url) {
       qrcodeUrl.value = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(payRes.code_url)}`
       showQrcodeModal.value = true
       startPolling()
     } else {
-      fetchOrder()
+      fetchOrder(true)
     }
   } catch (error) {
     alert('支付失败: ' + error.message)
@@ -322,20 +343,29 @@ function closeQrcodeModal() {
   stopPolling()
 }
 
+function isActiveStatus() {
+  return order.value && (order.value.status === 0 || order.value.status === 1)
+}
+
 async function pollOrderStatus() {
-  if (!order.value) return
+  if (!order.value || !isActiveStatus()) {
+    stopPolling()
+    return
+  }
   try {
     const updated = await orderApi.sync(order.value.order_no)
-    if (updated && updated.status !== 0) {
+    if (updated && updated.status !== order.value.status) {
+      const prevStatus = order.value.status
       order.value = updated
       userStore.refreshEcoin()
-      if (showQrcodeModal.value) {
+      if (showQrcodeModal.value && prevStatus === 0 && (updated.status === 1 || updated.status === 2)) {
         closeQrcodeModal()
-        if (updated.status === 1 || updated.status === 2) {
-          alert('支付成功！')
-        }
+        alert('支付成功！')
       }
-      stopPolling()
+      if (!isActiveStatus()) {
+        stopPolling()
+        stopCountdown()
+      }
     }
   } catch (e) {
     // 忽略
@@ -344,6 +374,7 @@ async function pollOrderStatus() {
 
 function startPolling() {
   stopPolling()
+  if (!isActiveStatus()) return
   pollTimer = setInterval(pollOrderStatus, 3000)
 }
 
@@ -354,16 +385,37 @@ function stopPolling() {
   }
 }
 
+function stopCountdown() {
+  if (countdownTimer) {
+    clearInterval(countdownTimer)
+    countdownTimer = null
+  }
+}
+
 onMounted(async () => {
   await fetchOrder()
-  // 待支付订单自动开始轮询
-  if (order.value && order.value.status === 0 && order.value.pay_type === 'money' && order.value.payment_order_no) {
+  if (isActiveStatus()) {
     startPolling()
+    countdownTimer = setInterval(() => {
+      now.value = Math.floor(Date.now() / 1000)
+      if (order.value && order.value.status === 0) {
+        const remaining = (order.value.ctime + PAYMENT_TIMEOUT) - now.value
+        if (remaining <= 0) {
+          fetchOrder(true).then(() => {
+            if (!isActiveStatus()) {
+              stopPolling()
+              stopCountdown()
+            }
+          })
+        }
+      }
+    }, 1000)
   }
 })
 
 onBeforeUnmount(() => {
   stopPolling()
+  stopCountdown()
 })
 </script>
 
@@ -452,6 +504,25 @@ onBeforeUnmount(() => {
 .status-info p {
   font-size: 14px;
   color: var(--gray-500);
+}
+
+.countdown-text {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #d97706 !important;
+  font-variant-numeric: tabular-nums;
+}
+
+.countdown-text strong {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.countdown-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
 }
 
 .status-actions {

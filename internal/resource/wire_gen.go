@@ -9,6 +9,7 @@ package resource
 import (
 	"context"
 
+	"wdkr-marketplace-service/internal/cron"
 	"wdkr-marketplace-service/internal/domain/cart"
 	cartrepo "wdkr-marketplace-service/internal/domain/cart/repo"
 	"wdkr-marketplace-service/internal/domain/ecoin"
@@ -78,7 +79,13 @@ func InitializeResources() *Resources {
 	opsResource := ops.NewOpsResource(skuService, orderService)
 	openAPIResource := openapi.NewOpenAPIResource(ecoinService, paymentService, userService, orderService)
 
+	// 初始化定时任务
+	scheduler := cron.NewScheduler()
+	scheduler.Register(cron.NewOrderTimeoutTask(orderRepo, paymentService))
+	scheduler.Register(cron.NewOrderFulfillTask(orderRepo, orderService))
+
 	// 聚合返回
 	resources := NewResources(healthyResource, marketplaceResource, opsResource, openAPIResource)
+	resources.Scheduler = scheduler
 	return resources
 }

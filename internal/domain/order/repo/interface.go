@@ -46,6 +46,9 @@ type OrderRepo interface {
 	// CountOrdersByUserId 统计用户的订单数量
 	CountOrdersByUserId(ctx context.Context, userId uint64, status *uint8) (int64, error)
 
+	// ListOrdersByStatus 按状态查询订单列表（定时任务使用）
+	ListOrdersByStatus(ctx context.Context, status uint8, limit int) ([]*ordermodel.Order, error)
+
 	// ==================== 订单明细 ====================
 
 	// CreateOrderItems 批量创建订单明细

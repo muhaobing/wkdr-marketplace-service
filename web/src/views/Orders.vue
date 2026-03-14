@@ -28,9 +28,14 @@
               <span class="order-no">订单号: {{ order.order_no }}</span>
               <span class="order-time">{{ formatTime(order.ctime) }}</span>
             </div>
-            <span class="order-status" :class="getStatusClass(order.status)">
-              {{ getStatusText(order.status) }}
-            </span>
+            <div class="order-status-wrap">
+              <span class="order-status" :class="getStatusClass(order.status)">
+                {{ getStatusText(order.status) }}
+              </span>
+              <span v-if="order.status === 0" class="countdown">
+                {{ getCountdown(order.ctime) }}
+              </span>
+            </div>
           </div>
 
           <div class="order-items">
@@ -90,9 +95,13 @@ import { useUserStore } from '../stores/user'
 const router = useRouter()
 const userStore = useUserStore()
 
+const PAYMENT_TIMEOUT = 15 * 60
+
 const orders = ref([])
 const loading = ref(false)
+const now = ref(Math.floor(Date.now() / 1000))
 let pollTimer = null
+let countdownTimer = null
 
 // 订单状态映射
 const statusMap = {
@@ -135,37 +144,46 @@ function getTotalQuantity(order) {
   return order.items?.reduce((sum, item) => sum + item.quantity, 0) || 0
 }
 
-async function fetchOrders() {
-  loading.value = true
+function getCountdown(ctime) {
+  const remaining = (ctime + PAYMENT_TIMEOUT) - now.value
+  if (remaining <= 0) return '即将关闭'
+  const min = Math.floor(remaining / 60)
+  const sec = remaining % 60
+  return `${min}:${sec.toString().padStart(2, '0')} 后自动取消`
+}
+
+async function fetchOrders(silent = false) {
+  if (!silent) loading.value = true
   try {
     const res = await orderApi.list({ user_id: userStore.userId, limit: 100 })
     orders.value = res?.list || []
   } catch (error) {
     console.error('获取订单列表失败:', error)
-    // Mock 数据
-    orders.value = [
-      {
-        order_no: 'ORD20240101001',
-        status: 0,
-        pay_amount: 300,
-        ctime: Date.now() / 1000 - 3600,
-        items: [
-          { id: 1, sku_name: '虚拟商品A', sku_avatar: '', quantity: 2, unit_price: 100 },
-          { id: 2, sku_name: '虚拟商品B', sku_avatar: '', quantity: 1, unit_price: 100 }
-        ]
-      },
-      {
-        order_no: 'ORD20240101002',
-        status: 2,
-        pay_amount: 500,
-        ctime: Date.now() / 1000 - 86400,
-        items: [
-          { id: 3, sku_name: '高级会员', sku_avatar: '', quantity: 1, unit_price: 500 }
-        ]
-      }
-    ]
+    if (!silent) {
+      orders.value = [
+        {
+          order_no: 'ORD20240101001',
+          status: 0,
+          pay_amount: 300,
+          ctime: Date.now() / 1000 - 3600,
+          items: [
+            { id: 1, sku_name: '虚拟商品A', sku_avatar: '', quantity: 2, unit_price: 100 },
+            { id: 2, sku_name: '虚拟商品B', sku_avatar: '', quantity: 1, unit_price: 100 }
+          ]
+        },
+        {
+          order_no: 'ORD20240101002',
+          status: 2,
+          pay_amount: 500,
+          ctime: Date.now() / 1000 - 86400,
+          items: [
+            { id: 3, sku_name: '高级会员', sku_avatar: '', quantity: 1, unit_price: 500 }
+          ]
+        }
+      ]
+    }
   } finally {
-    loading.value = false
+    if (!silent) loading.value = false
   }
 }
 
@@ -179,7 +197,7 @@ async function cancelOrder(order) {
   try {
     await orderApi.cancel(order.order_no, '用户主动取消')
     alert('订单已取消')
-    fetchOrders()
+    fetchOrders(true)
     userStore.refreshEcoin()
   } catch (error) {
     alert('取消订单失败: ' + error.message)
@@ -190,13 +208,19 @@ function payOrder(order) {
   router.push(`/orders/${order.order_no}`)
 }
 
-// 轮询同步待支付订单状态
-async function pollPendingOrders() {
-  const pendingOrders = orders.value.filter(o => o.status === 0 || o.status === 1)
-  if (pendingOrders.length === 0) return
+function hasActiveOrders() {
+  return orders.value.some(o => o.status === 0 || o.status === 1)
+}
 
+async function pollPendingOrders() {
+  if (!hasActiveOrders()) {
+    stopPolling()
+    return
+  }
+
+  const activeOrders = orders.value.filter(o => o.status === 0 || o.status === 1)
   let changed = false
-  for (const order of pendingOrders) {
+  for (const order of activeOrders) {
     try {
       const updated = await orderApi.sync(order.order_no)
       if (updated && updated.status !== order.status) {
@@ -207,13 +231,15 @@ async function pollPendingOrders() {
     }
   }
   if (changed) {
-    await fetchOrders()
+    await fetchOrders(true)
     userStore.refreshEcoin()
+    if (!hasActiveOrders()) stopPolling()
   }
 }
 
 function startPolling() {
   stopPolling()
+  if (!hasActiveOrders()) return
   pollTimer = setInterval(pollPendingOrders, 5000)
 }
 
@@ -227,10 +253,25 @@ function stopPolling() {
 onMounted(async () => {
   await fetchOrders()
   startPolling()
+  countdownTimer = setInterval(() => {
+    now.value = Math.floor(Date.now() / 1000)
+    const expired = orders.value.some(
+      o => o.status === 0 && (o.ctime + PAYMENT_TIMEOUT) - now.value <= 0
+    )
+    if (expired) {
+      fetchOrders(true).then(() => {
+        if (!hasActiveOrders()) stopPolling()
+      })
+    }
+  }, 1000)
 })
 
 onBeforeUnmount(() => {
   stopPolling()
+  if (countdownTimer) {
+    clearInterval(countdownTimer)
+    countdownTimer = null
+  }
 })
 </script>
 
@@ -281,11 +322,24 @@ onBeforeUnmount(() => {
   color: var(--gray-400);
 }
 
+.order-status-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
 .order-status {
   padding: 4px 12px;
   border-radius: 20px;
   font-size: 12px;
   font-weight: 500;
+}
+
+.countdown {
+  font-size: 12px;
+  color: #d97706;
+  font-variant-numeric: tabular-nums;
 }
 
 .order-items {

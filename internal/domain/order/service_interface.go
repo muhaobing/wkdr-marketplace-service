@@ -114,4 +114,7 @@ type OrderService interface {
 	// SyncOrderStatus 同步订单状态
 	// 主动查询支付状态并更新订单
 	SyncOrderStatus(ctx context.Context, orderNo string) (*ordermodel.Order, error)
+
+	// AutoFulfill 自动履约（定时任务使用）
+	AutoFulfill(ctx context.Context, orderNo string) error
 }

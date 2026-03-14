@@ -4,6 +4,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/muhaobing-eng/std-go/restserver/registry"
 
+	"wdkr-marketplace-service/internal/cron"
 	"wdkr-marketplace-service/internal/resource/healthy"
 	"wdkr-marketplace-service/internal/resource/marketplace"
 	"wdkr-marketplace-service/internal/resource/openapi"
@@ -16,6 +17,7 @@ type Resources struct {
 	Marketplace *marketplace.MarketplaceResource
 	Ops         *ops.OpsResource
 	OpenAPI     *openapi.OpenAPIResource
+	Scheduler   *cron.Scheduler
 }
 
 // NewResources 构建 Resources

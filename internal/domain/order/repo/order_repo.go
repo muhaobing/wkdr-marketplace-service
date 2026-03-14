@@ -145,6 +145,17 @@ func (r *orderRepoImpl) CountOrdersByUserId(ctx context.Context, userId uint64, 
 	return count, err
 }
 
+// ListOrdersByStatus 按状态查询订单列表
+func (r *orderRepoImpl) ListOrdersByStatus(ctx context.Context, status uint8, limit int) ([]*ordermodel.Order, error) {
+	var orders []*ordermodel.Order
+	err := database.FromContext(ctx).
+		Where("status = ?", status).
+		Order("id ASC").
+		Limit(limit).
+		Find(&orders).Error
+	return orders, err
+}
+
 // ==================== 订单明细 ====================
 
 // CreateOrderItems 批量创建订单明细

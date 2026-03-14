@@ -27,7 +27,11 @@ func main() {
 	handler.RegisterHandler(&middleware.RecoveryHandler{})
 	handler.RegisterHandler(&middleware.AuthValidationHandler{})
 
-	// 2. init rest server
+	// 2. init resources
+	resources := resource.InitializeResources()
+	bootstrap.SetResources(resources)
+
+	// 3. init rest server
 	if err := restserver.Init(
 		registry.MiddlewareRegistry(
 			database.DatabaseHandlerKey,
@@ -36,19 +40,19 @@ func main() {
 			middleware.AuthValidationHandlerKey,
 		),
 		registry.RouterRegistry(
-			resource.InitializeResources(),
+			resources,
 		),
 	); err != nil {
 		log.Fatalf("init rest server failed: %v", err)
 		return
 	}
 
-	// 3. init rest server dependencies
+	// 4. start background tasks
 	if err := bootstrap.StartUp(); err != nil {
 		log.Fatalf("start bootstrap failed: %v", err)
 		return
 	}
 
-	// 4. run the rest server
+	// 5. run the rest server
 	restserver.Run()
 }

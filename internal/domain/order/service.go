@@ -7,15 +7,22 @@ import (
 	"math"
 	"time"
 
+	"github.com/muhaobing-eng/std-go/go-common/cache"
 	"github.com/muhaobing-eng/std-go/go-common/database"
 
 	"wdkr-marketplace-service/internal/common/config"
+	"wdkr-marketplace-service/internal/common/utils"
 	"wdkr-marketplace-service/internal/domain/ecoin"
 	ordermodel "wdkr-marketplace-service/internal/domain/order/order_model"
 	"wdkr-marketplace-service/internal/domain/order/repo"
 	"wdkr-marketplace-service/internal/domain/payment"
 	"wdkr-marketplace-service/internal/domain/payment/payment_model"
 	"wdkr-marketplace-service/internal/domain/sku"
+)
+
+const (
+	fulfillLockPrefix = "lock:fulfill:"
+	fulfillLockTTL    = 60 * time.Second
 )
 
 // orderServiceImpl 订单服务实现
@@ -121,12 +128,7 @@ func (s *orderServiceImpl) CreateOrder(ctx context.Context, req *CreateOrderRequ
 			return nil, err
 		}
 
-		// 积分支付成功后自动履约
-		go func() {
-			if fulfillErr := s.autoFulfill(context.Background(), order.OrderNo); fulfillErr != nil {
-				fmt.Printf("[WARN] auto fulfill failed for order %s: %v\n", order.OrderNo, fulfillErr)
-			}
-		}()
+		go s.asyncAutoFulfill(order.OrderNo)
 	} else {
 		// 货币支付创建待支付订单
 		err := database.Transaction(ctx, func(ctx context.Context) error {
@@ -413,12 +415,7 @@ func (s *orderServiceImpl) HandlePaymentSuccess(ctx context.Context, orderNo str
 		return err
 	}
 
-	// 支付成功后异步尝试自动履约（不阻塞支付流程）
-	go func() {
-		if fulfillErr := s.autoFulfill(context.Background(), orderNo); fulfillErr != nil {
-			fmt.Printf("[WARN] auto fulfill failed for order %s: %v\n", orderNo, fulfillErr)
-		}
-	}()
+	go s.asyncAutoFulfill(orderNo)
 
 	return nil
 }
@@ -432,6 +429,46 @@ func (s *orderServiceImpl) FulfillOrder(ctx context.Context, orderNo string, biz
 		return errors.New("biz_user_id is required")
 	}
 	return s.doFulfill(ctx, orderNo, bizUserId)
+}
+
+// AutoFulfill 自动履约（获取分布式锁 + 执行履约）
+// 所有自动履约入口统一调用此方法：微信回调、积分支付、定时任务、前端同步
+func (s *orderServiceImpl) AutoFulfill(ctx context.Context, orderNo string) error {
+	lock, err := utils.AcquireDistributedLock(ctx, utils.GenKey(":", fulfillLockPrefix, orderNo), fulfillLockTTL)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		_ = lock.Release(ctx) // 忽略报错，即使解锁失败也会自动过期
+	}()
+
+	return s.autoFulfill(ctx, orderNo)
+}
+
+// asyncAutoFulfill 异步自动履约（构建后台 context 后调用 AutoFulfill）
+func (s *orderServiceImpl) asyncAutoFulfill(orderNo string) {
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Printf("[WARN] asyncAutoFulfill panic for order %s: %v\n", orderNo, r)
+		}
+	}()
+
+	ctx := s.buildBackgroundContext()
+	if err := s.AutoFulfill(ctx, orderNo); err != nil {
+		fmt.Printf("[WARN] auto fulfill failed for order %s: %v\n", orderNo, err)
+	}
+}
+
+// buildBackgroundContext 构建包含 DB 和 Redis 的后台 context
+func (s *orderServiceImpl) buildBackgroundContext() context.Context {
+	ctx := context.Background()
+	if db, err := database.New(database.GetDefaultOption()); err == nil {
+		ctx = database.Context(ctx, db)
+	}
+	if redis, err := cache.New(cache.GetDefaultOption()); err == nil {
+		ctx = cache.Context(ctx, redis)
+	}
+	return ctx
 }
 
 // autoFulfill 支付成功后自动履约
@@ -733,13 +770,12 @@ func (s *orderServiceImpl) ListOrders(ctx context.Context, req *ListOrdersReques
 	}, nil
 }
 
-// SyncOrderStatus 同步订单状态
+// SyncOrderStatus 同步订单状态（仅查询，不触发履约）
 func (s *orderServiceImpl) SyncOrderStatus(ctx context.Context, orderNo string) (*ordermodel.Order, error) {
 	if orderNo == "" {
 		return nil, errors.New("order_no is required")
 	}
 
-	// 获取订单
 	order, err := s.orderRepo.GetOrderByOrderNo(ctx, orderNo)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get order: %w", err)
@@ -748,36 +784,33 @@ func (s *orderServiceImpl) SyncOrderStatus(ctx context.Context, orderNo string) 
 		return nil, errors.New("order not found")
 	}
 
-	// 如果订单不是待支付状态，直接返回
-	if !order.IsPending() {
+	// 非待支付/已支付状态，直接返回
+	if !order.IsPending() && order.Status != ordermodel.OrderStatusPaid {
+		items, _ := s.orderRepo.GetOrderItemsByOrderId(ctx, order.Id)
+		order.Items = items
 		return order, nil
 	}
 
-	// 如果是货币支付且有支付订单号，同步支付状态
-	if order.IsMoneyPay() && order.PaymentOrderNo != "" {
+	// 待支付 + 货币支付，主动查询支付渠道获取最新支付结果
+	if order.IsPending() && order.IsMoneyPay() && order.PaymentOrderNo != "" {
 		paymentOrder, err := s.paymentSvc.SyncPaymentStatus(ctx, order.PaymentOrderNo)
 		if err != nil {
 			return nil, fmt.Errorf("failed to sync payment status: %w", err)
 		}
 
 		if paymentOrder.IsPaid() {
-			if err := s.HandlePaymentSuccess(ctx, orderNo, paymentOrder.PayTime); err != nil {
-				return nil, err
+			if err := s.orderRepo.UpdateOrderToPaid(ctx, orderNo, paymentOrder.PayTime); err != nil {
+				return nil, fmt.Errorf("failed to update order to paid: %w", err)
 			}
-			order.Status = ordermodel.OrderStatusPaid
-			order.PayTime = paymentOrder.PayTime
 		} else if paymentOrder.IsClosed() {
 			cancelTime := uint32(time.Now().Unix())
 			if err := s.orderRepo.UpdateOrderToCancelled(ctx, orderNo, cancelTime, "支付超时关闭"); err != nil {
 				return nil, fmt.Errorf("failed to cancel order: %w", err)
 			}
-			order.Status = ordermodel.OrderStatusCancelled
-			order.CancelTime = cancelTime
-			order.CancelReason = "支付超时关闭"
 		}
 	}
 
-	// 重新获取最新订单（可能已被 autoFulfill 更新）
+	// 返回最新订单状态
 	latestOrder, err := s.orderRepo.GetOrderByOrderNo(ctx, orderNo)
 	if err == nil && latestOrder != nil {
 		items, _ := s.orderRepo.GetOrderItemsByOrderId(ctx, latestOrder.Id)
@@ -785,6 +818,8 @@ func (s *orderServiceImpl) SyncOrderStatus(ctx context.Context, orderNo string) 
 		return latestOrder, nil
 	}
 
+	items, _ := s.orderRepo.GetOrderItemsByOrderId(ctx, order.Id)
+	order.Items = items
 	return order, nil
 }
 
