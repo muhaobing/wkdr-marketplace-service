@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/muhaobing-eng/std-go/go-common/cache"
-	"github.com/muhaobing-eng/std-go/go-common/database"
+	"github.com/muhaobing/std-go/go-common/cache"
+	"github.com/muhaobing/std-go/go-common/database"
 
 	"wdkr-marketplace-service/internal/common/config"
 	"wdkr-marketplace-service/internal/common/utils/auth_utils"

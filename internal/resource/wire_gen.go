@@ -80,12 +80,9 @@ func InitializeResources() *Resources {
 	openAPIResource := openapi.NewOpenAPIResource(ecoinService, paymentService, userService, orderService)
 
 	// 初始化定时任务
-	scheduler := cron.NewScheduler()
-	scheduler.Register(cron.NewOrderTimeoutTask(orderRepo, paymentService))
-	scheduler.Register(cron.NewOrderFulfillTask(orderRepo, orderService))
+	orderTimeoutTask := cron.NewOrderTimeoutTask(orderRepo, paymentService)
+	orderFulfillTask := cron.NewOrderFulfillTask(orderRepo, orderService)
 
 	// 聚合返回
-	resources := NewResources(healthyResource, marketplaceResource, opsResource, openAPIResource)
-	resources.Scheduler = scheduler
-	return resources
+	return NewResources(healthyResource, marketplaceResource, opsResource, openAPIResource, orderTimeoutTask, orderFulfillTask)
 }

@@ -2,9 +2,9 @@ package resource
 
 import (
 	"github.com/gin-gonic/gin"
-	"github.com/muhaobing-eng/std-go/restserver/registry"
+	"github.com/muhaobing/std-go/restserver/registry"
+	"github.com/muhaobing/std-go/restserver/scheduler"
 
-	"wdkr-marketplace-service/internal/cron"
 	"wdkr-marketplace-service/internal/resource/healthy"
 	"wdkr-marketplace-service/internal/resource/marketplace"
 	"wdkr-marketplace-service/internal/resource/openapi"
@@ -17,7 +17,7 @@ type Resources struct {
 	Marketplace *marketplace.MarketplaceResource
 	Ops         *ops.OpsResource
 	OpenAPI     *openapi.OpenAPIResource
-	Scheduler   *cron.Scheduler
+	Schedulers  []scheduler.Scheduler
 }
 
 // NewResources 构建 Resources
@@ -26,12 +26,14 @@ func NewResources(
 	marketplace *marketplace.MarketplaceResource,
 	ops *ops.OpsResource,
 	openapi *openapi.OpenAPIResource,
+	schedulers ...scheduler.Scheduler,
 ) *Resources {
 	return &Resources{
 		Healthy:     healthy,
 		Marketplace: marketplace,
 		Ops:         ops,
 		OpenAPI:     openapi,
+		Schedulers:  schedulers,
 	}
 }
 

@@ -4,7 +4,7 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	"github.com/muhaobing-eng/std-go/restserver/registry"
+	"github.com/muhaobing/std-go/restserver/registry"
 
 	"wdkr-marketplace-service/internal/common/utils/http_utils"
 	"wdkr-marketplace-service/internal/domain/order"

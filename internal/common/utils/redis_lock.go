@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/go-redis/redis/v8"
-	"github.com/muhaobing-eng/std-go/go-common/cache"
+	"github.com/muhaobing/std-go/go-common/cache"
 )
 
 var luaRelease = redis.NewScript(`

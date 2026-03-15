@@ -3,20 +3,19 @@ package main
 import (
 	"log"
 
-	"github.com/muhaobing-eng/std-go/restserver"
-	"github.com/muhaobing-eng/std-go/restserver/handler"
-	"github.com/muhaobing-eng/std-go/restserver/middleware/cache"
-	"github.com/muhaobing-eng/std-go/restserver/middleware/database"
-	"github.com/muhaobing-eng/std-go/restserver/registry"
+	"github.com/muhaobing/std-go/restserver"
+	"github.com/muhaobing/std-go/restserver/handler"
+	"github.com/muhaobing/std-go/restserver/middleware/cache"
+	"github.com/muhaobing/std-go/restserver/middleware/database"
+	"github.com/muhaobing/std-go/restserver/registry"
 
-	"wdkr-marketplace-service/bootstrap"
 	"wdkr-marketplace-service/internal/common/config"
 	"wdkr-marketplace-service/internal/resource"
 	"wdkr-marketplace-service/middleware"
 )
 
 func main() {
-	// 0. set environments
+	// 0. init config
 	if err := config.Init(); err != nil {
 		log.Fatalf("init config failed: %v", err)
 	}
@@ -29,9 +28,8 @@ func main() {
 
 	// 2. init resources
 	resources := resource.InitializeResources()
-	bootstrap.SetResources(resources)
 
-	// 3. init rest server
+	// 3. init rest server (middleware + routes)
 	if err := restserver.Init(
 		registry.MiddlewareRegistry(
 			database.DatabaseHandlerKey,
@@ -39,20 +37,16 @@ func main() {
 			middleware.RecoveryHandlerKey,
 			middleware.AuthValidationHandlerKey,
 		),
-		registry.RouterRegistry(
-			resources,
-		),
+		registry.RouterRegistry(resources),
 	); err != nil {
 		log.Fatalf("init rest server failed: %v", err)
-		return
 	}
 
-	// 4. start background tasks
-	if err := bootstrap.StartUp(); err != nil {
-		log.Fatalf("start bootstrap failed: %v", err)
-		return
+	// 4. register schedulers
+	for _, s := range resources.Schedulers {
+		restserver.RegisterScheduler(s)
 	}
 
-	// 5. run the rest server
+	// 5. run the rest server (auto starts scheduler)
 	restserver.Run()
 }

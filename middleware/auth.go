@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/muhaobing-eng/std-go/go-common/cache"
+	"github.com/muhaobing/std-go/go-common/cache"
 
 	"wdkr-marketplace-service/internal/common/config"
 	"wdkr-marketplace-service/internal/common/utils/auth_utils"

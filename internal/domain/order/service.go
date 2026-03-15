@@ -7,9 +7,9 @@ import (
 	"math"
 	"time"
 
-	"github.com/muhaobing-eng/std-go/go-common/cache"
-	"github.com/muhaobing-eng/std-go/go-common/database"
+	"github.com/muhaobing/std-go/go-common/database"
 
+	"wdkr-marketplace-service/bootstrap"
 	"wdkr-marketplace-service/internal/common/config"
 	"wdkr-marketplace-service/internal/common/utils"
 	"wdkr-marketplace-service/internal/domain/ecoin"
@@ -453,22 +453,10 @@ func (s *orderServiceImpl) asyncAutoFulfill(orderNo string) {
 		}
 	}()
 
-	ctx := s.buildBackgroundContext()
+	ctx := bootstrap.BackgroundContext()
 	if err := s.AutoFulfill(ctx, orderNo); err != nil {
 		fmt.Printf("[WARN] auto fulfill failed for order %s: %v\n", orderNo, err)
 	}
-}
-
-// buildBackgroundContext 构建包含 DB 和 Redis 的后台 context
-func (s *orderServiceImpl) buildBackgroundContext() context.Context {
-	ctx := context.Background()
-	if db, err := database.New(database.GetDefaultOption()); err == nil {
-		ctx = database.Context(ctx, db)
-	}
-	if redis, err := cache.New(cache.GetDefaultOption()); err == nil {
-		ctx = cache.Context(ctx, redis)
-	}
-	return ctx
 }
 
 // autoFulfill 支付成功后自动履约

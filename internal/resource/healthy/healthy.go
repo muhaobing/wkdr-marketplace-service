@@ -4,9 +4,9 @@ import (
 	"errors"
 
 	"github.com/gin-gonic/gin"
-	"github.com/muhaobing-eng/std-go/go-common/cache"
-	"github.com/muhaobing-eng/std-go/go-common/database"
-	"github.com/muhaobing-eng/std-go/restserver/registry"
+	"github.com/muhaobing/std-go/go-common/cache"
+	"github.com/muhaobing/std-go/go-common/database"
+	"github.com/muhaobing/std-go/restserver/registry"
 
 	"wdkr-marketplace-service/internal/common/utils/http_utils"
 )

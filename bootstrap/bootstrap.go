@@ -1,17 +1,21 @@
 package bootstrap
 
-import "wdkr-marketplace-service/internal/resource"
+import (
+	"context"
 
-var scheduler *resource.Resources
+	"github.com/muhaobing/std-go/go-common/cache"
+	"github.com/muhaobing/std-go/go-common/database"
+	"github.com/muhaobing/std-go/restserver/lib"
+)
 
-// SetResources 设置资源引用（在 main 中调用）
-func SetResources(r *resource.Resources) {
-	scheduler = r
-}
-
-func StartUp() error {
-	if scheduler != nil && scheduler.Scheduler != nil {
-		scheduler.Scheduler.Start()
+// BackgroundContext 构建包含全局 DB 和 Redis 的后台 context，供异步 goroutine 使用
+func BackgroundContext() context.Context {
+	ctx := context.Background()
+	if db := lib.GetDB(); db != nil {
+		ctx = database.Context(ctx, db)
 	}
-	return nil
+	if rdb := lib.GetRedis(); rdb != nil {
+		ctx = cache.Context(ctx, rdb)
+	}
+	return ctx
 }

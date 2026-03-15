@@ -1,7 +1,7 @@
 package config
 
 import (
-	"github.com/muhaobing-eng/std-go/restserver/config"
+	"github.com/muhaobing/std-go/restserver/config"
 )
 
 // Conf 应用配置

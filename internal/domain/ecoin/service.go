@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/muhaobing-eng/std-go/go-common/database"
+	"github.com/muhaobing/std-go/go-common/database"
 
 	"wdkr-marketplace-service/internal/domain/ecoin/ecoin_model"
 	"wdkr-marketplace-service/internal/domain/ecoin/repo"

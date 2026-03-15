@@ -5,9 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/muhaobing-eng/std-go/go-common/cache"
-	"github.com/muhaobing-eng/std-go/go-common/database"
-
 	ordermodel "wdkr-marketplace-service/internal/domain/order/order_model"
 	"wdkr-marketplace-service/internal/domain/order/repo"
 	"wdkr-marketplace-service/internal/domain/payment"
@@ -24,31 +21,27 @@ type OrderTimeoutTask struct {
 	paymentSvc payment.PaymentService
 }
 
-// NewOrderTimeoutTask 创建待支付订单超时任务
-func NewOrderTimeoutTask(orderRepo repo.OrderRepo, paymentSvc payment.PaymentService) *Task {
-	t := &OrderTimeoutTask{
+func NewOrderTimeoutTask(orderRepo repo.OrderRepo, paymentSvc payment.PaymentService) *OrderTimeoutTask {
+	return &OrderTimeoutTask{
 		orderRepo:  orderRepo,
 		paymentSvc: paymentSvc,
 	}
-	return &Task{
-		Name:    "order_timeout_scan",
-		Ticker:  10 * time.Second,
-		Handler: t.Run,
-	}
 }
 
-func (t *OrderTimeoutTask) Run() {
-	ctx := t.buildContext()
+func (t *OrderTimeoutTask) Name() string {
+	return "order_timeout_scan"
+}
+
+func (t *OrderTimeoutTask) Ticker() time.Duration {
+	return 10 * time.Second
+}
+
+func (t *OrderTimeoutTask) Handle(ctx context.Context) error {
 	now := time.Now()
 
 	orders, err := t.orderRepo.ListOrdersByStatus(ctx, ordermodel.OrderStatusPending, pendingScanLimit)
 	if err != nil {
-		fmt.Printf("[OrderTimeoutTask] list pending orders failed: %v\n", err)
-		return
-	}
-
-	if len(orders) == 0 {
-		return
+		return fmt.Errorf("list pending orders: %w", err)
 	}
 
 	for _, order := range orders {
@@ -59,11 +52,11 @@ func (t *OrderTimeoutTask) Run() {
 			continue
 		}
 
-		// 货币支付且有支付单号 → 主动查询微信支付状态
 		if order.IsMoneyPay() && order.PaymentOrderNo != "" {
 			t.syncPayment(ctx, order)
 		}
 	}
+	return nil
 }
 
 func (t *OrderTimeoutTask) cancelOrder(ctx context.Context, order *ordermodel.Order) {
@@ -73,7 +66,6 @@ func (t *OrderTimeoutTask) cancelOrder(ctx context.Context, order *ordermodel.Or
 		return
 	}
 
-	// 同时关闭支付单
 	if order.PaymentOrderNo != "" {
 		_ = t.paymentSvc.ClosePayment(ctx, order.PaymentOrderNo)
 	}
@@ -95,22 +87,4 @@ func (t *OrderTimeoutTask) syncPayment(ctx context.Context, order *ordermodel.Or
 			fmt.Printf("[OrderTimeoutTask] order %s payment confirmed\n", order.OrderNo)
 		}
 	}
-}
-
-func (t *OrderTimeoutTask) buildContext() context.Context {
-	ctx := context.Background()
-	db, err := database.New(database.GetDefaultOption())
-	if err != nil {
-		fmt.Printf("[OrderTimeoutTask] create db failed: %v\n", err)
-		return ctx
-	}
-	ctx = database.Context(ctx, db)
-
-	redis, err := cache.New(cache.GetDefaultOption())
-	if err != nil {
-		fmt.Printf("[OrderTimeoutTask] create cache failed: %v\n", err)
-		return ctx
-	}
-	ctx = cache.Context(ctx, redis)
-	return ctx
 }

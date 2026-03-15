@@ -109,18 +109,18 @@
                 <p>{{ item.sku_code }}</p>
               </div>
               <div class="item-quantity">x{{ item.quantity }}</div>
-              <div class="item-price">{{ (item.unit_price || 0).toFixed(2) }} 积分</div>
+              <div class="item-price">¥{{ (item.unit_price || 0).toFixed(2) }}</div>
             </div>
           </div>
 
           <div class="items-summary">
             <div class="summary-row">
               <span>商品总价</span>
-              <span>{{ (order.original_amount || 0).toFixed(2) }} 积分</span>
+              <span>¥{{ (order.original_amount || 0).toFixed(2) }}</span>
             </div>
             <div class="summary-row total">
               <span>实付金额</span>
-              <span>{{ (order.pay_amount || 0).toFixed(2) }} 积分</span>
+              <span>¥{{ (order.pay_amount || 0).toFixed(2) }}</span>
             </div>
           </div>
         </div>
@@ -161,7 +161,7 @@
             <div v-else class="qrcode-placeholder">二维码加载中...</div>
           </div>
           <p class="qrcode-tip">请使用微信扫描二维码完成支付</p>
-          <p class="qrcode-amount">支付金额：<strong>{{ (order?.pay_amount || 0).toFixed(2) }} 积分</strong></p>
+          <p class="qrcode-amount">支付金额：<strong>¥{{ (order?.pay_amount || 0).toFixed(2) }}</strong></p>
           <p class="qrcode-polling">正在等待支付结果...</p>
         </div>
         <div class="modal-footer">

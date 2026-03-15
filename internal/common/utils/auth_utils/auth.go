@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/muhaobing-eng/std-go/go-common/crypto"
+	"github.com/muhaobing/std-go/go-common/crypto"
 )
 
 func GenAuthToken(sessionId string, key string) (string, error) {

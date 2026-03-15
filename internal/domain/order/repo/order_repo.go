@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/muhaobing-eng/std-go/go-common/database"
+	"github.com/muhaobing/std-go/go-common/database"
 	"gorm.io/gorm"
 
 	ordermodel "wdkr-marketplace-service/internal/domain/order/order_model"

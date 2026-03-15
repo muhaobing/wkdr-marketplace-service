@@ -53,7 +53,7 @@
                 <p>x{{ item.quantity }}</p>
               </div>
               <div class="item-price">
-                {{ (item.unit_price || 0).toFixed(2) }} 积分
+                ¥{{ (item.unit_price || 0).toFixed(2) }}
               </div>
             </div>
           </div>
@@ -61,7 +61,7 @@
           <div class="order-footer">
             <div class="order-total">
               共 {{ getTotalQuantity(order) }} 件商品，合计: 
-              <strong>{{ (order.pay_amount || 0).toFixed(2) }}</strong> 积分
+              <strong>¥{{ (order.pay_amount || 0).toFixed(2) }}</strong>
             </div>
             <div class="order-actions" @click.stop>
               <button 
