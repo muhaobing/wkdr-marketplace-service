@@ -7,7 +7,7 @@ require (
 	github.com/go-redis/redis/v8 v8.11.5
 	github.com/google/wire v0.7.0
 	github.com/json-iterator/go v1.1.12
-	github.com/muhaobing/std-go v0.0.1
+	github.com/muhaobing/std-go v0.0.2
 	gopkg.in/yaml.v3 v3.0.1
 	gorm.io/driver/mysql v1.6.0
 	gorm.io/gorm v1.31.1
