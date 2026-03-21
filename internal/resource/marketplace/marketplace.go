@@ -108,7 +108,7 @@ func (r *MarketplaceResource) GetSkuDetail(ctx *gin.Context) {
 type CreateOrderRequest struct {
 	UserId   uint64                `json:"user_id" binding:"required"`   // 用户ID
 	SkuItems []*order.SkuOrderItem `json:"sku_items" binding:"required"` // SKU列表
-	PayType  string                `json:"pay_type" binding:"required"`  // 支付类型：ecoin/money
+	PayType  string                `json:"pay_type"`                     // 支付类型：ecoin/money，不传默认money
 	Remark   string                `json:"remark"`                       // 备注
 }
 
@@ -121,10 +121,15 @@ func (r *MarketplaceResource) CreateOrder(ctx *gin.Context) {
 		return
 	}
 
+	payType := req.PayType
+	if payType == "" {
+		payType = "money"
+	}
+
 	resp, err := r.orderService.CreateOrder(ctx.Request.Context(), &order.CreateOrderRequest{
 		UserId:   req.UserId,
 		SkuItems: req.SkuItems,
-		PayType:  req.PayType,
+		PayType:  payType,
 		Remark:   req.Remark,
 	})
 	if err != nil {
@@ -218,10 +223,10 @@ func (r *MarketplaceResource) CancelOrder(ctx *gin.Context) {
 
 // PayOrderRequest 支付订单请求
 type PayOrderRequest struct {
-	Channel   string `json:"channel" binding:"required"`    // 支付渠道：wechat/alipay
-	PayMethod string `json:"pay_method" binding:"required"` // 支付方式：native/jsapi/h5
-	ClientIP  string `json:"client_ip"`                     // 客户端IP（H5支付需要）
-	OpenId    string `json:"open_id"`                       // 用户OpenID（JSAPI支付需要）
+	Channel   string `json:"channel" binding:"required"` // 支付渠道：ecoin/wechat/alipay
+	PayMethod string `json:"pay_method"`                 // 支付方式：native/jsapi/h5（积分支付无需提供）
+	ClientIP  string `json:"client_ip"`                  // 客户端IP（H5支付需要）
+	OpenId    string `json:"open_id"`                    // 用户OpenID（JSAPI支付需要）
 }
 
 // PayOrder 支付订单
@@ -603,10 +608,10 @@ func (r *MarketplaceResource) GetCartList(ctx *gin.Context) {
 
 // CartCheckoutRequest 购物车下单请求
 type CartCheckoutRequest struct {
-	UserId  uint64   `json:"user_id" binding:"required"`  // 用户ID
-	SkuIds  []uint64 `json:"sku_ids" binding:"required"`  // 要下单的商品ID列表
-	PayType string   `json:"pay_type" binding:"required"` // 支付类型：ecoin/money
-	Remark  string   `json:"remark"`                      // 备注
+	UserId  uint64   `json:"user_id" binding:"required"` // 用户ID
+	SkuIds  []uint64 `json:"sku_ids" binding:"required"` // 要下单的商品ID列表
+	PayType string   `json:"pay_type"`                   // 支付类型：ecoin/money，不传默认money
+	Remark  string   `json:"remark"`                     // 备注
 }
 
 // CartCheckout 购物车下单（下单并移除对应商品）
@@ -618,10 +623,15 @@ func (r *MarketplaceResource) CartCheckout(ctx *gin.Context) {
 		return
 	}
 
+	payType := req.PayType
+	if payType == "" {
+		payType = "money"
+	}
+
 	resp, err := r.cartService.Checkout(ctx.Request.Context(), &cart.CheckoutRequest{
 		UserId:  req.UserId,
 		SkuIds:  req.SkuIds,
-		PayType: req.PayType,
+		PayType: payType,
 		Remark:  req.Remark,
 	})
 	if err != nil {

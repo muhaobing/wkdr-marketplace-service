@@ -68,7 +68,8 @@
             <th>商品编码</th>
             <th>商品名称</th>
             <th>业务域</th>
-            <th>价格(积分)</th>
+            <th>价格</th>
+            <th>多选</th>
             <th>状态</th>
             <th>创建时间</th>
             <th>操作</th>
@@ -76,7 +77,7 @@
         </thead>
         <tbody>
           <tr v-if="skuList.length === 0">
-            <td colspan="8" class="empty-row">暂无数据</td>
+            <td colspan="9" class="empty-row">暂无数据</td>
           </tr>
           <tr v-for="sku in skuList" :key="sku.id">
             <td>{{ sku.id }}</td>
@@ -89,7 +90,12 @@
               </div>
             </td>
             <td>{{ sku.biz_code }}</td>
-            <td>{{ sku.cost?.toFixed(2) }}</td>
+            <td>¥{{ sku.cost?.toFixed(2) }} <span class="ecoin-price">({{ toEcoin(sku.cost) }} 积分)</span></td>
+            <td>
+              <span :class="sku.multi_select === 1 ? 'badge-success' : 'badge-default'">
+                {{ sku.multi_select === 1 ? '支持' : '不支持' }}
+              </span>
+            </td>
             <td>
               <label class="toggle-switch" :class="{ disabled: sku.toggling }">
                 <input 
@@ -194,14 +200,17 @@
           </div>
           
           <div class="form-group">
-            <label>商品价格(积分) <span class="required">*</span></label>
+            <label>商品价格(元) <span class="required">*</span></label>
             <input 
               type="number" 
               v-model.number="formData.cost" 
-              placeholder="请输入商品价格"
+              placeholder="请输入商品价格（人民币）"
               min="0"
               step="0.01"
             >
+            <div v-if="formData.cost > 0 && ecoinUnitPrice > 0" class="form-hint">
+              ≈ {{ (formData.cost / ecoinUnitPrice).toFixed(2) }} 积分
+            </div>
           </div>
           
           <div class="form-group">
@@ -230,6 +239,15 @@
               placeholder="请输入履约回调接口URL"
             >
           </div>
+
+          <div class="form-group">
+            <label>是否支持多选下单</label>
+            <label class="toggle-switch">
+              <input type="checkbox" v-model="multiSelectChecked">
+              <span class="toggle-slider"></span>
+            </label>
+            <span class="toggle-label">{{ multiSelectChecked ? '支持' : '不支持' }}</span>
+          </div>
         </div>
         
         <div class="modal-footer">
@@ -245,7 +263,7 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
-import { opsSkuApi } from '../../api'
+import { opsSkuApi, ecoinApi } from '../../api'
 
 // 列表数据
 const skuList = ref([])
@@ -274,8 +292,21 @@ const formData = reactive({
   cost: '',
   sku_avatar: '',
   sku_desc: '',
-  delivery_method: ''
+  delivery_method: '',
+  multi_select: 0
 })
+
+const multiSelectChecked = computed({
+  get: () => formData.multi_select === 1,
+  set: (val) => { formData.multi_select = val ? 1 : 0 }
+})
+
+const ecoinUnitPrice = ref(0)
+
+function toEcoin(cost) {
+  if (!cost || !ecoinUnitPrice.value || ecoinUnitPrice.value <= 0) return '--'
+  return (cost / ecoinUnitPrice.value).toFixed(2)
+}
 
 // 计算总页数
 const totalPages = computed(() => Math.ceil(total.value / pageSize))
@@ -345,6 +376,7 @@ function openEditModal(sku) {
   formData.sku_avatar = sku.sku_avatar || ''
   formData.sku_desc = sku.sku_desc || ''
   formData.delivery_method = sku.delivery_method || ''
+  formData.multi_select = sku.multi_select || 0
   showModal.value = true
 }
 
@@ -363,6 +395,7 @@ function resetFormData() {
   formData.sku_avatar = ''
   formData.sku_desc = ''
   formData.delivery_method = ''
+  formData.multi_select = 0
 }
 
 // 提交表单
@@ -382,7 +415,8 @@ async function handleSubmit() {
       cost: parseFloat(formData.cost),
       sku_avatar: formData.sku_avatar,
       sku_desc: formData.sku_desc,
-      delivery_method: formData.delivery_method
+      delivery_method: formData.delivery_method,
+      multi_select: formData.multi_select
     }
 
     if (isEditing.value) {
@@ -492,8 +526,12 @@ function formatTime(timestamp) {
   })
 }
 
-onMounted(() => {
+onMounted(async () => {
   fetchSkuList()
+  try {
+    const cfg = await ecoinApi.getRechargeConfig()
+    ecoinUnitPrice.value = cfg.unit_price || 0
+  } catch (e) { /* ignore */ }
 })
 </script>
 
@@ -603,6 +641,11 @@ onMounted(() => {
   font-weight: 600;
   color: var(--gray-600);
   border-bottom: 1px solid var(--gray-200);
+}
+
+.data-table td .ecoin-price {
+  font-size: 12px;
+  color: #888;
 }
 
 .data-table td {
@@ -720,6 +763,24 @@ onMounted(() => {
 .toggle-switch input:checked ~ .toggle-label {
   color: var(--success);
   font-weight: 500;
+}
+
+.badge-success {
+  display: inline-block;
+  padding: 2px 8px;
+  font-size: 12px;
+  border-radius: 4px;
+  background-color: rgba(22, 163, 74, 0.1);
+  color: #16a34a;
+}
+
+.badge-default {
+  display: inline-block;
+  padding: 2px 8px;
+  font-size: 12px;
+  border-radius: 4px;
+  background-color: var(--gray-100);
+  color: var(--gray-500);
 }
 
 .action-buttons {
@@ -895,6 +956,12 @@ onMounted(() => {
 
 .form-group textarea {
   resize: vertical;
+}
+
+.form-hint {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #888;
 }
 
 .modal-footer {

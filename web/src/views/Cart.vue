@@ -59,7 +59,8 @@
               </div>
 
               <div class="item-price">
-                {{ item.cost.toFixed(2) }} 积分
+                ¥{{ item.cost.toFixed(2) }}
+                <div class="ecoin-price">({{ toEcoin(item.cost) }} 积分)</div>
               </div>
 
               <div class="item-quantity">
@@ -71,7 +72,8 @@
               </div>
 
               <div class="item-total">
-                {{ (item.cost * item.quantity).toFixed(2) }} 积分
+                ¥{{ (item.cost * item.quantity).toFixed(2) }}
+                <div class="ecoin-price">({{ toEcoin(item.cost * item.quantity) }} 积分)</div>
               </div>
 
               <div class="item-action">
@@ -101,41 +103,18 @@
             <div class="summary">
               <span>已选 <strong>{{ selectedItems.length }}</strong> 件商品</span>
               <span class="total-price">
-                合计: <strong>{{ selectedTotalPrice.toFixed(2) }}</strong> 积分
+                合计: <strong>¥{{ selectedTotalPrice.toFixed(2) }}</strong>
+                <span class="ecoin-price">({{ toEcoin(selectedTotalPrice) }} 积分)</span>
               </span>
             </div>
             <button 
               class="btn btn-primary checkout-btn" 
-              :disabled="selectedItems.length === 0"
-              @click="checkout"
+              :disabled="selectedItems.length === 0 || ordering"
+              @click="handleCheckout"
             >
-              结算
+              {{ ordering ? '下单中...' : '结算' }}
             </button>
           </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- 支付方式弹窗 -->
-    <div v-if="showPaymentModal" class="modal-overlay" @click.self="closePaymentModal">
-      <div class="modal-content card">
-        <h3>选择支付方式</h3>
-        <div class="payment-methods">
-          <label 
-            v-for="method in paymentMethods" 
-            :key="method.channel + method.pay_method"
-            class="payment-option"
-            :class="{ active: selectedPayment === method }"
-          >
-            <input type="radio" :value="method" v-model="selectedPayment">
-            <span class="option-name">{{ method.name }}</span>
-          </label>
-        </div>
-        <div class="modal-footer">
-          <button class="btn btn-secondary" @click="closePaymentModal">取消</button>
-          <button class="btn btn-primary" @click="confirmOrder" :disabled="!selectedPayment || ordering">
-            {{ ordering ? '处理中...' : '确认下单' }}
-          </button>
         </div>
       </div>
     </div>
@@ -147,11 +126,18 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useCartStore } from '../stores/cart'
 import { useUserStore } from '../stores/user'
-import { orderApi, paymentApi } from '../api'
+import { ecoinApi } from '../api'
 
 const router = useRouter()
 const cartStore = useCartStore()
 const userStore = useUserStore()
+const ecoinUnitPrice = ref(0)
+const ordering = ref(false)
+
+function toEcoin(cost) {
+  if (!ecoinUnitPrice.value || ecoinUnitPrice.value <= 0) return '--'
+  return (cost / ecoinUnitPrice.value).toFixed(2)
+}
 
 const cartItems = computed(() => cartStore.itemsWithSelected)
 const selectedItems = computed(() => cartStore.selectedItems)
@@ -159,13 +145,12 @@ const selectedTotalPrice = computed(() => cartStore.selectedTotalPrice)
 const isAllSelected = computed(() => cartStore.isAllSelected)
 const loading = computed(() => cartStore.loading)
 
-const showPaymentModal = ref(false)
-const paymentMethods = ref([])
-const selectedPayment = ref(null)
-const ordering = ref(false)
-
-onMounted(() => {
+onMounted(async () => {
   cartStore.init()
+  try {
+    const cfg = await ecoinApi.getRechargeConfig()
+    ecoinUnitPrice.value = cfg.unit_price || 0
+  } catch (e) { /* ignore */ }
 })
 
 function toggleSelect(skuId) {
@@ -211,53 +196,13 @@ function goToDetail(skuId) {
   router.push(`/product/${skuId}`)
 }
 
-async function fetchPaymentMethods() {
-  try {
-    paymentMethods.value = await paymentApi.methods()
-  } catch (error) {
-    paymentMethods.value = [
-      { channel: 'ecoin', name: '积分支付', pay_method: 'ecoin' },
-      { channel: 'wechat', name: '微信扫码支付', pay_method: 'native' }
-    ]
-  }
-}
-
-function checkout() {
-  if (selectedItems.value.length === 0) return
-  showPaymentModal.value = true
-  fetchPaymentMethods()
-}
-
-function closePaymentModal() {
-  showPaymentModal.value = false
-  selectedPayment.value = null
-}
-
-async function confirmOrder() {
-  if (!selectedPayment.value || ordering.value) return
-  
+async function handleCheckout() {
+  if (selectedItems.value.length === 0 || ordering.value) return
   ordering.value = true
   try {
-    // 使用购物车下单接口
-    const payType = selectedPayment.value.channel === 'ecoin' ? 'ecoin' : 'money'
-    const orderRes = await cartStore.checkout(payType)
-
-    if (selectedPayment.value.channel === 'ecoin') {
-      alert('下单成功！')
-      userStore.refreshEcoin()
-      router.push(`/orders/${orderRes.order.order_no}`)
-    } else {
-      const payRes = await orderApi.pay(orderRes.order.order_no, {
-        channel: selectedPayment.value.channel,
-        pay_method: selectedPayment.value.pay_method
-      })
-      
-      if (payRes.code_url) {
-        alert(`请使用微信扫描二维码完成支付\n${payRes.code_url}`)
-      }
-      router.push(`/orders/${orderRes.order.order_no}`)
-    }
-    closePaymentModal()
+    const orderRes = await cartStore.checkout()
+    const orderNo = orderRes.order?.order_no || orderRes.order_no
+    router.push(`/orders/${orderNo}`)
   } catch (error) {
     alert('下单失败: ' + error.message)
   } finally {
@@ -398,7 +343,14 @@ async function confirmOrder() {
 
 .item-price {
   font-size: 14px;
-  color: var(--gray-600);
+  color: #e53e3e;
+  font-weight: 600;
+}
+
+.ecoin-price {
+  font-size: 12px;
+  color: #888;
+  font-weight: 400;
 }
 
 .quantity-control {
@@ -444,7 +396,7 @@ async function confirmOrder() {
 .item-total {
   font-size: 14px;
   font-weight: 600;
-  color: var(--primary-color);
+  color: #e53e3e;
 }
 
 .delete-btn {
@@ -523,74 +475,6 @@ async function confirmOrder() {
 .checkout-btn {
   padding: 12px 48px;
   font-size: 16px;
-}
-
-/* 弹窗样式 */
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 2000;
-}
-
-.modal-content {
-  width: 400px;
-  padding: 24px;
-}
-
-.modal-content h3 {
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--gray-700);
-  margin-bottom: 20px;
-}
-
-.payment-methods {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  margin-bottom: 24px;
-}
-
-.payment-option {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 14px 16px;
-  border: 1px solid var(--gray-200);
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.payment-option:hover {
-  border-color: var(--primary-color);
-}
-
-.payment-option.active {
-  border-color: var(--primary-color);
-  background-color: rgba(26, 54, 93, 0.05);
-}
-
-.payment-option input {
-  accent-color: var(--primary-color);
-}
-
-.option-name {
-  font-size: 14px;
-  color: var(--gray-700);
-}
-
-.modal-footer {
-  display: flex;
-  gap: 12px;
-  justify-content: flex-end;
 }
 
 @media (max-width: 768px) {

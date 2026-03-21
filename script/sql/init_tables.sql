@@ -99,6 +99,7 @@ CREATE TABLE `sku_tab` (
     `sku_status` TINYINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '上架状态: 0-未上架, 1-已上架',
     `cost` DECIMAL(16,2) NOT NULL DEFAULT 0.00 COMMENT '商品售价(积分)',
     `delivery_method` VARCHAR(512) NOT NULL DEFAULT '' COMMENT '商品履约回调接口URL',
+    `multi_select` TINYINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '是否支持多选下单: 0-不支持, 1-支持',
     `ctime` INT UNSIGNED NOT NULL DEFAULT 0 COMMENT '创建时间戳',
     `mtime` INT UNSIGNED NOT NULL DEFAULT 0 COMMENT '更新时间戳',
     PRIMARY KEY (`id`),

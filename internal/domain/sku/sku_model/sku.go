@@ -19,6 +19,7 @@ type Sku struct {
 	SkuStatus      uint8   `gorm:"column:sku_status" json:"sku_status"`           // SkuStatus 上架状态。0-未上架，1-已上架
 	Cost           float32 `gorm:"column:cost" json:"cost"`                       // Cost 商品售价
 	DeliveryMethod string  `gorm:"column:delivery_method" json:"delivery_method"` // DeliveryMethod 商品履约回调接口。接口为http POST请求，body固定为{"sku_code": "商品代码", "biz_user_id": "用户ID"}，response为{"retcode": 0, "message": ""}，retcode为0表示成功，非0表示失败
+	MultiSelect    uint8   `gorm:"column:multi_select" json:"multi_select"`       // MultiSelect 是否支持多选下单。0-不支持，1-支持
 	Ctime          uint32  `gorm:"column:ctime;autoCreateTime" json:"ctime"`
 	Mtime          uint32  `gorm:"column:mtime;autoUpdateTime" json:"mtime"`
 }

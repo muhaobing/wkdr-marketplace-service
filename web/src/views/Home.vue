@@ -48,7 +48,7 @@
             <h3 class="product-name">{{ product.sku_name }}</h3>
             <p class="product-desc">{{ product.sku_desc || '暂无描述' }}</p>
             <div class="product-footer">
-              <span class="product-price">{{ product.cost.toFixed(2) }} 积分</span>
+              <span class="product-price">¥{{ product.cost.toFixed(2) }} <span class="ecoin-price">({{ toEcoin(product.cost) }} 积分)</span></span>
               <button class="btn btn-primary btn-sm" @click.stop="addToCart(product)">
                 加入购物车
               </button>
@@ -63,7 +63,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { skuApi } from '../api'
+import { skuApi, ecoinApi } from '../api'
 import { useCartStore } from '../stores/cart'
 
 const router = useRouter()
@@ -72,6 +72,12 @@ const cartStore = useCartStore()
 const products = ref([])
 const loading = ref(false)
 const searchQuery = ref('')
+const ecoinUnitPrice = ref(0)
+
+function toEcoin(cost) {
+  if (!ecoinUnitPrice.value || ecoinUnitPrice.value <= 0) return '--'
+  return (cost / ecoinUnitPrice.value).toFixed(2)
+}
 
 // 过滤后的商品列表
 const filteredProducts = computed(() => {
@@ -122,8 +128,12 @@ function addToCart(product) {
   alert('已加入购物车')
 }
 
-onMounted(() => {
+onMounted(async () => {
   fetchProducts()
+  try {
+    const cfg = await ecoinApi.getRechargeConfig()
+    ecoinUnitPrice.value = cfg.unit_price || 0
+  } catch (e) { /* ignore */ }
 })
 </script>
 
@@ -242,7 +252,13 @@ onMounted(() => {
 .product-price {
   font-size: 18px;
   font-weight: 600;
-  color: var(--primary-color);
+  color: #e53e3e;
+}
+
+.product-price .ecoin-price {
+  font-size: 13px;
+  font-weight: 400;
+  color: #888;
 }
 
 .btn-sm {

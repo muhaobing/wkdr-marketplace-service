@@ -83,19 +83,42 @@ func (s *paymentServiceImpl) CreatePayment(ctx context.Context, req *CreatePayme
 	// 获取回调地址
 	notifyUrl := s.getNotifyUrl(req.Channel)
 
+	// 检查是否已存在相同业务订单号的待支付订单，存在则复用
+	existingOrder, err := s.paymentRepo.GetPaymentOrderByBizOrderNo(ctx, req.BizOrderNo)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check existing order: %w", err)
+	}
+	if existingOrder != nil && existingOrder.IsPending() {
+		channelReq := &channel.CreatePaymentRequest{
+			OrderNo:     existingOrder.OrderNo,
+			Amount:      existingOrder.Amount,
+			Description: req.Description,
+			PayMethod:   existingOrder.PayMethod,
+			NotifyUrl:   existingOrder.NotifyUrl,
+			ExpireTime:  int64(existingOrder.ExpireTime),
+			ClientIP:    req.ClientIP,
+			OpenId:      req.OpenId,
+		}
+		channelResp, err := ch.CreatePayment(ctx, channelReq)
+		if err != nil {
+			return nil, fmt.Errorf("failed to recreate payment on channel: %w", err)
+		}
+		return &CreatePaymentResponse{
+			OrderNo:   existingOrder.OrderNo,
+			CodeUrl:   channelResp.CodeUrl,
+			H5Url:     channelResp.H5Url,
+			PrepayId:  channelResp.PrepayId,
+			AppId:     channelResp.AppId,
+			TimeStamp: channelResp.TimeStamp,
+			NonceStr:  channelResp.NonceStr,
+			Package:   channelResp.Package,
+			SignType:  channelResp.SignType,
+			PaySign:   channelResp.PaySign,
+		}, nil
+	}
+
 	var response *CreatePaymentResponse
 	err = database.Transaction(ctx, func(ctx context.Context) error {
-		// 检查是否已存在相同业务订单号的待支付订单
-		existingOrder, err := s.paymentRepo.GetPaymentOrderByBizOrderNo(ctx, req.BizOrderNo)
-		if err != nil {
-			return fmt.Errorf("failed to check existing order: %w", err)
-		}
-		if existingOrder != nil && existingOrder.IsPending() {
-			// 如果已存在待支付订单，返回该订单信息
-			// 可以考虑重新调用渠道获取支付凭证
-			return errors.New("pending payment order already exists for this biz_order_no")
-		}
-
 		// 创建支付订单
 		order := &payment_model.PaymentOrder{
 			OrderNo:    orderNo,

@@ -109,6 +109,13 @@ func (r *orderRepoImpl) UpdateOrderToRefunded(ctx context.Context, orderNo strin
 		Update("status", ordermodel.OrderStatusRefunded).Error
 }
 
+// UpdateOrderPayType 更新订单的支付类型
+func (r *orderRepoImpl) UpdateOrderPayType(ctx context.Context, orderNo string, payType string) error {
+	return database.FromContext(ctx).Model(&ordermodel.Order{}).
+		Where("order_no = ?", orderNo).
+		Update("pay_type", payType).Error
+}
+
 // UpdateOrderPaymentOrderNo 更新订单的支付订单号
 func (r *orderRepoImpl) UpdateOrderPaymentOrderNo(ctx context.Context, orderNo string, paymentOrderNo string) error {
 	return database.FromContext(ctx).Model(&ordermodel.Order{}).

@@ -310,16 +310,17 @@ function closePaymentModal() {
 async function payOrder() {
   if (!selectedPayment.value || paying.value) return
   
+  const payment = selectedPayment.value
   paying.value = true
   try {
     const payRes = await orderApi.pay(order.value.order_no, {
-      channel: selectedPayment.value.channel,
-      pay_method: selectedPayment.value.pay_method
+      channel: payment.channel,
+      pay_method: payment.pay_method
     })
     
     closePaymentModal()
 
-    if (selectedPayment.value.channel === 'ecoin') {
+    if (payment.channel === 'ecoin') {
       alert('支付成功！')
       userStore.refreshEcoin()
       fetchOrder(true)

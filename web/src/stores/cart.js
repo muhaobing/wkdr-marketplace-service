@@ -197,7 +197,7 @@ export const useCartStore = defineStore('cart', () => {
   }
 
   // 购物车下单
-  async function checkout(payType, remark = '') {
+  async function checkout(remark = '') {
     const userId = getUserId()
     if (!userId) return
 
@@ -210,7 +210,6 @@ export const useCartStore = defineStore('cart', () => {
       const response = await cartApi.checkout({
         user_id: userId,
         sku_ids: skuIds,
-        pay_type: payType,
         remark
       })
       // 下单成功后清除已下单商品的选中状态

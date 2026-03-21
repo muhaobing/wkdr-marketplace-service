@@ -15,6 +15,7 @@ type CreateSkuRequest struct {
 	SkuDesc        string  `json:"sku_desc"`        // 商品描述
 	Cost           float32 `json:"cost"`            // 商品售价(积分)
 	DeliveryMethod string  `json:"delivery_method"` // 履约回调接口
+	MultiSelect    uint8   `json:"multi_select"`    // 是否支持多选下单：0-不支持，1-支持
 }
 
 // EditSkuRequest 编辑商品请求
@@ -25,6 +26,7 @@ type EditSkuRequest struct {
 	SkuDesc        string  `json:"sku_desc"`        // 商品描述
 	Cost           float32 `json:"cost"`            // 商品售价(积分)
 	DeliveryMethod string  `json:"delivery_method"` // 履约回调接口
+	MultiSelect    uint8   `json:"multi_select"`    // 是否支持多选下单：0-不支持，1-支持
 }
 
 // ListSkuRequest 商品列表请求

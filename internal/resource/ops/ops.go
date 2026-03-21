@@ -39,6 +39,7 @@ type CreateSkuRequest struct {
 	SkuDesc        string  `json:"sku_desc"`                    // 商品描述
 	Cost           float32 `json:"cost" binding:"required"`     // 商品售价(积分)
 	DeliveryMethod string  `json:"delivery_method"`             // 履约回调接口
+	MultiSelect    uint8   `json:"multi_select"`                // 是否支持多选：0-不支持，1-支持
 }
 
 // CreateSku 创建商品
@@ -58,6 +59,7 @@ func (r *OpsResource) CreateSku(ctx *gin.Context) {
 		SkuDesc:        req.SkuDesc,
 		Cost:           req.Cost,
 		DeliveryMethod: req.DeliveryMethod,
+		MultiSelect:    req.MultiSelect,
 	})
 	if err != nil {
 		http_utils.WriteResponse(ctx, nil, err)
@@ -75,6 +77,7 @@ type EditSkuRequest struct {
 	SkuDesc        string  `json:"sku_desc"`                    // 商品描述
 	Cost           float32 `json:"cost" binding:"required"`     // 商品售价(积分)
 	DeliveryMethod string  `json:"delivery_method"`             // 履约回调接口
+	MultiSelect    uint8   `json:"multi_select"`                // 是否支持多选：0-不支持，1-支持
 }
 
 // EditSku 编辑商品
@@ -93,6 +96,7 @@ func (r *OpsResource) EditSku(ctx *gin.Context) {
 		SkuDesc:        req.SkuDesc,
 		Cost:           req.Cost,
 		DeliveryMethod: req.DeliveryMethod,
+		MultiSelect:    req.MultiSelect,
 	})
 	if err != nil {
 		http_utils.WriteResponse(ctx, nil, err)

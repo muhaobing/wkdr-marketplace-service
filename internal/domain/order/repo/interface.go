@@ -37,6 +37,9 @@ type OrderRepo interface {
 	// UpdateOrderToRefunded 更新订单为已退款
 	UpdateOrderToRefunded(ctx context.Context, orderNo string) error
 
+	// UpdateOrderPayType 更新订单的支付类型
+	UpdateOrderPayType(ctx context.Context, orderNo string, payType string) error
+
 	// UpdateOrderPaymentOrderNo 更新订单的支付订单号
 	UpdateOrderPaymentOrderNo(ctx context.Context, orderNo string, paymentOrderNo string) error
 

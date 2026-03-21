@@ -65,6 +65,7 @@ func (s *skuServiceImpl) CreateSku(ctx context.Context, req *CreateSkuRequest) (
 		SkuStatus:      skumodel.SkuStatusOffline, // 默认未上架
 		Cost:           req.Cost,
 		DeliveryMethod: req.DeliveryMethod,
+		MultiSelect:    req.MultiSelect,
 	}
 
 	if err := s.skuRepo.CreateSku(ctx, sku); err != nil {
@@ -141,6 +142,7 @@ func (s *skuServiceImpl) EditSku(ctx context.Context, req *EditSkuRequest) (*sku
 	sku.SkuDesc = req.SkuDesc
 	sku.Cost = req.Cost
 	sku.DeliveryMethod = req.DeliveryMethod
+	sku.MultiSelect = req.MultiSelect
 
 	if err := s.skuRepo.UpdateSku(ctx, sku); err != nil {
 		return nil, fmt.Errorf("failed to update sku: %w", err)

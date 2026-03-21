@@ -104,9 +104,10 @@ func (s *orderServiceImpl) CreateOrder(ctx context.Context, req *CreateOrderRequ
 				return fmt.Errorf("failed to create order items: %w", err)
 			}
 
+			ecoinAmount := float64(order.PayAmount) / float64(config.GetConf().EcoinUnitPrice)
 			_, err := s.ecoinSvc.DeductEcoin(ctx, &ecoin.DeductEcoinRequest{
 				UserId:      req.UserId,
-				Amount:      float64(order.PayAmount),
+				Amount:      ecoinAmount,
 				SourceType:  "order",
 				SourceId:    order.OrderNo,
 				Description: fmt.Sprintf("购买商品 - 订单号: %s", order.OrderNo),
@@ -272,16 +273,13 @@ func (s *orderServiceImpl) GetOrderByOrderNo(ctx context.Context, orderNo string
 	return order, nil
 }
 
-// PayOrder 支付订单（货币支付）
+// PayOrder 支付订单
 func (s *orderServiceImpl) PayOrder(ctx context.Context, req *PayOrderRequest) (*PayOrderResponse, error) {
 	if req.OrderNo == "" {
 		return nil, errors.New("order_no is required")
 	}
 	if req.Channel == "" {
 		return nil, errors.New("channel is required")
-	}
-	if req.PayMethod == "" {
-		return nil, errors.New("pay_method is required")
 	}
 
 	// 获取订单
@@ -298,38 +296,37 @@ func (s *orderServiceImpl) PayOrder(ctx context.Context, req *PayOrderRequest) (
 		return nil, fmt.Errorf("order cannot be paid, current status: %d", order.Status)
 	}
 
-	// 验证支付类型
-	if !order.IsMoneyPay() {
-		return nil, errors.New("this order uses ecoin payment, not money payment")
+	// 积分支付
+	if req.Channel == "ecoin" {
+		return s.payWithEcoin(ctx, order)
 	}
 
-	// 如果已有支付订单，直接查询返回
-	if order.PaymentOrderNo != "" {
-		paymentOrder, err := s.paymentSvc.QueryPayment(ctx, order.PaymentOrderNo)
-		if err == nil && paymentOrder != nil && paymentOrder.IsPending() {
-			// 支付订单仍然有效，返回已有的支付信息
-			// 这里可能需要重新获取支付凭证
-		}
+	// 货币支付
+	if req.PayMethod == "" {
+		return nil, errors.New("pay_method is required for non-ecoin payment")
 	}
 
-	// 创建支付订单
+	// 创建支付订单（复用已有的 pending 支付单由 payment service 处理）
 	paymentResp, err := s.paymentSvc.CreatePayment(ctx, &payment.CreatePaymentRequest{
 		BizOrderNo:    req.OrderNo,
 		BizType:       payment_model.BizTypePurchase,
 		UserId:        order.UserId,
 		Channel:       req.Channel,
 		PayMethod:     req.PayMethod,
-		Amount:        int64(order.PayAmount * 100), // 转换为分
+		Amount:        int64(order.PayAmount * 100),
 		Description:   fmt.Sprintf("商城订单 - %s", req.OrderNo),
 		ClientIP:      req.ClientIP,
 		OpenId:        req.OpenId,
-		ExpireMinutes: 30,
+		ExpireMinutes: 15,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create payment: %w", err)
 	}
 
-	// 更新订单的支付订单号
+	// 更新订单的支付类型和支付订单号
+	if order.PayType != ordermodel.PayTypeMoney {
+		_ = s.orderRepo.UpdateOrderPayType(ctx, req.OrderNo, ordermodel.PayTypeMoney)
+	}
 	if err := s.orderRepo.UpdateOrderPaymentOrderNo(ctx, req.OrderNo, paymentResp.OrderNo); err != nil {
 		return nil, fmt.Errorf("failed to update order payment order no: %w", err)
 	}
@@ -346,6 +343,42 @@ func (s *orderServiceImpl) PayOrder(ctx context.Context, req *PayOrderRequest) (
 		SignType:  paymentResp.SignType,
 		PaySign:   paymentResp.PaySign,
 	}, nil
+}
+
+// payWithEcoin 积分支付
+func (s *orderServiceImpl) payWithEcoin(ctx context.Context, order *ordermodel.Order) (*PayOrderResponse, error) {
+	err := database.Transaction(ctx, func(ctx context.Context) error {
+		ecoinAmount := float64(order.PayAmount) / float64(config.GetConf().EcoinUnitPrice)
+		_, err := s.ecoinSvc.DeductEcoin(ctx, &ecoin.DeductEcoinRequest{
+			UserId:      order.UserId,
+			Amount:      ecoinAmount,
+			SourceType:  "order",
+			SourceId:    order.OrderNo,
+			Description: fmt.Sprintf("购买商品 - 订单号: %s", order.OrderNo),
+		})
+		if err != nil {
+			return fmt.Errorf("failed to deduct ecoin: %w", err)
+		}
+
+		if order.PayType != ordermodel.PayTypeEcoin {
+			if err := s.orderRepo.UpdateOrderPayType(ctx, order.OrderNo, ordermodel.PayTypeEcoin); err != nil {
+				return fmt.Errorf("failed to update order pay type: %w", err)
+			}
+		}
+
+		payTime := uint32(time.Now().Unix())
+		if err := s.orderRepo.UpdateOrderToPaid(ctx, order.OrderNo, payTime); err != nil {
+			return fmt.Errorf("failed to update order to paid: %w", err)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	go s.asyncAutoFulfill(order.OrderNo)
+
+	return &PayOrderResponse{OrderNo: order.OrderNo}, nil
 }
 
 // CancelOrder 取消订单
@@ -438,8 +471,11 @@ func (s *orderServiceImpl) AutoFulfill(ctx context.Context, orderNo string) erro
 	if err != nil {
 		return err
 	}
+	if lock == nil {
+		return nil
+	}
 	defer func() {
-		_ = lock.Release(ctx) // 忽略报错，即使解锁失败也会自动过期
+		_ = lock.Release(ctx)
 	}()
 
 	return s.autoFulfill(ctx, orderNo)

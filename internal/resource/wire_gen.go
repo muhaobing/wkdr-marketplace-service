@@ -24,6 +24,7 @@ import (
 	userrepo "wdkr-marketplace-service/internal/domain/user/repo"
 	"wdkr-marketplace-service/internal/resource/healthy"
 	"wdkr-marketplace-service/internal/resource/marketplace"
+	"wdkr-marketplace-service/internal/resource/mock"
 	"wdkr-marketplace-service/internal/resource/openapi"
 	"wdkr-marketplace-service/internal/resource/ops"
 )
@@ -78,11 +79,14 @@ func InitializeResources() *Resources {
 	marketplaceResource := marketplace.NewMarketplaceResource(skuService, orderService, ecoinService, userService, cartService)
 	opsResource := ops.NewOpsResource(skuService, orderService)
 	openAPIResource := openapi.NewOpenAPIResource(ecoinService, paymentService, userService, orderService)
+	mockResource := mock.NewMockResource()
 
 	// 初始化定时任务
 	orderTimeoutTask := cron.NewOrderTimeoutTask(orderRepo, paymentService)
 	orderFulfillTask := cron.NewOrderFulfillTask(orderRepo, orderService)
 
 	// 聚合返回
-	return NewResources(healthyResource, marketplaceResource, opsResource, openAPIResource, orderTimeoutTask, orderFulfillTask)
+	r := NewResources(healthyResource, marketplaceResource, opsResource, openAPIResource, orderTimeoutTask, orderFulfillTask)
+	r.Mock = mockResource
+	return r
 }

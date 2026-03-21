@@ -7,6 +7,7 @@ import (
 
 	"wdkr-marketplace-service/internal/resource/healthy"
 	"wdkr-marketplace-service/internal/resource/marketplace"
+	"wdkr-marketplace-service/internal/resource/mock"
 	"wdkr-marketplace-service/internal/resource/openapi"
 	"wdkr-marketplace-service/internal/resource/ops"
 )
@@ -17,6 +18,7 @@ type Resources struct {
 	Marketplace *marketplace.MarketplaceResource
 	Ops         *ops.OpsResource
 	OpenAPI     *openapi.OpenAPIResource
+	Mock        *mock.MockResource
 	Schedulers  []scheduler.Scheduler
 }
 
@@ -43,6 +45,9 @@ func (r *Resources) Router() registry.Registry {
 		r.Marketplace.Router()(engine)
 		r.Ops.Router()(engine)
 		r.OpenAPI.Router()(engine)
+		if r.Mock != nil {
+			r.Mock.Router()(engine)
+		}
 	}
 }
 
