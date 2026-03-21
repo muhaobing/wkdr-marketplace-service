@@ -214,12 +214,34 @@
           </div>
           
           <div class="form-group">
-            <label>商品图片URL</label>
-            <input 
-              type="text" 
-              v-model="formData.sku_avatar" 
-              placeholder="请输入商品图片URL"
-            >
+            <label>商品图片</label>
+            <div class="image-upload">
+              <div v-if="formData.sku_avatar" class="image-preview">
+                <img :src="formData.sku_avatar" alt="商品图片">
+                <button type="button" class="image-remove-btn" @click="formData.sku_avatar = ''">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18"/>
+                    <line x1="6" y1="6" x2="18" y2="18"/>
+                  </svg>
+                </button>
+              </div>
+              <label v-else class="image-upload-trigger" for="sku-image-input">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                  <circle cx="8.5" cy="8.5" r="1.5"/>
+                  <polyline points="21 15 16 10 5 21"/>
+                </svg>
+                <span>点击上传图片</span>
+                <span class="upload-hint">最大 800×800px</span>
+              </label>
+              <input 
+                id="sku-image-input"
+                type="file" 
+                accept="image/*"
+                class="image-file-input"
+                @change="handleImageUpload"
+              >
+            </div>
           </div>
           
           <div class="form-group">
@@ -230,23 +252,29 @@
               rows="4"
             ></textarea>
           </div>
+
+          <div class="form-group">
+            <label>是否支持多选</label>
+            <div class="toggle-row">
+              <label class="form-toggle">
+                <input type="checkbox" v-model="multiSelectChecked">
+                <span class="form-toggle-track">
+                  <span class="form-toggle-thumb"></span>
+                </span>
+              </label>
+              <span class="form-toggle-text" :class="{ active: multiSelectChecked }">
+                {{ multiSelectChecked ? '支持' : '不支持' }}
+              </span>
+            </div>
+          </div>
           
           <div class="form-group">
-            <label>履约接口URL</label>
+            <label>履约回调接口</label>
             <input 
               type="text" 
               v-model="formData.delivery_method" 
               placeholder="请输入履约回调接口URL"
             >
-          </div>
-
-          <div class="form-group">
-            <label>是否支持多选下单</label>
-            <label class="toggle-switch">
-              <input type="checkbox" v-model="multiSelectChecked">
-              <span class="toggle-slider"></span>
-            </label>
-            <span class="toggle-label">{{ multiSelectChecked ? '支持' : '不支持' }}</span>
           </div>
         </div>
         
@@ -295,6 +323,56 @@ const formData = reactive({
   delivery_method: '',
   multi_select: 0
 })
+
+const MAX_IMAGE_WIDTH = 800
+const MAX_IMAGE_HEIGHT = 800
+const MAX_IMAGE_SIZE = 500 * 1024
+
+function handleImageUpload(event) {
+  const file = event.target.files[0]
+  if (!file) return
+  if (!file.type.startsWith('image/')) {
+    alert('请选择图片文件')
+    event.target.value = ''
+    return
+  }
+  if (file.size > 5 * 1024 * 1024) {
+    alert('原始图片不能超过 5MB')
+    event.target.value = ''
+    return
+  }
+  const reader = new FileReader()
+  reader.onload = (e) => {
+    const img = new Image()
+    img.onload = () => {
+      let { width, height } = img
+      if (width > MAX_IMAGE_WIDTH || height > MAX_IMAGE_HEIGHT) {
+        const ratio = Math.min(MAX_IMAGE_WIDTH / width, MAX_IMAGE_HEIGHT / height)
+        width = Math.round(width * ratio)
+        height = Math.round(height * ratio)
+      }
+      const canvas = document.createElement('canvas')
+      canvas.width = width
+      canvas.height = height
+      const ctx = canvas.getContext('2d')
+      ctx.drawImage(img, 0, 0, width, height)
+      let quality = 0.85
+      let result = canvas.toDataURL('image/jpeg', quality)
+      while (result.length * 0.75 > MAX_IMAGE_SIZE && quality > 0.1) {
+        quality -= 0.1
+        result = canvas.toDataURL('image/jpeg', quality)
+      }
+      if (result.length * 0.75 > MAX_IMAGE_SIZE) {
+        alert('图片压缩后仍超过 500KB，请选择更小的图片')
+        return
+      }
+      formData.sku_avatar = result
+    }
+    img.src = e.target.result
+  }
+  reader.readAsDataURL(file)
+  event.target.value = ''
+}
 
 const multiSelectChecked = computed({
   get: () => formData.multi_select === 1,
@@ -962,6 +1040,150 @@ onMounted(async () => {
   margin-top: 4px;
   font-size: 12px;
   color: #888;
+}
+
+.toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.form-toggle {
+  position: relative;
+  display: inline-block;
+  width: 48px;
+  height: 26px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.form-toggle input {
+  display: none;
+}
+
+.form-toggle-track {
+  position: absolute;
+  inset: 0;
+  background-color: var(--gray-300);
+  border-radius: 13px;
+  transition: background-color 0.25s;
+}
+
+.form-toggle input:checked + .form-toggle-track {
+  background-color: var(--success);
+}
+
+.form-toggle-thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  background-color: white;
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  transition: transform 0.25s;
+}
+
+.form-toggle input:checked + .form-toggle-track .form-toggle-thumb {
+  transform: translateX(22px);
+}
+
+.form-toggle-text {
+  font-size: 14px;
+  color: var(--gray-500);
+  transition: color 0.2s;
+  user-select: none;
+}
+
+.form-toggle-text.active {
+  color: var(--success);
+  font-weight: 500;
+}
+
+.image-upload {
+  position: relative;
+}
+
+.image-file-input {
+  display: none;
+}
+
+.image-upload-trigger {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 120px;
+  height: 120px;
+  border: 2px dashed var(--gray-300);
+  border-radius: 8px;
+  cursor: pointer;
+  color: var(--gray-400);
+  transition: all 0.2s;
+}
+
+.image-upload-trigger:hover {
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+}
+
+.image-upload-trigger svg {
+  width: 32px;
+  height: 32px;
+}
+
+.image-upload-trigger span {
+  font-size: 12px;
+}
+
+.upload-hint {
+  color: var(--gray-400);
+  font-size: 11px !important;
+}
+
+.image-preview {
+  position: relative;
+  display: inline-block;
+  width: 120px;
+  height: 120px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--gray-200);
+}
+
+.image-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.image-remove-btn {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(0, 0, 0, 0.5);
+  color: white;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.image-remove-btn:hover {
+  background-color: rgba(220, 53, 69, 0.8);
+}
+
+.image-remove-btn svg {
+  width: 14px;
+  height: 14px;
 }
 
 .modal-footer {

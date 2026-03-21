@@ -29,7 +29,7 @@ config:
       - "/openapi/user/bind"
       - "/openapi/callback/"
       - "/mock/"
-      - "/healthy"
+      - "/ping"
     # 需要管理员权限的路径前缀
     admin_paths:
       - "/ops/"

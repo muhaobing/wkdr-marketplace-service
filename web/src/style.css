@@ -112,9 +112,9 @@ input {
 
 /* 容器 */
 .container {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 0 20px;
+  width: 100%;
+  padding: 0 32px;
+  box-sizing: border-box;
 }
 
 /* 状态标签 */
@@ -229,5 +229,6 @@ input {
 @media (max-width: 768px) {
   .container {
     padding: 0 16px;
+    box-sizing: border-box;
   }
 }

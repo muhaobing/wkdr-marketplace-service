@@ -151,13 +151,13 @@ onUnmounted(() => {
 }
 
 .navbar-container {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 0 20px;
+  width: 100%;
+  padding: 0 32px;
   height: 100%;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  box-sizing: border-box;
 }
 
 .navbar-brand {
@@ -310,6 +310,14 @@ onUnmounted(() => {
 }
 
 @media (max-width: 768px) {
+  .navbar-container {
+    padding: 0 16px;
+  }
+
+  .navbar-brand span {
+    display: none;
+  }
+
   .navbar-right {
     gap: 12px;
   }
@@ -322,8 +330,8 @@ onUnmounted(() => {
     right: -8px;
   }
 
-  .user-item span {
-    display: block;
+  .dropdown-arrow {
+    display: none;
   }
 }
 </style>
