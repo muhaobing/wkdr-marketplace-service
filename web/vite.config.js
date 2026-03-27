@@ -4,14 +4,14 @@ import vue from '@vitejs/plugin-vue'
 export default defineConfig({
   plugins: [vue()],
   server: {
-    port: 3000,
+    port: 10301,
     proxy: {
       '/marketplace': {
-        target: 'http://localhost:9090',
+        target: 'http://localhost:10302',
         changeOrigin: true
       },
       '/ops': {
-        target: 'http://localhost:9090',
+        target: 'http://localhost:10302',
         changeOrigin: true,
         bypass(req) {
           if (req.headers.accept?.includes('text/html')) {
