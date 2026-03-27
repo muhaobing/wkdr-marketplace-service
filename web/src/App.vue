@@ -4,6 +4,7 @@
     <main :class="['main-content', { 'no-navbar': !showNavbar }]">
       <router-view />
     </main>
+    <ToastContainer />
   </div>
 </template>
 
@@ -11,10 +12,10 @@
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import Navbar from './components/Navbar.vue'
+import ToastContainer from './components/ToastContainer.vue'
 
 const route = useRoute()
 
-// 登录页面和运营页面不显示商城导航栏
 const showNavbar = computed(() => {
   return route.name !== 'Login' && !route.path.startsWith('/ops')
 })
@@ -29,8 +30,8 @@ const showNavbar = computed(() => {
 
 .main-content {
   flex: 1;
-  padding-top: 70px;
-  padding-bottom: 40px;
+  padding-top: 80px;
+  padding-bottom: 60px;
 }
 
 .main-content.no-navbar {

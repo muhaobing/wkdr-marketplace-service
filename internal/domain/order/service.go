@@ -116,12 +116,17 @@ func (s *orderServiceImpl) CreateOrder(ctx context.Context, req *CreateOrderRequ
 				return fmt.Errorf("failed to deduct ecoin: %w", err)
 			}
 
+			if err := s.orderRepo.UpdateOrderEcoinAmount(ctx, order.OrderNo, ecoinAmount); err != nil {
+				return fmt.Errorf("failed to update ecoin amount: %w", err)
+			}
+
 			payTime := uint32(time.Now().Unix())
 			if err := s.orderRepo.UpdateOrderToPaid(ctx, order.OrderNo, payTime); err != nil {
 				return fmt.Errorf("failed to update order to paid: %w", err)
 			}
 			order.Status = ordermodel.OrderStatusPaid
 			order.PayTime = payTime
+			order.EcoinAmount = ecoinAmount
 
 			return nil
 		})
@@ -364,6 +369,10 @@ func (s *orderServiceImpl) payWithEcoin(ctx context.Context, order *ordermodel.O
 			if err := s.orderRepo.UpdateOrderPayType(ctx, order.OrderNo, ordermodel.PayTypeEcoin); err != nil {
 				return fmt.Errorf("failed to update order pay type: %w", err)
 			}
+		}
+
+		if err := s.orderRepo.UpdateOrderEcoinAmount(ctx, order.OrderNo, ecoinAmount); err != nil {
+			return fmt.Errorf("failed to update ecoin amount: %w", err)
 		}
 
 		payTime := uint32(time.Now().Unix())

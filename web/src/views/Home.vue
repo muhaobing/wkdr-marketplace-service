@@ -31,7 +31,7 @@
         <div 
           v-for="product in filteredProducts" 
           :key="product.id" 
-          class="product-card card"
+          class="product-card"
           @click="goToDetail(product.id)"
         >
           <div class="product-image">
@@ -43,15 +43,25 @@
                 <polyline points="21 15 16 10 5 21"/>
               </svg>
             </div>
+            <div class="image-overlay">
+              <button class="quick-cart-btn" @click.stop="addToCart(product)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="9" cy="21" r="1"/>
+                  <circle cx="20" cy="21" r="1"/>
+                  <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
+                </svg>
+                加入购物车
+              </button>
+            </div>
           </div>
           <div class="product-info">
             <h3 class="product-name">{{ product.sku_name }}</h3>
             <p class="product-desc">{{ product.sku_desc || '暂无描述' }}</p>
             <div class="product-footer">
-              <span class="product-price">¥{{ product.cost.toFixed(2) }} <span class="ecoin-price">({{ toEcoin(product.cost) }} 积分)</span></span>
-              <button class="btn btn-primary btn-sm" @click.stop="addToCart(product)">
-                加入购物车
-              </button>
+              <div class="product-price">
+                <span class="price-rmb">¥{{ product.cost.toFixed(2) }}</span>
+                <span class="price-ecoin">{{ toEcoin(product.cost) }} 积分</span>
+              </div>
             </div>
           </div>
         </div>
@@ -65,6 +75,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { skuApi, ecoinApi } from '../api'
 import { useCartStore } from '../stores/cart'
+import { toast } from '../utils/toast'
 
 const router = useRouter()
 const cartStore = useCartStore()
@@ -79,7 +90,6 @@ function toEcoin(cost) {
   return (cost / ecoinUnitPrice.value).toFixed(2)
 }
 
-// 过滤后的商品列表
 const filteredProducts = computed(() => {
   if (!searchQuery.value.trim()) {
     return products.value
@@ -91,7 +101,6 @@ const filteredProducts = computed(() => {
   )
 })
 
-// 获取商品列表
 async function fetchProducts() {
   loading.value = true
   try {
@@ -99,7 +108,6 @@ async function fetchProducts() {
     products.value = res?.list || []
   } catch (error) {
     console.error('获取商品列表失败:', error)
-    // Mock 数据
     products.value = [
       { id: 1, sku_code: 'SKU001', sku_name: '虚拟商品A', sku_desc: '这是一个测试商品', cost: 100, sku_avatar: '' },
       { id: 2, sku_code: 'SKU002', sku_name: '虚拟商品B', sku_desc: '另一个测试商品', cost: 200, sku_avatar: '' },
@@ -111,21 +119,15 @@ async function fetchProducts() {
   }
 }
 
-// 搜索处理
-function handleSearch() {
-  // 本地过滤，无需额外操作
-}
+function handleSearch() {}
 
-// 跳转到商品详情
 function goToDetail(id) {
   router.push(`/product/${id}`)
 }
 
-// 加入购物车
 function addToCart(product) {
   cartStore.addItem(product)
-  // 简单提示
-  alert('已加入购物车')
+  toast.success('已加入购物车')
 }
 
 onMounted(async () => {
@@ -139,42 +141,48 @@ onMounted(async () => {
 
 <style scoped>
 .home {
-  padding-top: 20px;
+  padding-top: 8px;
 }
 
 .search-section {
-  margin-bottom: 30px;
+  margin-bottom: 36px;
 }
 
 .search-box {
   position: relative;
-  max-width: 500px;
+  max-width: 520px;
   margin: 0 auto;
 }
 
 .search-icon {
   position: absolute;
-  left: 16px;
+  left: 18px;
   top: 50%;
   transform: translateY(-50%);
   width: 20px;
   height: 20px;
   color: var(--gray-400);
+  pointer-events: none;
 }
 
 .search-box input {
   width: 100%;
-  padding: 14px 16px 14px 48px;
+  padding: 14px 20px 14px 50px;
   border: 1px solid var(--gray-200);
-  border-radius: 12px;
-  font-size: 16px;
+  border-radius: 14px;
+  font-size: 15px;
   background-color: var(--white);
-  transition: all 0.2s;
+  transition: all 0.25s;
+  box-shadow: var(--shadow-sm);
 }
 
 .search-box input:focus {
-  border-color: var(--primary-color);
-  box-shadow: 0 0 0 3px rgba(26, 54, 93, 0.1);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.08), var(--shadow-md);
+}
+
+.search-box input::placeholder {
+  color: var(--gray-400);
 }
 
 .product-grid {
@@ -184,26 +192,76 @@ onMounted(async () => {
 }
 
 .product-card {
+  background: white;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
   cursor: pointer;
-  transition: transform 0.2s, box-shadow 0.2s;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border: 1px solid rgba(0, 0, 0, 0.04);
+  box-shadow: var(--shadow-sm);
 }
 
 .product-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.1);
+  transform: translateY(-6px);
+  box-shadow: var(--shadow-xl);
+  border-color: transparent;
 }
 
 .product-image {
   width: 100%;
-  height: 180px;
+  height: 200px;
   overflow: hidden;
-  background-color: var(--gray-100);
+  background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+  position: relative;
 }
 
 .product-image img {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  transition: transform 0.4s ease;
+}
+
+.product-card:hover .product-image img {
+  transform: scale(1.05);
+}
+
+.image-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, rgba(0,0,0,0.5) 0%, transparent 50%);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 16px;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.product-card:hover .image-overlay {
+  opacity: 1;
+}
+
+.quick-cart-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background: white;
+  color: var(--gray-800);
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 8px;
+  transition: all 0.2s;
+}
+
+.quick-cart-btn:hover {
+  background: var(--gray-100);
+}
+
+.quick-cart-btn svg {
+  width: 16px;
+  height: 16px;
 }
 
 .image-placeholder {
@@ -221,23 +279,24 @@ onMounted(async () => {
 }
 
 .product-info {
-  padding: 16px;
+  padding: 18px 20px 20px;
 }
 
 .product-name {
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 600;
-  color: var(--gray-700);
-  margin-bottom: 6px;
+  color: var(--gray-800);
+  margin-bottom: 4px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  letter-spacing: -0.01em;
 }
 
 .product-desc {
   font-size: 13px;
-  color: var(--gray-500);
-  margin-bottom: 12px;
+  color: var(--gray-400);
+  margin-bottom: 14px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -250,20 +309,22 @@ onMounted(async () => {
 }
 
 .product-price {
-  font-size: 18px;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.price-rmb {
+  font-size: 20px;
+  font-weight: 700;
+  color: #b91c1c;
+  letter-spacing: -0.02em;
+}
+
+.price-ecoin {
+  font-size: 12px;
   font-weight: 600;
-  color: #e53e3e;
-}
-
-.product-price .ecoin-price {
-  font-size: 13px;
-  font-weight: 400;
-  color: #888;
-}
-
-.btn-sm {
-  padding: 8px 14px;
-  font-size: 13px;
+  color: #f59e0b;
 }
 
 @media (max-width: 640px) {
@@ -273,20 +334,19 @@ onMounted(async () => {
   }
 
   .product-image {
-    height: 140px;
+    height: 150px;
   }
 
   .product-info {
-    padding: 12px;
+    padding: 12px 14px 14px;
   }
 
-  .product-price {
-    font-size: 14px;
+  .price-rmb {
+    font-size: 16px;
   }
 
-  .btn-sm {
-    padding: 6px 10px;
-    font-size: 12px;
+  .image-overlay {
+    display: none;
   }
 }
 </style>

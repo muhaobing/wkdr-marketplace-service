@@ -84,9 +84,10 @@ func InitializeResources() *Resources {
 	// 初始化定时任务
 	orderTimeoutTask := cron.NewOrderTimeoutTask(orderRepo, paymentService)
 	orderFulfillTask := cron.NewOrderFulfillTask(orderRepo, orderService)
+	ecoinExpireTask := cron.NewEcoinExpireTask(ecoinService)
 
 	// 聚合返回
-	r := NewResources(healthyResource, marketplaceResource, opsResource, openAPIResource, orderTimeoutTask, orderFulfillTask)
+	r := NewResources(healthyResource, marketplaceResource, opsResource, openAPIResource, orderTimeoutTask, orderFulfillTask, ecoinExpireTask)
 	r.Mock = mockResource
 	return r
 }

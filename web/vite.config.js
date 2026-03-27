@@ -12,7 +12,12 @@ export default defineConfig({
       },
       '/ops': {
         target: 'http://localhost:9090',
-        changeOrigin: true
+        changeOrigin: true,
+        bypass(req) {
+          if (req.headers.accept?.includes('text/html')) {
+            return '/index.html'
+          }
+        }
       }
     }
   }

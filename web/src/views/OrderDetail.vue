@@ -120,7 +120,8 @@
             </div>
             <div class="summary-row total">
               <span>实付金额</span>
-              <span>¥{{ (order.pay_amount || 0).toFixed(2) }}</span>
+              <span v-if="order.pay_type === 'ecoin' && order.ecoin_amount" class="ecoin-total">{{ order.ecoin_amount.toFixed(2) }} 积分</span>
+              <span v-else>¥{{ (order.pay_amount || 0).toFixed(2) }}</span>
             </div>
           </div>
         </div>
@@ -177,6 +178,7 @@ import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { orderApi, paymentApi } from '../api'
 import { useUserStore } from '../stores/user'
+import { toast, confirm } from '../utils/toast'
 
 const route = useRoute()
 const router = useRouter()
@@ -287,16 +289,16 @@ function goBack() {
 }
 
 async function cancelOrder() {
-  if (!confirm('确定要取消这个订单吗？')) return
+  if (!await confirm('确定要取消这个订单吗？')) return
   
   canceling.value = true
   try {
     await orderApi.cancel(order.value.order_no, '用户主动取消')
-    alert('订单已取消')
+    toast.success('订单已取消')
     userStore.refreshEcoin()
     fetchOrder(true)
   } catch (error) {
-    alert('取消订单失败: ' + error.message)
+    toast.error('取消订单失败: ' + error.message)
   } finally {
     canceling.value = false
   }
@@ -321,7 +323,7 @@ async function payOrder() {
     closePaymentModal()
 
     if (payment.channel === 'ecoin') {
-      alert('支付成功！')
+      toast.success('支付成功！')
       userStore.refreshEcoin()
       fetchOrder(true)
     } else if (payRes.code_url) {
@@ -332,7 +334,7 @@ async function payOrder() {
       fetchOrder(true)
     }
   } catch (error) {
-    alert('支付失败: ' + error.message)
+    toast.error('支付失败: ' + error.message)
   } finally {
     paying.value = false
   }
@@ -361,7 +363,7 @@ async function pollOrderStatus() {
       userStore.refreshEcoin()
       if (showQrcodeModal.value && prevStatus === 0 && (updated.status === 1 || updated.status === 2)) {
         closeQrcodeModal()
-        alert('支付成功！')
+        toast.success('支付成功！')
       }
       if (!isActiveStatus()) {
         stopPolling()
@@ -422,7 +424,7 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .order-detail {
-  padding-top: 20px;
+  padding-top: 8px;
 }
 
 .back-btn {
@@ -430,15 +432,18 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 6px;
   padding: 8px 16px;
-  margin-bottom: 20px;
+  margin-bottom: 24px;
   background: none;
-  color: var(--gray-600);
+  color: var(--gray-500);
   font-size: 14px;
-  transition: color 0.2s;
+  font-weight: 500;
+  transition: all 0.2s;
+  border-radius: 8px;
 }
 
 .back-btn:hover {
-  color: var(--primary-color);
+  color: var(--gray-800);
+  background-color: var(--gray-100);
 }
 
 .back-btn svg {
@@ -457,13 +462,13 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   gap: 20px;
-  padding: 24px;
+  padding: 28px 32px;
 }
 
 .status-icon {
-  width: 60px;
-  height: 60px;
-  border-radius: 50%;
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -471,35 +476,36 @@ onBeforeUnmount(() => {
 }
 
 .status-icon svg {
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
 }
 
 .status-warning {
-  background-color: #fef3c7;
-  color: #d97706;
+  background: linear-gradient(135deg, #fef3c7, #fde68a);
+  color: #b45309;
 }
 
 .status-info {
-  background-color: #dbeafe;
-  color: #2563eb;
+  background: linear-gradient(135deg, #dbeafe, #bfdbfe);
+  color: #1d4ed8;
 }
 
 .status-success {
-  background-color: #d1fae5;
-  color: #059669;
+  background: linear-gradient(135deg, #d1fae5, #a7f3d0);
+  color: #047857;
 }
 
 .status-danger {
-  background-color: #fee2e2;
-  color: #dc2626;
+  background: linear-gradient(135deg, #fee2e2, #fecaca);
+  color: #b91c1c;
 }
 
 .status-info h2 {
   font-size: 20px;
-  font-weight: 600;
-  color: var(--gray-700);
+  font-weight: 700;
+  color: var(--gray-800);
   margin-bottom: 4px;
+  letter-spacing: -0.01em;
 }
 
 .status-info p {
@@ -511,13 +517,14 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   gap: 6px;
-  color: #d97706 !important;
+  color: #b45309 !important;
   font-variant-numeric: tabular-nums;
+  font-weight: 500;
 }
 
 .countdown-text strong {
   font-size: 18px;
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .countdown-icon {
@@ -529,29 +536,31 @@ onBeforeUnmount(() => {
 .status-actions {
   margin-left: auto;
   display: flex;
-  gap: 12px;
+  gap: 10px;
 }
 
 /* 信息卡片 */
 .info-card,
 .items-card {
-  padding: 24px;
+  padding: 28px 32px;
 }
 
 .info-card h3,
 .items-card h3 {
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--gray-700);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--gray-400);
   margin-bottom: 20px;
-  padding-bottom: 12px;
+  padding-bottom: 14px;
   border-bottom: 1px solid var(--gray-100);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
 }
 
 .info-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 16px;
+  gap: 18px;
 }
 
 .info-item {
@@ -561,13 +570,15 @@ onBeforeUnmount(() => {
 }
 
 .info-item .label {
-  font-size: 13px;
+  font-size: 12px;
   color: var(--gray-400);
+  font-weight: 500;
 }
 
 .info-item .value {
   font-size: 14px;
-  color: var(--gray-700);
+  color: var(--gray-800);
+  font-weight: 500;
 }
 
 /* 商品列表 */
@@ -585,11 +596,11 @@ onBeforeUnmount(() => {
 }
 
 .item-image {
-  width: 64px;
-  height: 64px;
-  border-radius: 8px;
+  width: 60px;
+  height: 60px;
+  border-radius: 10px;
   overflow: hidden;
-  background-color: var(--gray-100);
+  background: linear-gradient(135deg, #f8fafc, #e2e8f0);
   flex-shrink: 0;
 }
 
@@ -609,8 +620,8 @@ onBeforeUnmount(() => {
 }
 
 .image-placeholder svg {
-  width: 24px;
-  height: 24px;
+  width: 22px;
+  height: 22px;
 }
 
 .item-info {
@@ -619,8 +630,8 @@ onBeforeUnmount(() => {
 
 .item-info h4 {
   font-size: 14px;
-  font-weight: 500;
-  color: var(--gray-700);
+  font-weight: 600;
+  color: var(--gray-800);
   margin-bottom: 2px;
 }
 
@@ -631,13 +642,14 @@ onBeforeUnmount(() => {
 
 .item-quantity {
   font-size: 14px;
-  color: var(--gray-500);
+  color: var(--gray-400);
+  font-weight: 500;
 }
 
 .item-price {
   font-size: 14px;
-  font-weight: 500;
-  color: var(--gray-700);
+  font-weight: 700;
+  color: #b91c1c;
   min-width: 100px;
   text-align: right;
 }
@@ -657,13 +669,22 @@ onBeforeUnmount(() => {
 
 .summary-row.total {
   font-size: 16px;
-  font-weight: 600;
-  color: var(--gray-700);
+  font-weight: 700;
+  color: var(--gray-800);
+  padding-top: 12px;
 }
 
 .summary-row.total span:last-child {
-  color: var(--primary-color);
-  font-size: 20px;
+  color: #b91c1c;
+  font-size: 22px;
+  letter-spacing: -0.02em;
+}
+
+.summary-row.total span.ecoin-total {
+  color: #f59e0b;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
 }
 
 /* 弹窗样式 */
@@ -673,7 +694,8 @@ onBeforeUnmount(() => {
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: rgba(0, 0, 0, 0.5);
+  background-color: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -681,21 +703,24 @@ onBeforeUnmount(() => {
 }
 
 .modal-content {
-  width: 400px;
-  padding: 24px;
+  width: 420px;
+  padding: 28px;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xl);
 }
 
 .modal-content h3 {
   font-size: 18px;
-  font-weight: 600;
-  color: var(--gray-700);
-  margin-bottom: 20px;
+  font-weight: 700;
+  color: var(--gray-800);
+  margin-bottom: 24px;
+  letter-spacing: -0.01em;
 }
 
 .payment-methods {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
   margin-bottom: 24px;
 }
 
@@ -704,33 +729,34 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 12px;
   padding: 14px 16px;
-  border: 1px solid var(--gray-200);
-  border-radius: 8px;
+  border: 2px solid var(--gray-200);
+  border-radius: 12px;
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .payment-option:hover {
-  border-color: var(--primary-color);
+  border-color: var(--gray-300);
 }
 
 .payment-option.active {
-  border-color: var(--primary-color);
-  background-color: rgba(26, 54, 93, 0.05);
+  border-color: var(--accent);
+  background-color: rgba(99, 102, 241, 0.04);
 }
 
 .payment-option input {
-  accent-color: var(--primary-color);
+  accent-color: var(--accent);
 }
 
 .option-name {
   font-size: 14px;
+  font-weight: 500;
   color: var(--gray-700);
 }
 
 .modal-footer {
   display: flex;
-  gap: 12px;
+  gap: 10px;
   justify-content: flex-end;
 }
 
@@ -738,6 +764,7 @@ onBeforeUnmount(() => {
   .status-card {
     flex-direction: column;
     text-align: center;
+    padding: 24px;
   }
 
   .status-actions {
@@ -763,7 +790,7 @@ onBeforeUnmount(() => {
 
 /* 二维码弹窗 */
 .qrcode-modal {
-  max-width: 360px;
+  max-width: 380px;
 }
 
 .qrcode-body {
@@ -774,12 +801,13 @@ onBeforeUnmount(() => {
 .qrcode-container {
   width: 200px;
   height: 200px;
-  margin: 0 auto 16px;
-  background-color: var(--gray-100);
-  border-radius: 8px;
+  margin: 0 auto 20px;
+  background-color: var(--gray-50);
+  border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
+  border: 1px solid var(--gray-100);
 }
 
 .qrcode-container img {
@@ -807,7 +835,8 @@ onBeforeUnmount(() => {
 
 .qrcode-amount strong {
   color: var(--primary-color);
-  font-size: 18px;
+  font-size: 20px;
+  font-weight: 700;
 }
 
 .qrcode-polling {
@@ -818,6 +847,6 @@ onBeforeUnmount(() => {
 
 @keyframes pulse {
   0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
+  50% { opacity: 0.4; }
 }
 </style>

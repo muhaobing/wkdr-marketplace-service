@@ -37,6 +37,17 @@ type EcoinTransactionListResponse struct {
 	List  []*ecoin_model.EcoinTransaction `json:"list"`
 }
 
+// EcoinStockGroupListRequest 积分库存分组查询请求
+type EcoinStockGroupListRequest struct {
+	UserId uint64 `json:"user_id"`
+}
+
+// EcoinStockGroupListResponse 积分库存分组查询响应
+type EcoinStockGroupListResponse struct {
+	TotalStock float64                            `json:"total_stock"`
+	List       []*ecoin_model.UserEcoinStockGroup `json:"list"`
+}
+
 // EcoinService 积分服务接口
 type EcoinService interface {
 	// GetUserEcoin 获取用户积分信息
@@ -56,4 +67,10 @@ type EcoinService interface {
 
 	// InitUserEcoin 初始化用户积分账户
 	InitUserEcoin(ctx context.Context, userId uint64) (*ecoin_model.UserEcoin, error)
+
+	// GetEcoinStockGroupList 获取积分库存分组
+	GetEcoinStockGroupList(ctx context.Context, req *EcoinStockGroupListRequest) (*EcoinStockGroupListResponse, error)
+
+	// ExpireEcoinStock 过期积分处理（定时任务调用）
+	ExpireEcoinStock(ctx context.Context, now uint32, limit int) (int, error)
 }

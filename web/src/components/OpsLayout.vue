@@ -125,8 +125,8 @@ function handleLogout() {
 }
 
 .ops-sidebar {
-  width: 240px;
-  background-color: var(--primary-color);
+  width: 260px;
+  background: linear-gradient(180deg, #0f172a 0%, #1e293b 100%);
   color: white;
   display: flex;
   flex-direction: column;
@@ -138,21 +138,22 @@ function handleLogout() {
 }
 
 .sidebar-header {
-  padding: 16px 20px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 18px 24px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .back-link {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: rgba(255, 255, 255, 0.7);
+  color: rgba(255, 255, 255, 0.5);
   font-size: 13px;
+  font-weight: 500;
   transition: color 0.2s;
 }
 
 .back-link:hover {
-  color: white;
+  color: rgba(255, 255, 255, 0.9);
 }
 
 .back-link svg {
@@ -164,45 +165,51 @@ function handleLogout() {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 24px 20px;
+  padding: 28px 24px 24px;
   font-size: 18px;
-  font-weight: 600;
+  font-weight: 700;
+  letter-spacing: -0.02em;
 }
 
 .sidebar-brand svg {
   width: 24px;
   height: 24px;
+  opacity: 0.9;
 }
 
 .sidebar-nav {
   flex: 1;
-  padding: 12px 0;
+  padding: 8px 12px;
   overflow-y: auto;
 }
 
 .nav-group {
-  margin-bottom: 8px;
+  margin-bottom: 4px;
 }
 
 .nav-group-title {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 12px 20px;
+  padding: 10px 12px;
   cursor: pointer;
-  color: rgba(255, 255, 255, 0.9);
-  font-size: 14px;
-  font-weight: 500;
-  transition: background-color 0.2s;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 13px;
+  font-weight: 600;
+  transition: all 0.15s;
+  border-radius: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .nav-group-title:hover {
-  background-color: rgba(255, 255, 255, 0.1);
+  background-color: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.9);
 }
 
 .nav-group-title svg {
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
 }
 
 .nav-group-title .arrow {
@@ -210,6 +217,7 @@ function handleLogout() {
   height: 16px;
   margin-left: auto;
   transition: transform 0.2s;
+  opacity: 0.5;
 }
 
 .nav-group-title .arrow.expanded {
@@ -217,30 +225,32 @@ function handleLogout() {
 }
 
 .nav-group-items {
-  padding-left: 20px;
+  padding-left: 8px;
+  margin-top: 2px;
 }
 
 .nav-item {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 10px 20px;
-  color: rgba(255, 255, 255, 0.7);
+  padding: 10px 16px;
+  color: rgba(255, 255, 255, 0.6);
   font-size: 14px;
-  transition: all 0.2s;
-  border-radius: 0 20px 20px 0;
-  margin-right: 12px;
+  font-weight: 500;
+  transition: all 0.15s;
+  border-radius: 8px;
+  margin-bottom: 2px;
 }
 
 .nav-item:hover {
   color: white;
-  background-color: rgba(255, 255, 255, 0.1);
+  background-color: rgba(255, 255, 255, 0.08);
 }
 
 .nav-item.active {
-  color: var(--primary-color);
-  background-color: white;
-  font-weight: 500;
+  color: white;
+  background-color: rgba(99, 102, 241, 0.2);
+  font-weight: 600;
 }
 
 .nav-item svg {
@@ -249,7 +259,7 @@ function handleLogout() {
 }
 
 .nav-item.empty {
-  color: rgba(255, 255, 255, 0.4);
+  color: rgba(255, 255, 255, 0.25);
   font-size: 13px;
   cursor: default;
 }
@@ -260,7 +270,7 @@ function handleLogout() {
 
 .sidebar-footer {
   padding: 16px 20px;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -270,8 +280,9 @@ function handleLogout() {
   display: flex;
   align-items: center;
   gap: 10px;
-  color: rgba(255, 255, 255, 0.9);
+  color: rgba(255, 255, 255, 0.7);
   font-size: 14px;
+  font-weight: 500;
 }
 
 .user-info svg {
@@ -285,26 +296,26 @@ function handleLogout() {
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: rgba(255, 255, 255, 0.1);
-  color: rgba(255, 255, 255, 0.7);
-  border-radius: 6px;
+  background-color: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.5);
+  border-radius: 8px;
   transition: all 0.2s;
 }
 
 .logout-btn:hover {
-  background-color: rgba(220, 53, 69, 0.8);
-  color: white;
+  background-color: rgba(239, 68, 68, 0.15);
+  color: #fca5a5;
 }
 
 .logout-btn svg {
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
 }
 
 .ops-main {
   flex: 1;
-  margin-left: 240px;
-  background-color: var(--gray-50);
+  margin-left: 260px;
+  background-color: #f0f2f5;
   min-height: 100vh;
 }
 </style>

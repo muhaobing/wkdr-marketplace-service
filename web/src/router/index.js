@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { toast } from '../utils/toast'
 
 const routes = [
   {
@@ -100,7 +101,7 @@ router.beforeEach((to, from, next) => {
     try {
       const user = JSON.parse(userStr)
       if (user.role !== 1) {
-        alert('没有访问权限')
+        toast.error('没有访问权限')
         next({ name: 'Home' })
         return
       }

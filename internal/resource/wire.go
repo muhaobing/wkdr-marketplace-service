@@ -6,6 +6,7 @@ package resource
 import (
 	"github.com/google/wire"
 
+	"wdkr-marketplace-service/internal/cron"
 	"wdkr-marketplace-service/internal/domain/cart"
 	cartrepo "wdkr-marketplace-service/internal/domain/cart/repo"
 	"wdkr-marketplace-service/internal/domain/ecoin"
@@ -67,6 +68,9 @@ func InitializeResources() *Resources {
 		PaymentSet,
 		ServiceSet,
 		ResourceSet,
+		cron.NewOrderTimeoutTask,
+		cron.NewOrderFulfillTask,
+		cron.NewEcoinExpireTask,
 		NewResources,
 	)
 	return nil

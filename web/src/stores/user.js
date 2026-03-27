@@ -74,8 +74,7 @@ export const useUserStore = defineStore('user', () => {
       ecoin.value = await ecoinApi.getBalance(user.value.id)
     } catch (error) {
       console.error('获取积分失败:', error)
-      // Mock 数据
-      ecoin.value = { balance: 1000 }
+      ecoin.value = { available_stock: 0 }
     } finally {
       loading.value = false
     }

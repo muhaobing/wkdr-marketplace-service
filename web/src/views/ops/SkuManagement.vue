@@ -90,7 +90,7 @@
               </div>
             </td>
             <td>{{ sku.biz_code }}</td>
-            <td>¥{{ sku.cost?.toFixed(2) }} <span class="ecoin-price">({{ toEcoin(sku.cost) }} 积分)</span></td>
+            <td><span class="sku-price-rmb">¥{{ sku.cost?.toFixed(2) }}</span> <span class="ecoin-price">({{ toEcoin(sku.cost) }} 积分)</span></td>
             <td>
               <span :class="sku.multi_select === 1 ? 'badge-success' : 'badge-default'">
                 {{ sku.multi_select === 1 ? '支持' : '不支持' }}
@@ -231,8 +231,7 @@
                   <circle cx="8.5" cy="8.5" r="1.5"/>
                   <polyline points="21 15 16 10 5 21"/>
                 </svg>
-                <span>点击上传图片</span>
-                <span class="upload-hint">最大 800×800px</span>
+                <span>点击上传图片 <span class="upload-hint">(最大 800×800px)</span></span>
               </label>
               <input 
                 id="sku-image-input"
@@ -292,6 +291,7 @@
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
 import { opsSkuApi, ecoinApi } from '../../api'
+import { toast, confirm } from '../../utils/toast'
 
 // 列表数据
 const skuList = ref([])
@@ -332,12 +332,12 @@ function handleImageUpload(event) {
   const file = event.target.files[0]
   if (!file) return
   if (!file.type.startsWith('image/')) {
-    alert('请选择图片文件')
+    toast.warning('请选择图片文件')
     event.target.value = ''
     return
   }
   if (file.size > 5 * 1024 * 1024) {
-    alert('原始图片不能超过 5MB')
+    toast.warning('原始图片不能超过 5MB')
     event.target.value = ''
     return
   }
@@ -363,7 +363,7 @@ function handleImageUpload(event) {
         result = canvas.toDataURL('image/jpeg', quality)
       }
       if (result.length * 0.75 > MAX_IMAGE_SIZE) {
-        alert('图片压缩后仍超过 500KB，请选择更小的图片')
+        toast.warning('图片压缩后仍超过 500KB，请选择更小的图片')
         return
       }
       formData.sku_avatar = result
@@ -480,7 +480,7 @@ function resetFormData() {
 async function handleSubmit() {
   // 验证
   if (!formData.sku_code || !formData.sku_name || !formData.biz_code || formData.cost === '') {
-    alert('请填写必填字段')
+    toast.warning('请填写必填字段')
     return
   }
 
@@ -500,16 +500,16 @@ async function handleSubmit() {
     if (isEditing.value) {
       data.id = editingId.value
       await opsSkuApi.edit(data)
-      alert('编辑成功')
+      toast.success('编辑成功')
     } else {
       await opsSkuApi.create(data)
-      alert('创建成功')
+      toast.success('创建成功')
     }
 
     closeModal()
     fetchSkuList()
   } catch (error) {
-    alert('操作失败: ' + error.message)
+    toast.error('操作失败: ' + error.message)
   } finally {
     submitting.value = false
   }
@@ -529,8 +529,7 @@ async function handleToggleStatus(sku) {
       sku.sku_status = 1
     }
   } catch (error) {
-    alert('操作失败: ' + error.message)
-    // 恢复状态
+    toast.error('操作失败: ' + error.message)
     fetchSkuList()
   } finally {
     sku.toggling = false
@@ -543,7 +542,7 @@ async function handleListing(sku) {
     await opsSkuApi.listing(sku.id)
     fetchSkuList()
   } catch (error) {
-    alert('上架失败: ' + error.message)
+    toast.error('上架失败: ' + error.message)
   }
 }
 
@@ -551,23 +550,23 @@ async function handleListing(sku) {
 async function handleDelisting(sku) {
   try {
     await opsSkuApi.delisting(sku.id)
-    alert('下架成功')
+    toast.success('下架成功')
     fetchSkuList()
   } catch (error) {
-    alert('下架失败: ' + error.message)
+    toast.error('下架失败: ' + error.message)
   }
 }
 
 // 删除
 async function handleDelete(sku) {
-  if (!confirm(`确定要删除商品 "${sku.sku_name}" 吗？此操作不可恢复！`)) return
+  if (!await confirm(`确定要删除商品 "${sku.sku_name}" 吗？此操作不可恢复！`)) return
   
   try {
     await opsSkuApi.delete(sku.id)
-    alert('删除成功')
+    toast.success('删除成功')
     fetchSkuList()
   } catch (error) {
-    alert('删除失败: ' + error.message)
+    toast.error('删除失败: ' + error.message)
   }
 }
 
@@ -615,20 +614,21 @@ onMounted(async () => {
 
 <style scoped>
 .sku-management {
-  padding: 24px;
+  padding: 32px;
 }
 
 .page-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 24px;
+  margin-bottom: 28px;
 }
 
 .page-header h1 {
-  font-size: 24px;
-  font-weight: 600;
-  color: var(--gray-700);
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--gray-800);
+  letter-spacing: -0.02em;
 }
 
 .page-header .btn svg {
@@ -639,13 +639,13 @@ onMounted(async () => {
 
 /* 筛选区域 */
 .filter-section {
-  padding: 20px;
+  padding: 20px 24px;
   margin-bottom: 20px;
 }
 
 .filter-row {
   display: flex;
-  gap: 20px;
+  gap: 16px;
   align-items: flex-end;
   flex-wrap: wrap;
 }
@@ -657,35 +657,39 @@ onMounted(async () => {
 }
 
 .filter-item label {
-  font-size: 13px;
-  color: var(--gray-500);
-  font-weight: 500;
+  font-size: 12px;
+  color: var(--gray-400);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .filter-item input,
 .filter-item select {
-  height: 36px;
-  padding: 0 12px;
+  height: 38px;
+  padding: 0 14px;
   border: 1px solid var(--gray-200);
-  border-radius: 6px;
+  border-radius: 8px;
   font-size: 14px;
   min-width: 180px;
+  transition: all 0.2s;
 }
 
 .filter-item input:focus,
 .filter-item select:focus {
-  border-color: var(--primary-color);
+  border-color: var(--accent);
   outline: none;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.08);
 }
 
 .filter-actions {
   display: flex;
-  gap: 10px;
+  gap: 8px;
 }
 
 .filter-actions .btn {
-  height: 36px;
-  padding: 0 16px;
+  height: 38px;
+  padding: 0 18px;
 }
 
 .filter-actions .btn svg {
@@ -703,7 +707,7 @@ onMounted(async () => {
 .loading-state {
   padding: 60px;
   text-align: center;
-  color: var(--gray-500);
+  color: var(--gray-400);
 }
 
 .data-table {
@@ -713,17 +717,25 @@ onMounted(async () => {
 
 .data-table th {
   background-color: var(--gray-50);
-  padding: 14px 16px;
+  padding: 12px 16px;
   text-align: left;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--gray-600);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--gray-400);
   border-bottom: 1px solid var(--gray-200);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.data-table td .sku-price-rmb {
+  color: #b91c1c;
+  font-weight: 700;
 }
 
 .data-table td .ecoin-price {
   font-size: 12px;
-  color: #888;
+  color: #f59e0b;
+  font-weight: 600;
 }
 
 .data-table td {
@@ -734,33 +746,33 @@ onMounted(async () => {
 }
 
 .data-table tr:hover td {
-  background-color: var(--gray-50);
+  background-color: rgba(99, 102, 241, 0.02);
 }
 
 .empty-row {
   text-align: center;
   color: var(--gray-400);
-  padding: 40px !important;
+  padding: 60px !important;
 }
 
 .sku-info {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
 }
 
 .sku-avatar {
   width: 40px;
   height: 40px;
-  border-radius: 6px;
+  border-radius: 8px;
   object-fit: cover;
 }
 
 .sku-avatar-placeholder {
   width: 40px;
   height: 40px;
-  border-radius: 6px;
-  background-color: var(--gray-200);
+  border-radius: 8px;
+  background: linear-gradient(135deg, #f1f5f9, #e2e8f0);
 }
 
 .status-badge {
@@ -772,18 +784,18 @@ onMounted(async () => {
 }
 
 .status-pending {
-  background-color: #fff3cd;
-  color: #856404;
+  background-color: #fffbeb;
+  color: #b45309;
 }
 
 .status-online {
-  background-color: #d4edda;
-  color: #155724;
+  background-color: #ecfdf5;
+  color: #047857;
 }
 
 .status-offline {
-  background-color: #f8d7da;
-  color: #721c24;
+  background-color: #fef2f2;
+  color: #b91c1c;
 }
 
 /* Toggle 开关 */
@@ -809,7 +821,7 @@ onMounted(async () => {
   height: 24px;
   background-color: var(--gray-300);
   border-radius: 12px;
-  transition: all 0.3s;
+  transition: all 0.25s;
 }
 
 .toggle-slider::before {
@@ -821,8 +833,8 @@ onMounted(async () => {
   height: 20px;
   background-color: white;
   border-radius: 50%;
-  transition: all 0.3s;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  transition: all 0.25s;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
 }
 
 .toggle-switch input:checked + .toggle-slider {
@@ -835,69 +847,67 @@ onMounted(async () => {
 
 .toggle-label {
   font-size: 13px;
-  color: var(--gray-600);
+  color: var(--gray-500);
+  font-weight: 500;
 }
 
 .toggle-switch input:checked ~ .toggle-label {
   color: var(--success);
-  font-weight: 500;
+  font-weight: 600;
 }
 
 .badge-success {
   display: inline-block;
-  padding: 2px 8px;
+  padding: 3px 10px;
   font-size: 12px;
-  border-radius: 4px;
-  background-color: rgba(22, 163, 74, 0.1);
-  color: #16a34a;
+  border-radius: 6px;
+  background-color: #ecfdf5;
+  color: #047857;
+  font-weight: 500;
 }
 
 .badge-default {
   display: inline-block;
-  padding: 2px 8px;
+  padding: 3px 10px;
   font-size: 12px;
-  border-radius: 4px;
+  border-radius: 6px;
   background-color: var(--gray-100);
   color: var(--gray-500);
+  font-weight: 500;
 }
 
 .action-buttons {
   display: flex;
-  gap: 8px;
+  gap: 6px;
 }
 
 .action-btn {
-  width: 30px;
-  height: 30px;
+  width: 32px;
+  height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 6px;
-  background-color: var(--gray-100);
-  color: var(--gray-600);
-  transition: all 0.2s;
+  border-radius: 8px;
+  background-color: var(--gray-50);
+  color: var(--gray-500);
+  transition: all 0.15s;
+  border: 1px solid var(--gray-200);
 }
 
 .action-btn:hover {
-  background-color: var(--primary-color);
+  background-color: var(--accent);
+  border-color: var(--accent);
   color: white;
-}
-
-.action-btn.success:hover {
-  background-color: var(--success);
-}
-
-.action-btn.warning:hover {
-  background-color: var(--warning);
 }
 
 .action-btn.danger:hover {
   background-color: var(--danger);
+  border-color: var(--danger);
 }
 
 .action-btn svg {
-  width: 16px;
-  height: 16px;
+  width: 15px;
+  height: 15px;
 }
 
 /* 分页 */
@@ -911,27 +921,30 @@ onMounted(async () => {
 }
 
 .page-btn {
-  padding: 8px 16px;
-  background-color: var(--gray-100);
-  border-radius: 6px;
-  font-size: 14px;
+  padding: 8px 18px;
+  background-color: white;
+  border: 1px solid var(--gray-200);
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
   color: var(--gray-600);
-  transition: all 0.2s;
+  transition: all 0.15s;
 }
 
 .page-btn:hover:not(:disabled) {
-  background-color: var(--primary-color);
-  color: white;
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
 .page-btn:disabled {
-  opacity: 0.5;
+  opacity: 0.4;
   cursor: not-allowed;
 }
 
 .page-info {
-  font-size: 14px;
-  color: var(--gray-500);
+  font-size: 13px;
+  color: var(--gray-400);
+  font-weight: 500;
 }
 
 /* 弹窗 */
@@ -941,7 +954,8 @@ onMounted(async () => {
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: rgba(0, 0, 0, 0.5);
+  background-color: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -952,20 +966,23 @@ onMounted(async () => {
   width: 560px;
   max-height: 90vh;
   overflow-y: auto;
+  border-radius: 20px;
+  box-shadow: var(--shadow-xl);
 }
 
 .modal-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 20px 24px;
+  padding: 24px 28px;
   border-bottom: 1px solid var(--gray-100);
 }
 
 .modal-header h3 {
   font-size: 18px;
-  font-weight: 600;
-  color: var(--gray-700);
+  font-weight: 700;
+  color: var(--gray-800);
+  letter-spacing: -0.01em;
 }
 
 .close-btn {
@@ -974,10 +991,10 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 6px;
+  border-radius: 8px;
   background: none;
   color: var(--gray-400);
-  transition: all 0.2s;
+  transition: all 0.15s;
 }
 
 .close-btn:hover {
@@ -991,19 +1008,20 @@ onMounted(async () => {
 }
 
 .modal-body {
-  padding: 24px;
+  padding: 28px;
 }
 
 .form-group {
-  margin-bottom: 20px;
+  margin-bottom: 22px;
 }
 
 .form-group label {
   display: block;
   margin-bottom: 6px;
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--gray-600);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--gray-500);
+  letter-spacing: 0.02em;
 }
 
 .form-group .required {
@@ -1014,21 +1032,23 @@ onMounted(async () => {
 .form-group textarea,
 .form-group select {
   width: 100%;
-  padding: 10px 12px;
+  padding: 11px 14px;
   border: 1px solid var(--gray-200);
-  border-radius: 6px;
+  border-radius: 8px;
   font-size: 14px;
+  transition: all 0.2s;
 }
 
 .form-group input:focus,
 .form-group textarea:focus,
 .form-group select:focus {
-  border-color: var(--primary-color);
+  border-color: var(--accent);
   outline: none;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.08);
 }
 
 .form-group input:disabled {
-  background-color: var(--gray-100);
+  background-color: var(--gray-50);
   cursor: not-allowed;
 }
 
@@ -1039,7 +1059,7 @@ onMounted(async () => {
 .form-hint {
   margin-top: 4px;
   font-size: 12px;
-  color: #888;
+  color: var(--gray-400);
 }
 
 .toggle-row {
@@ -1082,7 +1102,7 @@ onMounted(async () => {
   height: 20px;
   background-color: white;
   border-radius: 50%;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
   transition: transform 0.25s;
 }
 
@@ -1095,11 +1115,12 @@ onMounted(async () => {
   color: var(--gray-500);
   transition: color 0.2s;
   user-select: none;
+  font-weight: 500;
 }
 
 .form-toggle-text.active {
   color: var(--success);
-  font-weight: 500;
+  font-weight: 600;
 }
 
 .image-upload {
@@ -1119,24 +1140,26 @@ onMounted(async () => {
   width: 120px;
   height: 120px;
   border: 2px dashed var(--gray-300);
-  border-radius: 8px;
+  border-radius: 12px;
   cursor: pointer;
   color: var(--gray-400);
   transition: all 0.2s;
 }
 
 .image-upload-trigger:hover {
-  border-color: var(--primary-color);
-  color: var(--primary-color);
+  border-color: var(--accent);
+  color: var(--accent);
+  background-color: rgba(99, 102, 241, 0.02);
 }
 
 .image-upload-trigger svg {
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
 }
 
 .image-upload-trigger span {
   font-size: 12px;
+  font-weight: 500;
 }
 
 .upload-hint {
@@ -1149,7 +1172,7 @@ onMounted(async () => {
   display: inline-block;
   width: 120px;
   height: 120px;
-  border-radius: 8px;
+  border-radius: 12px;
   overflow: hidden;
   border: 1px solid var(--gray-200);
 }
@@ -1162,8 +1185,8 @@ onMounted(async () => {
 
 .image-remove-btn {
   position: absolute;
-  top: 4px;
-  right: 4px;
+  top: 6px;
+  right: 6px;
   width: 24px;
   height: 24px;
   display: flex;
@@ -1174,11 +1197,11 @@ onMounted(async () => {
   border-radius: 50%;
   border: none;
   cursor: pointer;
-  transition: background-color 0.2s;
+  transition: background-color 0.15s;
 }
 
 .image-remove-btn:hover {
-  background-color: rgba(220, 53, 69, 0.8);
+  background-color: rgba(239, 68, 68, 0.8);
 }
 
 .image-remove-btn svg {
@@ -1189,8 +1212,8 @@ onMounted(async () => {
 .modal-footer {
   display: flex;
   justify-content: flex-end;
-  gap: 12px;
-  padding: 16px 24px;
+  gap: 10px;
+  padding: 20px 28px;
   border-top: 1px solid var(--gray-100);
 }
 </style>

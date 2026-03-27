@@ -57,10 +57,30 @@ CREATE TABLE `user_ecoin_tab` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户积分表';
 
 -- -----------------------------------------------------------
+-- 2.1 用户积分库存分组表 (user_ecoin_stock_group_tab)
+-- 不同批次积分支持不同过期时间
+-- -----------------------------------------------------------
+DROP TABLE IF EXISTS `user_ecoin_stock_group_tab`;
+CREATE TABLE `user_ecoin_stock_group_tab` (
+    `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    `user_id` BIGINT UNSIGNED NOT NULL COMMENT '用户ID',
+    `total_stock` DECIMAL(16,2) NOT NULL DEFAULT 0.00 COMMENT '该批次总积分',
+    `remaining_stock` DECIMAL(16,2) NOT NULL DEFAULT 0.00 COMMENT '该批次剩余积分',
+    `expire_time` INT UNSIGNED NOT NULL DEFAULT 0 COMMENT '过期时间戳(0表示不过期)',
+    `source_type` VARCHAR(32) NOT NULL DEFAULT '' COMMENT '来源类型',
+    `source_id` VARCHAR(64) NOT NULL DEFAULT '' COMMENT '来源业务ID',
+    `ctime` INT UNSIGNED NOT NULL DEFAULT 0 COMMENT '创建时间戳',
+    `mtime` INT UNSIGNED NOT NULL DEFAULT 0 COMMENT '更新时间戳',
+    PRIMARY KEY (`id`),
+    KEY `idx_user_expire` (`user_id`, `expire_time`),
+    KEY `idx_expire_time` (`expire_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户积分库存分组表';
+
+-- -----------------------------------------------------------
 -- 3. 积分流水表 (ecoin_transaction_tab)
 -- 记录积分变动明细
 -- tx_type: 1-增加, 2-扣除
--- source_type: system-系统赠送, order-订单奖励, consume-积分消费, refund-退款返还, transfer-转账
+-- source_type: system-系统赠送, order-订单奖励, consume-积分消费, refund-退款返还, transfer-转账, recharge-充值到账, expire-过期失效
 -- status: 0-处理中, 1-已完成, 2-已失败
 -- -----------------------------------------------------------
 DROP TABLE IF EXISTS `ecoin_transaction_tab`;
@@ -122,7 +142,8 @@ CREATE TABLE `order_tab` (
     `item_count` INT NOT NULL DEFAULT 0 COMMENT '商品种类数量',
     `total_quantity` INT NOT NULL DEFAULT 0 COMMENT '商品总数量',
     `original_amount` DECIMAL(16,2) NOT NULL DEFAULT 0.00 COMMENT '原价',
-    `pay_amount` DECIMAL(16,2) NOT NULL DEFAULT 0.00 COMMENT '实付金额',
+    `pay_amount` DECIMAL(16,2) NOT NULL DEFAULT 0.00 COMMENT '实付金额(人民币)',
+    `ecoin_amount` DECIMAL(16,2) NOT NULL DEFAULT 0.00 COMMENT '实付积分数(积分支付时记录)',
     `pay_type` VARCHAR(32) NOT NULL DEFAULT '' COMMENT '支付类型: ecoin/money',
     `payment_order_no` VARCHAR(64) NOT NULL DEFAULT '' COMMENT '支付订单号(货币支付)',
     `status` TINYINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '状态: 0-待支付, 1-已支付, 2-已履约, 3-已取消, 4-已退款',

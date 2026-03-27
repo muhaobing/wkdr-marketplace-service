@@ -11,6 +11,8 @@ const (
 	SourceTypeConsume  = "consume"  // 积分消费
 	SourceTypeRefund   = "refund"   // 退款返还
 	SourceTypeTransfer = "transfer" // 转账
+	SourceTypeRecharge = "recharge" // 充值到账
+	SourceTypeExpire   = "expire"   // 过期失效
 
 	// 交易状态
 	TransactionStatusPending   = 0 // 处理中

@@ -34,4 +34,25 @@ type EcoinRepo interface {
 
 	// GetUserEcoinForUpdate 获取用户积分信息（加锁）
 	GetUserEcoinForUpdate(ctx context.Context, userId uint64) (*ecoin_model.UserEcoin, error)
+
+	// CreateUserEcoinStockGroup 新增积分库存分组
+	CreateUserEcoinStockGroup(ctx context.Context, group *ecoin_model.UserEcoinStockGroup) error
+
+	// UpdateUserEcoinStockGroupRemaining 更新积分库存分组剩余数量
+	UpdateUserEcoinStockGroupRemaining(ctx context.Context, groupId uint64, remainingStock float64) error
+
+	// DeleteUserEcoinStockGroup 删除积分库存分组
+	DeleteUserEcoinStockGroup(ctx context.Context, groupId uint64) error
+
+	// GetAvailableStockGroupsForUpdate 获取可用积分分组（按最早过期优先，0=永不过期排最后）
+	GetAvailableStockGroupsForUpdate(ctx context.Context, userId uint64, now uint32) ([]*ecoin_model.UserEcoinStockGroup, error)
+
+	// GetStockGroupsByUserId 获取用户积分分组（用于展示）
+	GetStockGroupsByUserId(ctx context.Context, userId uint64) ([]*ecoin_model.UserEcoinStockGroup, error)
+
+	// GetStockGroupsByUserIdForUpdate 获取用户积分分组（加锁）
+	GetStockGroupsByUserIdForUpdate(ctx context.Context, userId uint64) ([]*ecoin_model.UserEcoinStockGroup, error)
+
+	// GetExpiredStockGroupsForUpdate 获取已过期且仍有余额的积分分组（加锁）
+	GetExpiredStockGroupsForUpdate(ctx context.Context, now uint32, limit int) ([]*ecoin_model.UserEcoinStockGroup, error)
 }

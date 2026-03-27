@@ -43,3 +43,4 @@ config:
     notify_url: "https://your-domain.com/openapi/callback/wechat/pay"
     refund_notify_url: "https://your-domain.com/openapi/callback/wechat/refund"
   ecoin_unit_price: 0.0001
+  ecoin_expire_seconds: 2592000

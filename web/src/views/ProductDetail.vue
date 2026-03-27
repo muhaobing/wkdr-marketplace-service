@@ -85,6 +85,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { skuApi, orderApi, ecoinApi } from '../api'
 import { useCartStore } from '../stores/cart'
 import { useUserStore } from '../stores/user'
+import { toast } from '../utils/toast'
 
 const route = useRoute()
 const router = useRouter()
@@ -138,9 +139,9 @@ function goBack() {
 async function addToCart() {
   try {
     await cartStore.addItem(product.value, quantity.value)
-    alert('已加入购物车')
+    toast.success('已加入购物车')
   } catch (error) {
-    alert('添加失败: ' + error.message)
+    toast.error('添加失败: ' + error.message)
   }
 }
 
@@ -155,7 +156,7 @@ async function buyNow() {
     const orderNo = orderRes.order?.order_no || orderRes.order_no
     router.push(`/orders/${orderNo}`)
   } catch (error) {
-    alert('下单失败: ' + error.message)
+    toast.error('下单失败: ' + error.message)
   } finally {
     ordering.value = false
   }
@@ -172,7 +173,7 @@ onMounted(async () => {
 
 <style scoped>
 .product-detail {
-  padding-top: 20px;
+  padding-top: 8px;
 }
 
 .back-btn {
@@ -180,15 +181,18 @@ onMounted(async () => {
   align-items: center;
   gap: 6px;
   padding: 8px 16px;
-  margin-bottom: 20px;
+  margin-bottom: 24px;
   background: none;
-  color: var(--gray-600);
+  color: var(--gray-500);
   font-size: 14px;
-  transition: color 0.2s;
+  font-weight: 500;
+  transition: all 0.2s;
+  border-radius: 8px;
 }
 
 .back-btn:hover {
-  color: var(--primary-color);
+  color: var(--gray-800);
+  background-color: var(--gray-100);
 }
 
 .back-btn svg {
@@ -197,21 +201,21 @@ onMounted(async () => {
 }
 
 .detail-main {
-  padding: 32px;
+  padding: 40px;
 }
 
 .detail-grid {
   display: grid;
-  grid-template-columns: 400px 1fr;
-  gap: 40px;
+  grid-template-columns: 420px 1fr;
+  gap: 48px;
 }
 
 .product-image {
   width: 100%;
   aspect-ratio: 1;
-  border-radius: 12px;
+  border-radius: 16px;
   overflow: hidden;
-  background-color: var(--gray-100);
+  background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
 }
 
 .product-image img {
@@ -236,52 +240,59 @@ onMounted(async () => {
 
 .product-name {
   font-size: 28px;
-  font-weight: 600;
-  color: var(--gray-700);
+  font-weight: 700;
+  color: var(--gray-800);
   margin-bottom: 8px;
+  letter-spacing: -0.02em;
+  line-height: 1.3;
 }
 
 .product-code {
-  font-size: 14px;
+  font-size: 13px;
   color: var(--gray-400);
-  margin-bottom: 20px;
+  margin-bottom: 24px;
+  font-weight: 500;
 }
 
 .product-price {
-  margin-bottom: 24px;
+  margin-bottom: 28px;
+  padding: 20px 24px;
+  background: linear-gradient(135deg, #fafafa 0%, #f5f5f5 100%);
+  border-radius: 12px;
+  border: 1px solid rgba(0,0,0,0.04);
 }
 
 .price-value {
   font-size: 36px;
   font-weight: 700;
-  color: #e53e3e;
+  color: #b91c1c;
+  letter-spacing: -0.02em;
 }
 
 .price-ecoin {
-  font-size: 16px;
-  color: var(--gray-500);
-  margin-left: 8px;
-  font-weight: 400;
+  font-size: 15px;
+  color: #f59e0b;
+  margin-left: 10px;
+  font-weight: 600;
 }
 
 .product-desc {
-  margin-bottom: 24px;
-  padding: 20px;
-  background-color: var(--gray-50);
-  border-radius: 8px;
+  margin-bottom: 28px;
 }
 
 .product-desc h3 {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
-  color: var(--gray-600);
+  color: var(--gray-500);
   margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 .product-desc p {
   font-size: 14px;
   color: var(--gray-500);
-  line-height: 1.6;
+  line-height: 1.7;
 }
 
 .quantity-section {
@@ -292,29 +303,31 @@ onMounted(async () => {
 }
 
 .quantity-label {
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--gray-600);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--gray-500);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 .quantity-control {
   display: flex;
   align-items: center;
   border: 1px solid var(--gray-200);
-  border-radius: 8px;
+  border-radius: 10px;
   overflow: hidden;
 }
 
 .qty-btn {
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
   background-color: var(--gray-50);
   color: var(--gray-600);
   font-size: 18px;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background-color 0.2s;
+  transition: all 0.15s;
 }
 
 .qty-btn:hover:not(:disabled) {
@@ -327,13 +340,14 @@ onMounted(async () => {
 }
 
 .quantity-control input {
-  width: 60px;
-  height: 36px;
+  width: 64px;
+  height: 40px;
   text-align: center;
   border: none;
   border-left: 1px solid var(--gray-200);
   border-right: 1px solid var(--gray-200);
-  font-size: 16px;
+  font-size: 15px;
+  font-weight: 600;
 }
 
 .quantity-control input::-webkit-outer-spin-button,
@@ -343,13 +357,14 @@ onMounted(async () => {
 
 .action-buttons {
   display: flex;
-  gap: 16px;
+  gap: 14px;
 }
 
 .action-buttons .btn {
   flex: 1;
-  padding: 14px 24px;
-  font-size: 16px;
+  padding: 15px 24px;
+  font-size: 15px;
+  font-weight: 600;
 }
 
 .action-buttons .btn svg {
@@ -365,7 +380,7 @@ onMounted(async () => {
   }
 
   .detail-main {
-    padding: 20px;
+    padding: 24px;
   }
 
   .product-name {

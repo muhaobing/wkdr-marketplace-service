@@ -143,6 +143,10 @@ export const ecoinApi = {
   getBalance(userId) {
     return api.get('/ecoin/balance', { params: { user_id: userId } })
   },
+  // 获取积分库存分组
+  getStockGroups(userId) {
+    return api.get('/ecoin/stock_groups', { params: { user_id: userId } })
+  },
   // 获取积分流水列表
   getTransactions(params) {
     return api.get('/ecoin/transactions', { params })

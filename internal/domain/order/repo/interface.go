@@ -40,6 +40,9 @@ type OrderRepo interface {
 	// UpdateOrderPayType 更新订单的支付类型
 	UpdateOrderPayType(ctx context.Context, orderNo string, payType string) error
 
+	// UpdateOrderEcoinAmount 更新订单的实付积分数
+	UpdateOrderEcoinAmount(ctx context.Context, orderNo string, ecoinAmount float64) error
+
 	// UpdateOrderPaymentOrderNo 更新订单的支付订单号
 	UpdateOrderPaymentOrderNo(ctx context.Context, orderNo string, paymentOrderNo string) error
 

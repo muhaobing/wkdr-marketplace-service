@@ -61,7 +61,8 @@
           <div class="order-footer">
             <div class="order-total">
               共 {{ getTotalQuantity(order) }} 件商品，合计: 
-              <strong>¥{{ (order.pay_amount || 0).toFixed(2) }}</strong>
+              <strong v-if="order.pay_type === 'ecoin' && order.ecoin_amount" class="ecoin-total">{{ order.ecoin_amount.toFixed(2) }} 积分</strong>
+              <strong v-else>¥{{ (order.pay_amount || 0).toFixed(2) }}</strong>
             </div>
             <div class="order-actions" @click.stop>
               <button 
@@ -91,6 +92,7 @@ import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import { orderApi } from '../api'
 import { useUserStore } from '../stores/user'
+import { toast, confirm } from '../utils/toast'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -192,15 +194,15 @@ function goToDetail(orderNo) {
 }
 
 async function cancelOrder(order) {
-  if (!confirm('确定要取消这个订单吗？')) return
+  if (!await confirm('确定要取消这个订单吗？')) return
   
   try {
     await orderApi.cancel(order.order_no, '用户主动取消')
-    alert('订单已取消')
+    toast.success('订单已取消')
     fetchOrders(true)
     userStore.refreshEcoin()
   } catch (error) {
-    alert('取消订单失败: ' + error.message)
+    toast.error('取消订单失败: ' + error.message)
   }
 }
 
@@ -277,7 +279,7 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .orders-page {
-  padding-top: 20px;
+  padding-top: 8px;
 }
 
 .orders-list {
@@ -287,20 +289,21 @@ onBeforeUnmount(() => {
 }
 
 .order-card {
-  padding: 20px;
+  padding: 24px;
   cursor: pointer;
-  transition: box-shadow 0.2s;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .order-card:hover {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow-lg);
+  transform: translateY(-2px);
 }
 
 .order-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 16px;
+  margin-bottom: 18px;
   padding-bottom: 16px;
   border-bottom: 1px solid var(--gray-100);
 }
@@ -313,8 +316,9 @@ onBeforeUnmount(() => {
 
 .order-no {
   font-size: 14px;
-  font-weight: 500;
-  color: var(--gray-700);
+  font-weight: 600;
+  color: var(--gray-800);
+  letter-spacing: -0.01em;
 }
 
 .order-time {
@@ -330,15 +334,17 @@ onBeforeUnmount(() => {
 }
 
 .order-status {
-  padding: 4px 12px;
+  padding: 5px 14px;
   border-radius: 20px;
   font-size: 12px;
-  font-weight: 500;
+  font-weight: 600;
+  letter-spacing: 0.02em;
 }
 
 .countdown {
   font-size: 12px;
   color: #d97706;
+  font-weight: 500;
   font-variant-numeric: tabular-nums;
 }
 
@@ -346,7 +352,7 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  margin-bottom: 16px;
+  margin-bottom: 18px;
 }
 
 .order-item {
@@ -356,11 +362,11 @@ onBeforeUnmount(() => {
 }
 
 .item-image {
-  width: 60px;
-  height: 60px;
-  border-radius: 8px;
+  width: 56px;
+  height: 56px;
+  border-radius: 10px;
   overflow: hidden;
-  background-color: var(--gray-100);
+  background: linear-gradient(135deg, #f8fafc, #e2e8f0);
   flex-shrink: 0;
 }
 
@@ -380,8 +386,8 @@ onBeforeUnmount(() => {
 }
 
 .image-placeholder svg {
-  width: 24px;
-  height: 24px;
+  width: 22px;
+  height: 22px;
 }
 
 .item-info {
@@ -390,8 +396,8 @@ onBeforeUnmount(() => {
 
 .item-info h4 {
   font-size: 14px;
-  font-weight: 500;
-  color: var(--gray-700);
+  font-weight: 600;
+  color: var(--gray-800);
   margin-bottom: 2px;
 }
 
@@ -402,7 +408,8 @@ onBeforeUnmount(() => {
 
 .item-price {
   font-size: 14px;
-  color: var(--gray-600);
+  color: #b91c1c;
+  font-weight: 700;
 }
 
 .order-footer {
@@ -419,23 +426,30 @@ onBeforeUnmount(() => {
 }
 
 .order-total strong {
-  font-size: 18px;
-  color: var(--primary-color);
+  font-size: 20px;
+  color: #b91c1c;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.order-total strong.ecoin-total {
+  color: #f59e0b;
 }
 
 .order-actions {
   display: flex;
-  gap: 12px;
+  gap: 10px;
 }
 
 .btn-sm {
-  padding: 8px 16px;
+  padding: 8px 18px;
   font-size: 13px;
+  font-weight: 600;
 }
 
 @media (max-width: 640px) {
   .order-card {
-    padding: 16px;
+    padding: 18px;
   }
 
   .order-footer {

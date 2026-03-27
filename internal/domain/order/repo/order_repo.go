@@ -116,6 +116,13 @@ func (r *orderRepoImpl) UpdateOrderPayType(ctx context.Context, orderNo string, 
 		Update("pay_type", payType).Error
 }
 
+// UpdateOrderEcoinAmount 更新订单的实付积分数
+func (r *orderRepoImpl) UpdateOrderEcoinAmount(ctx context.Context, orderNo string, ecoinAmount float64) error {
+	return database.FromContext(ctx).Model(&ordermodel.Order{}).
+		Where("order_no = ?", orderNo).
+		Update("ecoin_amount", ecoinAmount).Error
+}
+
 // UpdateOrderPaymentOrderNo 更新订单的支付订单号
 func (r *orderRepoImpl) UpdateOrderPaymentOrderNo(ctx context.Context, orderNo string, paymentOrderNo string) error {
 	return database.FromContext(ctx).Model(&ordermodel.Order{}).

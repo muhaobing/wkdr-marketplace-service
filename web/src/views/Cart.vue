@@ -127,6 +127,7 @@ import { useRouter } from 'vue-router'
 import { useCartStore } from '../stores/cart'
 import { useUserStore } from '../stores/user'
 import { ecoinApi } from '../api'
+import { toast, confirm } from '../utils/toast'
 
 const router = useRouter()
 const cartStore = useCartStore()
@@ -181,13 +182,13 @@ async function updateQty(item, event) {
 }
 
 async function removeItem(skuId) {
-  if (confirm('确定要删除这个商品吗？')) {
+  if (await confirm('确定要删除这个商品吗？')) {
     await cartStore.removeItem(skuId)
   }
 }
 
 async function clearSelected() {
-  if (confirm('确定要删除选中的商品吗？')) {
+  if (await confirm('确定要删除选中的商品吗？')) {
     await cartStore.clearSelected()
   }
 }
@@ -204,7 +205,7 @@ async function handleCheckout() {
     const orderNo = orderRes.order?.order_no || orderRes.order_no
     router.push(`/orders/${orderNo}`)
   } catch (error) {
-    alert('下单失败: ' + error.message)
+    toast.error('下单失败: ' + error.message)
   } finally {
     ordering.value = false
   }
@@ -213,7 +214,7 @@ async function handleCheckout() {
 
 <style scoped>
 .cart-page {
-  padding-top: 20px;
+  padding-top: 8px;
 }
 
 .loading-state {
@@ -237,11 +238,14 @@ async function handleCheckout() {
   grid-template-columns: 50px 2fr 1fr 120px 1fr 80px;
   gap: 16px;
   align-items: center;
-  padding: 16px 20px;
+  padding: 14px 24px;
   background-color: var(--gray-50);
-  font-size: 14px;
-  color: var(--gray-500);
-  font-weight: 500;
+  font-size: 13px;
+  color: var(--gray-400);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-bottom: 1px solid var(--gray-100);
 }
 
 .select-all {
@@ -249,16 +253,21 @@ async function handleCheckout() {
   align-items: center;
   gap: 8px;
   cursor: pointer;
+  font-size: 13px;
+  text-transform: none;
+  letter-spacing: normal;
+  font-weight: 500;
+  color: var(--gray-600);
 }
 
 .select-all input {
   width: 18px;
   height: 18px;
-  accent-color: var(--primary-color);
+  accent-color: var(--accent);
 }
 
 .cart-list {
-  padding: 0 20px;
+  padding: 0 24px;
 }
 
 .cart-item {
@@ -275,13 +284,13 @@ async function handleCheckout() {
 }
 
 .cart-item.offline {
-  opacity: 0.6;
+  opacity: 0.5;
 }
 
 .item-checkbox input {
   width: 18px;
   height: 18px;
-  accent-color: var(--primary-color);
+  accent-color: var(--accent);
 }
 
 .item-product {
@@ -291,11 +300,11 @@ async function handleCheckout() {
 }
 
 .product-image {
-  width: 80px;
-  height: 80px;
-  border-radius: 8px;
+  width: 72px;
+  height: 72px;
+  border-radius: 10px;
   overflow: hidden;
-  background-color: var(--gray-100);
+  background: linear-gradient(135deg, #f8fafc, #e2e8f0);
   flex-shrink: 0;
 }
 
@@ -315,14 +324,14 @@ async function handleCheckout() {
 }
 
 .image-placeholder svg {
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
 }
 
 .product-info h4 {
   font-size: 14px;
-  font-weight: 500;
-  color: var(--gray-700);
+  font-weight: 600;
+  color: var(--gray-800);
   margin-bottom: 4px;
 }
 
@@ -337,36 +346,39 @@ async function handleCheckout() {
   padding: 2px 8px;
   font-size: 11px;
   color: var(--danger);
-  background-color: rgba(220, 53, 69, 0.1);
+  background-color: #fef2f2;
   border-radius: 4px;
+  font-weight: 500;
 }
 
 .item-price {
   font-size: 14px;
-  color: #e53e3e;
-  font-weight: 600;
+  color: #b91c1c;
+  font-weight: 700;
 }
 
 .ecoin-price {
   font-size: 12px;
-  color: #888;
-  font-weight: 400;
+  color: #f59e0b;
+  font-weight: 600;
+  margin-top: 2px;
 }
 
 .quantity-control {
   display: flex;
   align-items: center;
   border: 1px solid var(--gray-200);
-  border-radius: 6px;
+  border-radius: 8px;
   overflow: hidden;
 }
 
 .quantity-control button {
-  width: 28px;
-  height: 28px;
+  width: 30px;
+  height: 30px;
   background-color: var(--gray-50);
   color: var(--gray-600);
   font-size: 14px;
+  transition: background-color 0.15s;
 }
 
 .quantity-control button:hover:not(:disabled) {
@@ -380,12 +392,13 @@ async function handleCheckout() {
 
 .quantity-control input {
   width: 40px;
-  height: 28px;
+  height: 30px;
   text-align: center;
   border: none;
   border-left: 1px solid var(--gray-200);
   border-right: 1px solid var(--gray-200);
-  font-size: 14px;
+  font-size: 13px;
+  font-weight: 600;
 }
 
 .quantity-control input::-webkit-outer-spin-button,
@@ -394,9 +407,9 @@ async function handleCheckout() {
 }
 
 .item-total {
-  font-size: 14px;
-  font-weight: 600;
-  color: #e53e3e;
+  font-size: 15px;
+  font-weight: 700;
+  color: #b91c1c;
 }
 
 .delete-btn {
@@ -407,11 +420,13 @@ async function handleCheckout() {
   justify-content: center;
   color: var(--gray-400);
   background: none;
-  transition: color 0.2s;
+  border-radius: 8px;
+  transition: all 0.15s;
 }
 
 .delete-btn:hover {
   color: var(--danger);
+  background-color: #fef2f2;
 }
 
 .delete-btn svg {
@@ -425,7 +440,7 @@ async function handleCheckout() {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 16px 24px;
+  padding: 18px 28px;
 }
 
 .footer-left {
@@ -435,9 +450,11 @@ async function handleCheckout() {
 }
 
 .clear-btn {
-  color: var(--gray-500);
+  color: var(--gray-400);
   background: none;
-  font-size: 14px;
+  font-size: 13px;
+  font-weight: 500;
+  transition: color 0.15s;
 }
 
 .clear-btn:hover:not(:disabled) {
@@ -464,17 +481,19 @@ async function handleCheckout() {
 }
 
 .summary strong {
-  color: var(--gray-700);
+  color: var(--gray-800);
 }
 
 .total-price strong {
-  font-size: 20px;
-  color: var(--primary-color);
+  font-size: 22px;
+  color: #b91c1c;
+  letter-spacing: -0.02em;
 }
 
 .checkout-btn {
   padding: 12px 48px;
-  font-size: 16px;
+  font-size: 15px;
+  font-weight: 600;
 }
 
 @media (max-width: 768px) {

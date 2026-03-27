@@ -71,6 +71,7 @@ func (r *skuRepoImpl) UpdateSku(ctx context.Context, sku *skumodel.Sku) error {
 			"sku_desc":        sku.SkuDesc,
 			"cost":            sku.Cost,
 			"delivery_method": sku.DeliveryMethod,
+			"multi_select":    sku.MultiSelect,
 		}).Error
 }
 

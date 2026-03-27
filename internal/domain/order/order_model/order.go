@@ -23,7 +23,8 @@ type Order struct {
 	ItemCount      int     `gorm:"column:item_count" json:"item_count"`             // 商品种类数量
 	TotalQuantity  int     `gorm:"column:total_quantity" json:"total_quantity"`     // 商品总数量
 	OriginalAmount float32 `gorm:"column:original_amount" json:"original_amount"`   // 原价
-	PayAmount      float32 `gorm:"column:pay_amount" json:"pay_amount"`             // 实付金额
+	PayAmount      float32 `gorm:"column:pay_amount" json:"pay_amount"`             // 实付金额（人民币）
+	EcoinAmount    float64 `gorm:"column:ecoin_amount" json:"ecoin_amount"`         // 实付积分数（积分支付时记录）
 	PayType        string  `gorm:"column:pay_type" json:"pay_type"`                 // 支付类型：ecoin/money
 	PaymentOrderNo string  `gorm:"column:payment_order_no" json:"payment_order_no"` // 支付订单号（货币支付时使用）
 	Status         uint8   `gorm:"column:status" json:"status"`                     // 订单状态

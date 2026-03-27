@@ -308,6 +308,25 @@ func (r *MarketplaceResource) GetEcoinBalance(ctx *gin.Context) {
 	http_utils.WriteResponse(ctx, ecoinInfo, nil)
 }
 
+// GetEcoinStockGroups 获取用户积分分组
+// GET /marketplace/ecoin/stock_groups
+func (r *MarketplaceResource) GetEcoinStockGroups(ctx *gin.Context) {
+	var req GetEcoinBalanceRequest
+	if err := ctx.ShouldBindQuery(&req); err != nil {
+		http_utils.WriteResponse(ctx, nil, err)
+		return
+	}
+
+	resp, err := r.ecoinService.GetEcoinStockGroupList(ctx.Request.Context(), &ecoin.EcoinStockGroupListRequest{
+		UserId: req.UserId,
+	})
+	if err != nil {
+		http_utils.WriteResponse(ctx, nil, err)
+		return
+	}
+	http_utils.WriteResponse(ctx, resp, nil)
+}
+
 // GetEcoinTransactionsRequest 获取积分流水请求
 type GetEcoinTransactionsRequest struct {
 	UserId uint64 `form:"user_id" binding:"required"` // 用户ID
@@ -666,6 +685,7 @@ func (r *MarketplaceResource) Router() registry.Registry {
 			ecoinGroup := group.Group("/ecoin")
 			{
 				ecoinGroup.GET("/balance", r.GetEcoinBalance)
+				ecoinGroup.GET("/stock_groups", r.GetEcoinStockGroups)
 				ecoinGroup.GET("/transactions", r.GetEcoinTransactions)
 				ecoinGroup.GET("/recharge_config", r.GetRechargeConfig)
 				ecoinGroup.POST("/recharge", r.RechargeEcoin)

@@ -23,6 +23,42 @@
         </button>
       </div>
 
+      <!-- 积分分组明细 -->
+      <div class="stock-groups-section card">
+        <div class="section-header">
+          <h2>积分明细</h2>
+        </div>
+
+        <div v-if="groupLoading" class="loading"></div>
+
+        <div v-else-if="stockGroups.length === 0" class="empty-state">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M20 7L9 18l-5-5"/>
+          </svg>
+          <p>暂无可用积分批次</p>
+        </div>
+
+        <div v-else class="groups-list">
+          <div v-for="group in stockGroups" :key="group.id" class="group-item">
+            <div class="group-main">
+              <div class="group-balance">
+                <span class="group-remaining">{{ Number(group.remaining_stock || 0).toFixed(2) }}</span>
+                <span class="group-unit">积分</span>
+              </div>
+              <div class="group-meta">
+                <span class="group-source">{{ getSourceTypeText(group.source_type) }}</span>
+                <span class="group-expire" :class="{ 'expire-soon': isExpiringSoon(group.expire_time) }">
+                  {{ formatExpireTime(group.expire_time) }}
+                </span>
+              </div>
+            </div>
+            <div class="group-progress">
+              <div class="group-progress-bar" :style="{ width: `${groupProgress(group)}%` }"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- 积分流水 -->
       <div class="transactions-section card">
         <div class="section-header">
@@ -184,11 +220,14 @@
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { ecoinApi, paymentApi, orderApi } from '../api'
 import { useUserStore } from '../stores/user'
+import { toast } from '../utils/toast'
 
 const userStore = useUserStore()
 
 const loading = ref(false)
+const groupLoading = ref(false)
 const transactions = ref([])
+const stockGroups = ref([])
 const total = ref(0)
 const currentPage = ref(1)
 const pageSize = 10
@@ -214,7 +253,9 @@ const sourceTypeMap = {
   'order': '订单消费',
   'refund': '订单退款',
   'recharge': '积分充值',
-  'admin': '系统调整'
+  'admin': '系统调整',
+  'system': '系统发放',
+  'expire': '过期失效'
 }
 
 function getSourceTypeText(sourceType) {
@@ -231,6 +272,44 @@ function formatTime(timestamp) {
     hour: '2-digit',
     minute: '2-digit'
   })
+}
+
+function formatExpireTime(timestamp) {
+  if (!timestamp || timestamp <= 0) return '永久有效'
+  const date = new Date(timestamp * 1000)
+  return `到期时间：${date.toLocaleString('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  })}`
+}
+
+function isExpiringSoon(timestamp) {
+  if (!timestamp || timestamp <= 0) return false
+  const now = Date.now()
+  return timestamp * 1000 - now <= 3 * 24 * 3600 * 1000
+}
+
+function groupProgress(group) {
+  const total = Number(group.total_stock || 0)
+  const left = Number(group.remaining_stock || 0)
+  if (total <= 0) return 0
+  return Math.max(0, Math.min(100, (left / total) * 100))
+}
+
+async function fetchStockGroups() {
+  groupLoading.value = true
+  try {
+    const res = await ecoinApi.getStockGroups(userStore.userId)
+    stockGroups.value = res?.list || []
+  } catch (error) {
+    console.error('获取积分明细失败:', error)
+    stockGroups.value = []
+  } finally {
+    groupLoading.value = false
+  }
 }
 
 async function fetchTransactions() {
@@ -299,15 +378,15 @@ function selectPayment(method) {
 
 async function handleRecharge() {
   if (!rechargeAmount.value || rechargeAmount.value <= 0) {
-    alert('请输入正确的充值数量')
+    toast.warning('请输入正确的充值数量')
     return
   }
   if (rechargeAmount.value < minRechargeAmount.value) {
-    alert(`最低充值数量为 ${minRechargeAmount.value} 积分`)
+    toast.warning(`最低充值数量为 ${minRechargeAmount.value} 积分`)
     return
   }
   if (!selectedPayment.value) {
-    alert('请选择支付方式')
+    toast.warning('请选择支付方式')
     return
   }
 
@@ -330,10 +409,10 @@ async function handleRecharge() {
       showPaymentModal.value = true
       startPolling()
     } else if (res?.order) {
-      alert('充值订单已创建，请完成支付')
+      toast.info('充值订单已创建，请完成支付')
     }
   } catch (error) {
-    alert('充值失败: ' + error.message)
+    toast.error('充值失败: ' + error.message)
   } finally {
     recharging.value = false
   }
@@ -352,10 +431,11 @@ async function pollRechargeStatus() {
     const updated = await orderApi.sync(pendingOrderNo.value)
     if (updated && updated.status !== 0) {
       await userStore.fetchEcoin()
+      await fetchStockGroups()
       await fetchTransactions()
       closePaymentModal()
       if (updated.status === 1 || updated.status === 2) {
-        alert('充值成功！积分已到账')
+        toast.success('充值成功！积分已到账')
       }
     }
   } catch (e) {
@@ -377,13 +457,15 @@ function stopPolling() {
 
 async function checkPaymentStatus() {
   await userStore.fetchEcoin()
+  await fetchStockGroups()
   await fetchTransactions()
   closePaymentModal()
-  alert('积分余额已刷新，如未到账请稍后再试')
+  toast.info('积分余额已刷新，如未到账请稍后再试')
 }
 
 onMounted(() => {
   userStore.fetchEcoin()
+  fetchStockGroups()
   fetchTransactions()
 })
 
@@ -394,23 +476,44 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .ecoin-center-page {
-  padding-top: 20px;
+  padding-top: 8px;
 }
 
 .balance-card {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 32px;
-  background: linear-gradient(135deg, var(--primary-color) 0%, #2a4a7a 100%);
+  padding: 36px 40px;
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #334155 100%);
   color: white;
-  margin-bottom: 24px;
+  margin-bottom: 28px;
+  border: none;
+  position: relative;
+  overflow: hidden;
+}
+
+.balance-card::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  right: -20%;
+  width: 400px;
+  height: 400px;
+  background: radial-gradient(circle, rgba(99, 102, 241, 0.15), transparent 70%);
+  pointer-events: none;
+}
+
+.balance-info {
+  position: relative;
 }
 
 .balance-label {
-  font-size: 14px;
-  opacity: 0.9;
+  font-size: 13px;
+  opacity: 0.7;
   margin-bottom: 8px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
 }
 
 .balance-value {
@@ -420,35 +523,121 @@ onBeforeUnmount(() => {
 }
 
 .balance-number {
-  font-size: 42px;
-  font-weight: 600;
+  font-size: 44px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
 }
 
 .balance-unit {
   font-size: 16px;
-  opacity: 0.9;
+  opacity: 0.7;
+  font-weight: 500;
 }
 
 .recharge-btn {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 8px;
-  background-color: rgba(255, 255, 255, 0.2);
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  padding: 12px 24px;
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  padding: 12px 28px;
+  border-radius: 10px;
+  backdrop-filter: blur(8px);
+  box-shadow: none;
+  font-weight: 600;
 }
 
 .recharge-btn:hover {
-  background-color: rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.25);
+  transform: translateY(-1px);
 }
 
 .recharge-btn svg {
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
+}
+
+.stock-groups-section {
+  padding: 24px 28px;
+  margin-bottom: 20px;
+}
+
+.groups-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.group-item {
+  border: 1px solid var(--gray-100);
+  border-radius: 12px;
+  padding: 14px 16px;
+  background: #fff;
+}
+
+.group-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 10px;
+}
+
+.group-balance {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.group-remaining {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--warning);
+}
+
+.group-unit {
+  font-size: 13px;
+  color: var(--gray-500);
+}
+
+.group-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.group-source {
+  font-size: 12px;
+  color: var(--gray-500);
+}
+
+.group-expire {
+  font-size: 12px;
+  color: var(--gray-400);
+}
+
+.group-expire.expire-soon {
+  color: #d97706;
+  font-weight: 600;
+}
+
+.group-progress {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--gray-100);
+  overflow: hidden;
+}
+
+.group-progress-bar {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #f59e0b, #fbbf24);
 }
 
 .transactions-section {
-  padding: 24px;
+  padding: 28px 32px;
 }
 
 .section-header {
@@ -456,9 +645,11 @@ onBeforeUnmount(() => {
 }
 
 .section-header h2 {
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--gray-700);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--gray-400);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
 }
 
 .transactions-list {
@@ -484,7 +675,8 @@ onBeforeUnmount(() => {
 
 .tx-desc {
   font-size: 14px;
-  color: var(--gray-700);
+  font-weight: 500;
+  color: var(--gray-800);
   margin-bottom: 4px;
 }
 
@@ -495,7 +687,8 @@ onBeforeUnmount(() => {
 
 .tx-amount {
   font-size: 16px;
-  font-weight: 600;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }
 
 .tx-amount.positive {
@@ -517,28 +710,31 @@ onBeforeUnmount(() => {
 }
 
 .page-btn {
-  padding: 8px 16px;
+  padding: 8px 18px;
   border: 1px solid var(--gray-200);
-  border-radius: 6px;
+  border-radius: 8px;
   background-color: white;
   color: var(--gray-600);
   cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
   transition: all 0.2s;
 }
 
 .page-btn:hover:not(:disabled) {
-  border-color: var(--primary-color);
-  color: var(--primary-color);
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
 .page-btn:disabled {
-  opacity: 0.5;
+  opacity: 0.4;
   cursor: not-allowed;
 }
 
 .page-info {
-  font-size: 14px;
-  color: var(--gray-500);
+  font-size: 13px;
+  color: var(--gray-400);
+  font-weight: 500;
 }
 
 /* 弹窗样式 */
@@ -548,7 +744,8 @@ onBeforeUnmount(() => {
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: rgba(0, 0, 0, 0.5);
+  background-color: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -557,25 +754,27 @@ onBeforeUnmount(() => {
 
 .modal {
   background-color: white;
-  border-radius: 12px;
+  border-radius: 20px;
   width: 90%;
   max-width: 480px;
   max-height: 90vh;
   overflow-y: auto;
+  box-shadow: var(--shadow-xl);
 }
 
 .modal-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 20px 24px;
+  padding: 24px 28px;
   border-bottom: 1px solid var(--gray-100);
 }
 
 .modal-header h3 {
   font-size: 18px;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--gray-800);
+  letter-spacing: -0.01em;
 }
 
 .close-btn {
@@ -588,7 +787,8 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 6px;
+  border-radius: 8px;
+  transition: all 0.15s;
 }
 
 .close-btn:hover {
@@ -602,33 +802,35 @@ onBeforeUnmount(() => {
 }
 
 .modal-body {
-  padding: 24px;
+  padding: 28px;
 }
 
 .form-group {
-  margin-bottom: 20px;
+  margin-bottom: 22px;
 }
 
 .form-group label {
   display: block;
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--gray-700);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--gray-600);
   margin-bottom: 8px;
+  letter-spacing: 0.02em;
 }
 
 .form-input {
   width: 100%;
   padding: 12px 16px;
   border: 1px solid var(--gray-200);
-  border-radius: 8px;
+  border-radius: 10px;
   font-size: 14px;
-  transition: border-color 0.2s;
+  transition: all 0.2s;
 }
 
 .form-input:focus {
   outline: none;
-  border-color: var(--primary-color);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
 }
 
 .form-hint {
@@ -640,13 +842,13 @@ onBeforeUnmount(() => {
 .payment-methods {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
 }
 
 .payment-method {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
   padding: 16px;
   border: 2px solid var(--gray-200);
   border-radius: 12px;
@@ -659,23 +861,23 @@ onBeforeUnmount(() => {
 }
 
 .payment-method.active {
-  border-color: var(--primary-color);
-  background-color: rgba(26, 54, 93, 0.05);
+  border-color: var(--accent);
+  background-color: rgba(99, 102, 241, 0.04);
 }
 
 .method-icon {
   width: 40px;
   height: 40px;
-  border-radius: 8px;
-  background-color: var(--gray-100);
+  border-radius: 10px;
+  background-color: var(--gray-50);
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
 .method-icon svg {
-  width: 24px;
-  height: 24px;
+  width: 22px;
+  height: 22px;
   color: #07c160;
 }
 
@@ -685,15 +887,15 @@ onBeforeUnmount(() => {
 
 .method-name {
   font-size: 14px;
-  font-weight: 500;
-  color: var(--gray-700);
+  font-weight: 600;
+  color: var(--gray-800);
 }
 
 .method-check {
   width: 24px;
   height: 24px;
   border-radius: 50%;
-  background-color: var(--primary-color);
+  background: linear-gradient(135deg, var(--accent), var(--accent-light));
   color: white;
   display: flex;
   align-items: center;
@@ -706,17 +908,20 @@ onBeforeUnmount(() => {
 }
 
 .recharge-summary {
-  padding: 16px;
-  background-color: var(--gray-50);
-  border-radius: 8px;
+  padding: 18px;
+  background: linear-gradient(135deg, #f8fafc, #f1f5f9);
+  border-radius: 12px;
   text-align: center;
   font-size: 14px;
   color: var(--gray-600);
+  border: 1px solid var(--gray-100);
 }
 
 .recharge-summary strong {
-  font-size: 20px;
+  font-size: 22px;
   color: var(--primary-color);
+  font-weight: 700;
+  letter-spacing: -0.02em;
 }
 
 .pay-amount {
@@ -731,15 +936,15 @@ onBeforeUnmount(() => {
 
 .modal-footer {
   display: flex;
-  gap: 12px;
-  padding: 20px 24px;
+  gap: 10px;
+  padding: 20px 28px;
   border-top: 1px solid var(--gray-100);
   justify-content: flex-end;
 }
 
 /* 支付二维码弹窗 */
 .payment-modal {
-  max-width: 360px;
+  max-width: 380px;
 }
 
 .payment-body {
@@ -749,12 +954,13 @@ onBeforeUnmount(() => {
 .qrcode-container {
   width: 200px;
   height: 200px;
-  margin: 0 auto 16px;
-  background-color: var(--gray-100);
-  border-radius: 8px;
+  margin: 0 auto 20px;
+  background-color: var(--gray-50);
+  border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
+  border: 1px solid var(--gray-100);
 }
 
 .qrcode-container img {
@@ -781,7 +987,8 @@ onBeforeUnmount(() => {
 
 .payment-amount strong {
   color: var(--primary-color);
-  font-size: 18px;
+  font-size: 20px;
+  font-weight: 700;
 }
 
 @media (max-width: 640px) {
@@ -789,7 +996,7 @@ onBeforeUnmount(() => {
     flex-direction: column;
     gap: 24px;
     text-align: center;
-    padding: 24px;
+    padding: 28px;
   }
 
   .balance-number {
