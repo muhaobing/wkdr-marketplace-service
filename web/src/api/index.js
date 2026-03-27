@@ -55,7 +55,8 @@ const responseErrorHandler = error => {
   if (error.response && error.response.status === 401) {
     localStorage.removeItem('token')
     localStorage.removeItem('user')
-    window.location.href = '/login'
+    const base = import.meta.env.BASE_URL || '/'
+    window.location.href = `${base}login`
   }
   // 403 禁止访问
   if (error.response && error.response.status === 403) {
