@@ -8,6 +8,7 @@ BACKEND_PORT=10302
 FRONTEND_PORT=10301
 BIN_DIR="${PROJECT_DIR}/bin"
 LOG_DIR="${PROJECT_DIR}/logs"
+TARGET="${1:-all}"
 
 echo "[deploy] project root: ${PROJECT_DIR}"
 
@@ -36,7 +37,13 @@ install_pkg() {
 ensure_dependencies() {
   echo "[deploy] checking dependencies..."
   command_exists lsof || install_pkg lsof
+}
+
+ensure_backend_dependencies() {
   command_exists go || install_pkg golang
+}
+
+ensure_frontend_dependencies() {
   command_exists node || install_pkg nodejs
   command_exists npm || install_pkg npm
 }
@@ -85,15 +92,45 @@ start_frontend() {
 
 main() {
   ensure_dependencies
-  kill_port "${BACKEND_PORT}"
-  kill_port "${FRONTEND_PORT}"
-  prepare_backend
-  prepare_frontend
-  start_backend
-  start_frontend
+
+  case "${TARGET}" in
+    be)
+      ensure_backend_dependencies
+      kill_port "${BACKEND_PORT}"
+      prepare_backend
+      start_backend
+      ;;
+    fe)
+      ensure_frontend_dependencies
+      kill_port "${FRONTEND_PORT}"
+      mkdir -p "${LOG_DIR}"
+      prepare_frontend
+      start_frontend
+      ;;
+    all)
+      ensure_backend_dependencies
+      ensure_frontend_dependencies
+      kill_port "${BACKEND_PORT}"
+      kill_port "${FRONTEND_PORT}"
+      prepare_backend
+      prepare_frontend
+      start_backend
+      start_frontend
+      ;;
+    *)
+      echo "[deploy] invalid arg: ${TARGET}"
+      echo "[deploy] usage: bash script/deploy.sh [be|fe|all]"
+      exit 1
+      ;;
+  esac
+
   echo "[deploy] done."
-  echo "[deploy] frontend: http://<your-host>:${FRONTEND_PORT}"
-  echo "[deploy] backend : http://<your-host>:${BACKEND_PORT}"
+  if [[ "${TARGET}" == "all" || "${TARGET}" == "fe" ]]; then
+    echo "[deploy] frontend: http://<your-host>:${FRONTEND_PORT}"
+  fi
+  if [[ "${TARGET}" == "all" || "${TARGET}" == "be" ]]; then
+    echo "[deploy] backend : http://<your-host>:${BACKEND_PORT}"
+  fi
 }
 
 main "$@"
