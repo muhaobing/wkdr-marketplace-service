@@ -62,8 +62,11 @@ prepare_backend() {
   echo "[deploy] preparing backend..."
   cd "${PROJECT_DIR}"
   export GOPROXY="https://goproxy.cn,direct"
-  echo "[deploy] GOPROXY=${GOPROXY}"
+  export GOFLAGS="-mod=mod"
+  echo "[deploy] GOPROXY=${GOPROXY} GOFLAGS=${GOFLAGS}"
+  go mod tidy
   go mod download
+  go mod verify
   mkdir -p "${BIN_DIR}" "${LOG_DIR}"
   go build -o "${BIN_DIR}/wkdr-marketplace-service" ./cmd/main.go
 }
