@@ -19,7 +19,6 @@ import (
 	"wdkr-marketplace-service/internal/domain/payment"
 	"wdkr-marketplace-service/internal/domain/payment/payment_model"
 	"wdkr-marketplace-service/internal/domain/sku"
-	skumodel "wdkr-marketplace-service/internal/domain/sku/sku_model"
 )
 
 const (
@@ -609,7 +608,7 @@ func (s *orderServiceImpl) fulfillSkuItems(ctx context.Context, order *ordermode
 			fulfillStatus = ordermodel.FulfillStatusFailed
 			fulfillMsg = fmt.Sprintf("get sku failed: %v", err)
 			allSuccess = false
-		} else if skuInfo.FulfillMode == skumodel.FulfillModeEcoinGrant {
+		} else if skuInfo.IsEcoinGrantFulfill() {
 			grant := skuInfo.FulfillEcoinAmount * float64(item.Quantity)
 			if grant <= 0 {
 				fulfillStatus = ordermodel.FulfillStatusFailed

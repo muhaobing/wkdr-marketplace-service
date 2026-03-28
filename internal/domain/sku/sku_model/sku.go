@@ -1,5 +1,7 @@
 package sku_model
 
+import "strings"
+
 const (
 	SkuTabName = "sku_tab"
 
@@ -33,6 +35,20 @@ type Sku struct {
 
 func (s *Sku) TableName() string {
 	return SkuTabName
+}
+
+// IsEcoinGrantFulfill 是否按积分发放履约：以 fulfill_mode 为准，并兼容未写入 fulfill_mode（仍为 0）但已配置每件积分且未填回调 URL 的数据
+func (s *Sku) IsEcoinGrantFulfill() bool {
+	if s == nil {
+		return false
+	}
+	if s.FulfillMode == FulfillModeEcoinGrant {
+		return true
+	}
+	if s.FulfillEcoinAmount > 0 && strings.TrimSpace(s.DeliveryMethod) == "" {
+		return true
+	}
+	return false
 }
 
 // IsOnline 检查商品是否已上架

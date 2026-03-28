@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	jsoniter "github.com/json-iterator/go"
@@ -312,12 +313,12 @@ func (s *skuServiceImpl) FulfillSku(ctx context.Context, req *FulfillSkuRequest)
 		return nil, errors.New("sku is not listed, cannot fulfill")
 	}
 
-	if sku.FulfillMode == skumodel.FulfillModeEcoinGrant {
+	if sku.IsEcoinGrantFulfill() {
 		return nil, errors.New("sku uses ecoin grant fulfill, HTTP callback is not applicable")
 	}
 
 	// 检查履约方式是否配置
-	if sku.DeliveryMethod == "" {
+	if strings.TrimSpace(sku.DeliveryMethod) == "" {
 		return nil, errors.New("sku delivery method is not configured")
 	}
 
@@ -404,13 +405,15 @@ func (s *skuServiceImpl) callDeliveryMethod(ctx context.Context, url, skuCode, b
 }
 
 func validateFulfillConfig(mode uint8, deliveryMethod string, ecoinAmount float64) error {
-	if mode == skumodel.FulfillModeEcoinGrant {
+	dm := strings.TrimSpace(deliveryMethod)
+	// 积分模式：显式 fulfill_mode=1，或未写入 mode 但已配每件积分且未填回调（与 Sku.IsEcoinGrantFulfill 一致）
+	if mode == skumodel.FulfillModeEcoinGrant || (ecoinAmount > 0 && dm == "") {
 		if ecoinAmount <= 0 {
 			return errors.New("fulfill_ecoin_amount must be positive for ecoin grant mode")
 		}
 		return nil
 	}
-	if deliveryMethod == "" {
+	if dm == "" {
 		return errors.New("delivery_method is required for callback fulfill mode")
 	}
 	return nil

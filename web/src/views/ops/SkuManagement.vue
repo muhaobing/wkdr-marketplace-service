@@ -35,12 +35,11 @@
         </div>
         <div class="filter-item">
           <label>上架状态</label>
-          <select v-model="filters.status">
-            <option value="">全部</option>
-            <option value="0">待上架</option>
-            <option value="1">已上架</option>
-            <option value="2">已下架</option>
-          </select>
+          <OpsSelect
+            v-model="filters.status"
+            :options="statusFilterOptions"
+            variant="filter"
+          />
         </div>
         <div class="filter-actions">
           <button class="btn btn-primary" @click="handleSearch">
@@ -98,7 +97,7 @@
               </span>
             </td>
             <td>
-              <span v-if="sku.fulfill_mode === 1" class="badge-info">积分 {{ sku.fulfill_ecoin_amount ?? 0 }}/件</span>
+              <span v-if="Number(sku.fulfill_mode ?? 0) === 1" class="badge-info">积分 {{ sku.fulfill_ecoin_amount ?? 0 }}/件</span>
               <span v-else class="badge-default">回调</span>
             </td>
             <td>
@@ -274,13 +273,14 @@
           
           <div class="form-group">
             <label>履约方式 <span class="required">*</span></label>
-            <select v-model.number="formData.fulfill_mode">
-              <option :value="0">接口回调</option>
-              <option :value="1">积分发放</option>
-            </select>
+            <OpsSelect
+              v-model="formData.fulfill_mode"
+              :options="fulfillModeOptions"
+              variant="form"
+            />
           </div>
 
-          <div v-if="formData.fulfill_mode === 0" class="form-group">
+          <div v-if="fulfillModeNum === 0" class="form-group">
             <label>履约回调接口 <span class="required">*</span></label>
             <input 
               type="text" 
@@ -289,7 +289,7 @@
             >
           </div>
 
-          <div v-if="formData.fulfill_mode === 1" class="form-group">
+          <div v-if="fulfillModeNum === 1" class="form-group">
             <label>每件发放积分 <span class="required">*</span></label>
             <input 
               type="number" 
@@ -314,7 +314,20 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
+import OpsSelect from '../../components/OpsSelect.vue'
 import { opsSkuApi, ecoinApi } from '../../api'
+
+const statusFilterOptions = [
+  { value: '', label: '全部' },
+  { value: '0', label: '待上架' },
+  { value: '1', label: '已上架' },
+  { value: '2', label: '已下架' }
+]
+
+const fulfillModeOptions = [
+  { value: 0, label: '接口回调' },
+  { value: 1, label: '积分发放' }
+]
 import { toast, confirm } from '../../utils/toast'
 
 // 列表数据
@@ -403,6 +416,12 @@ function handleImageUpload(event) {
 const multiSelectChecked = computed({
   get: () => formData.multi_select === 1,
   set: (val) => { formData.multi_select = val ? 1 : 0 }
+})
+
+// select 在部分环境下会得到字符串 "0"/"1"，统一成数字再比较
+const fulfillModeNum = computed(() => {
+  const n = Number(formData.fulfill_mode)
+  return n === 1 ? 1 : 0
 })
 
 const ecoinUnitPrice = ref(0)
@@ -508,16 +527,25 @@ function resetFormData() {
 
 // 提交表单
 async function handleSubmit() {
-  // 验证
-  if (!formData.sku_code || !formData.sku_name || !formData.biz_code || formData.cost === '') {
-    toast.warning('请填写必填字段')
+  const mode = fulfillModeNum.value
+  const missing = []
+  if (!String(formData.sku_code || '').trim()) missing.push('商品编码')
+  if (!String(formData.sku_name || '').trim()) missing.push('商品名称')
+  if (!String(formData.biz_code || '').trim()) missing.push('业务域')
+  const rawCost = formData.cost
+  const costNum = rawCost === '' || rawCost === null || rawCost === undefined ? NaN : Number(rawCost)
+  if (!Number.isFinite(costNum) || costNum < 0) {
+    missing.push('商品价格(元)')
+  }
+  if (missing.length) {
+    toast.warning(`请填写：${missing.join('、')}`)
     return
   }
-  if (formData.fulfill_mode === 0 && !String(formData.delivery_method || '').trim()) {
+  if (mode === 0 && !String(formData.delivery_method || '').trim()) {
     toast.warning('接口回调模式请填写履约回调接口 URL')
     return
   }
-  if (formData.fulfill_mode === 1) {
+  if (mode === 1) {
     const amt = Number(formData.fulfill_ecoin_amount)
     if (!Number.isFinite(amt) || amt <= 0) {
       toast.warning('积分发放模式请填写大于 0 的每件发放积分')
@@ -531,12 +559,12 @@ async function handleSubmit() {
       sku_code: formData.sku_code,
       sku_name: formData.sku_name,
       biz_code: formData.biz_code,
-      cost: parseFloat(formData.cost),
+      cost: costNum,
       sku_avatar: formData.sku_avatar,
       sku_desc: formData.sku_desc,
-      fulfill_mode: formData.fulfill_mode,
-      delivery_method: formData.fulfill_mode === 0 ? formData.delivery_method : '',
-      fulfill_ecoin_amount: formData.fulfill_mode === 1 ? Number(formData.fulfill_ecoin_amount) : 0,
+      fulfill_mode: mode,
+      delivery_method: mode === 0 ? String(formData.delivery_method || '').trim() : '',
+      fulfill_ecoin_amount: mode === 1 ? Number(formData.fulfill_ecoin_amount) : 0,
       multi_select: formData.multi_select
     }
 
@@ -707,19 +735,17 @@ onMounted(async () => {
   letter-spacing: 0.04em;
 }
 
-.filter-item input,
-.filter-item select {
+.filter-item input {
   height: 38px;
   padding: 0 14px;
   border: 1px solid var(--gray-200);
-  border-radius: 8px;
+  border-radius: 10px;
   font-size: 14px;
   min-width: 180px;
   transition: all 0.2s;
 }
 
-.filter-item input:focus,
-.filter-item select:focus {
+.filter-item input:focus {
   border-color: var(--accent);
   outline: none;
   box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.08);
@@ -1082,19 +1108,17 @@ onMounted(async () => {
 }
 
 .form-group input,
-.form-group textarea,
-.form-group select {
+.form-group textarea {
   width: 100%;
   padding: 11px 14px;
   border: 1px solid var(--gray-200);
-  border-radius: 8px;
+  border-radius: 10px;
   font-size: 14px;
   transition: all 0.2s;
 }
 
 .form-group input:focus,
-.form-group textarea:focus,
-.form-group select:focus {
+.form-group textarea:focus {
   border-color: var(--accent);
   outline: none;
   box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.08);
