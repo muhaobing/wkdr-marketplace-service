@@ -13,110 +13,22 @@ import (
 	"wdkr-marketplace-service/internal/domain/order"
 	"wdkr-marketplace-service/internal/domain/payment"
 	"wdkr-marketplace-service/internal/domain/payment/payment_model"
-	"wdkr-marketplace-service/internal/domain/user"
 )
 
 // OpenAPIResource OpenAPI接口资源（面向内部平台及外部支付回调）
 type OpenAPIResource struct {
 	ecoinService   ecoin.EcoinService
 	paymentService payment.PaymentService
-	userService    user.UserService
 	orderService   order.OrderService
 }
 
 // NewOpenAPIResource 创建OpenAPI资源实例
-func NewOpenAPIResource(ecoinService ecoin.EcoinService, paymentService payment.PaymentService, userService user.UserService, orderService order.OrderService) *OpenAPIResource {
+func NewOpenAPIResource(ecoinService ecoin.EcoinService, paymentService payment.PaymentService, orderService order.OrderService) *OpenAPIResource {
 	return &OpenAPIResource{
 		ecoinService:   ecoinService,
 		paymentService: paymentService,
-		userService:    userService,
 		orderService:   orderService,
 	}
-}
-
-// ==================== 用户接口 ====================
-
-// BindUserRequest 用户绑定请求
-type BindUserRequest struct {
-	BizCode   string `json:"biz_code" binding:"required"`    // 业务平台代码
-	BizUserId uint64 `json:"biz_user_id" binding:"required"` // 业务平台用户ID
-	TelNo     string `json:"tel_no"`                         // 手机号
-	Email     string `json:"email"`                          // 邮箱
-	Password  string `json:"password" binding:"required"`    // 用户密码（绑定成功后签发 session）
-}
-
-// BindUser 绑定用户
-// POST /openapi/user/bind
-func (r *OpenAPIResource) BindUser(ctx *gin.Context) {
-	var req BindUserRequest
-	if err := ctx.ShouldBindJSON(&req); err != nil {
-		http_utils.WriteResponse(ctx, nil, err)
-		return
-	}
-
-	resp, err := r.userService.BindUser(ctx.Request.Context(), &user.BindUserRequest{
-		Password:  req.Password,
-		BizCode:   req.BizCode,
-		BizUserId: req.BizUserId,
-		TelNo:     req.TelNo,
-		Email:     req.Email,
-	})
-	if err != nil {
-		http_utils.WriteResponse(ctx, nil, err)
-		return
-	}
-
-	http_utils.WriteResponse(ctx, resp, nil)
-}
-
-// UnbindUserRequest 用户解绑请求
-type UnbindUserRequest struct {
-	UserId  uint   `json:"user_id" binding:"required"`  // 商城用户ID
-	BizCode string `json:"biz_code" binding:"required"` // 业务平台代码
-}
-
-// UnbindUser 解绑用户
-// POST /openapi/user/unbind
-func (r *OpenAPIResource) UnbindUser(ctx *gin.Context) {
-	var req UnbindUserRequest
-	if err := ctx.ShouldBindJSON(&req); err != nil {
-		http_utils.WriteResponse(ctx, nil, err)
-		return
-	}
-
-	err := r.userService.UnbindUser(ctx.Request.Context(), &user.UnbindUserRequest{
-		UserId:  req.UserId,
-		BizCode: req.BizCode,
-	})
-	if err != nil {
-		http_utils.WriteResponse(ctx, nil, err)
-		return
-	}
-
-	http_utils.WriteResponse(ctx, nil, nil)
-}
-
-// UserBindingsRequest 查询绑定列表（JWT 中间件解析后的 body）
-type UserBindingsRequest struct {
-	UserId uint `json:"user_id" binding:"required"` // 商城用户ID
-}
-
-// PostUserBindings 获取用户绑定信息
-// POST /openapi/user/bindings（业务参数在 JWT payload 中）
-func (r *OpenAPIResource) PostUserBindings(ctx *gin.Context) {
-	var req UserBindingsRequest
-	if err := ctx.ShouldBindJSON(&req); err != nil {
-		http_utils.WriteResponse(ctx, nil, err)
-		return
-	}
-
-	bindings, err := r.userService.GetBindingsByUserId(ctx.Request.Context(), req.UserId)
-	if err != nil {
-		http_utils.WriteResponse(ctx, nil, err)
-		return
-	}
-
-	http_utils.WriteResponse(ctx, bindings, nil)
 }
 
 // ==================== 积分接口 ====================
@@ -353,11 +265,6 @@ func (r *OpenAPIResource) Router() registry.Registry {
 	return func(router *gin.Engine) {
 		group := router.Group("/openapi")
 		{
-			// 用户接口
-			group.POST("/user/bind", r.BindUser)
-			group.POST("/user/unbind", r.UnbindUser)
-			group.POST("/user/bindings", r.PostUserBindings)
-
 			// 积分接口
 			group.POST("/ecoin/add", r.AddEcoin)
 			group.POST("/ecoin/deduct", r.DeductEcoin)

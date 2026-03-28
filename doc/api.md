@@ -41,12 +41,12 @@ Authorization: Bearer {token}
 | 路径 | 鉴权要求 |
 |------|----------|
 | `/marketplace/login` | 免鉴权 |
-| `/openapi/user/bind` | 免鉴权 |
+| `/marketplace/user/bind` | 免鉴权 |
 | `/openapi/callback/*` | 免鉴权（第三方回调） |
 | `/mock/*` | 免鉴权（测试接口） |
 | `/ping` | 免鉴权 |
 | `/marketplace/*` | 用户登录鉴权 |
-| `/openapi/*`（除 callback 等） | JWT 鉴权（见部署配置） |
+| `/openapi/ecoin*` 等 | JWT 鉴权（见部署配置 `jwt.paths`） |
 | `/ops/*` | 管理员权限（Admin） |
 
 ### 通用枚举
@@ -113,6 +113,14 @@ Authorization: Bearer {token}
 | token | string | 登录 Token |
 | user_id | uint | 用户 ID |
 | user | object | 用户信息 |
+
+#### 用户绑定 / 解绑 / 绑定列表（同登录页）
+
+**POST** `/marketplace/user/bind` — 免鉴权。请求体：`biz_code`、`biz_user_id`、`password` 必填；`tel_no` / `email` 至少其一。响应 `data` 含 `token`、`user`、`user_id`、`is_new_user`（绑定成功即登录）。前端绑定页可通过查询参数预填：`?biz_code=lawmind&biz_user_id=123`。
+
+**POST** `/marketplace/user/unbind` — 需 session。请求体：`biz_code`；商城 `user_id` 取自当前登录 session。
+
+**GET** `/marketplace/user/bindings` — 需 session。返回当前用户的绑定列表。
 
 ---
 
@@ -796,70 +804,7 @@ null
 
 > 面向公司内部其他业务平台调用。
 
-### 3.1 用户绑定
-
-**POST** `/openapi/user/bind`
-
-> 鉴权：免鉴权
-
-**请求参数**
-
-| 字段 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| biz_code | string | 是 | 业务平台代码 |
-| biz_user_id | uint64 | 是 | 业务平台用户 ID |
-| tel_no | string | 否* | 手机号（与 email 二选一） |
-| email | string | 否* | 邮箱 |
-| secret | string | 是 | 用户密钥 |
-
-**响应 data**
-
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| user_id | uint | 商城用户 ID |
-| is_new_user | bool | 是否新创建的用户 |
-| secret_key | string | 用户密钥（仅新用户返回） |
-
----
-
-### 3.2 用户解绑
-
-**POST** `/openapi/user/unbind`
-
-> 鉴权：用户登录
-
-**请求参数**
-
-| 字段 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| user_id | uint | 是 | 商城用户 ID |
-| biz_code | string | 是 | 业务平台代码 |
-
-**响应 data**
-
-null
-
----
-
-### 3.3 获取用户绑定列表
-
-**GET** `/openapi/user/:user_id/bindings`
-
-> 鉴权：用户登录
-
-**路径参数**
-
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| user_id | uint | 用户 ID |
-
-**响应 data**
-
-绑定信息数组，每条包含 biz_code、biz_user_id 等。
-
----
-
-### 3.4 增加积分
+### 3.1 增加积分
 
 **POST** `/openapi/ecoin/add`
 
@@ -881,7 +826,7 @@ null
 
 ---
 
-### 3.5 扣除积分
+### 3.2 扣除积分
 
 **POST** `/openapi/ecoin/deduct`
 
@@ -903,7 +848,7 @@ null
 
 ---
 
-### 3.6 初始化积分账户
+### 3.3 初始化积分账户
 
 **POST** `/openapi/ecoin/init`
 
@@ -921,7 +866,7 @@ null
 
 ---
 
-### 3.7 查询积分余额
+### 3.4 查询积分余额
 
 **GET** `/openapi/ecoin/:user_id`
 
@@ -939,7 +884,7 @@ null
 
 ---
 
-### 3.8 查询积分流水
+### 3.5 查询积分流水
 
 **GET** `/openapi/ecoin/:user_id/transactions`
 

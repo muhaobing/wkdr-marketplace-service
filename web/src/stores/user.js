@@ -38,17 +38,37 @@ export const useUserStore = defineStore('user', () => {
       const response = await authApi.login(credentials)
       token.value = response.token
       user.value = response.user
-      
-      // 保存到 localStorage
+
       localStorage.setItem('token', response.token)
       localStorage.setItem('user', JSON.stringify(response.user))
-      
-      // 获取积分
+
       await fetchEcoin()
-      
+
       return response
     } catch (error) {
       console.error('登录失败:', error)
+      throw error
+    } finally {
+      loading.value = false
+    }
+  }
+
+  // 绑定（返回 token，与登录后状态一致）
+  async function bindAccount(payload) {
+    loading.value = true
+    try {
+      const response = await authApi.bind(payload)
+      token.value = response.token
+      user.value = response.user
+
+      localStorage.setItem('token', response.token)
+      localStorage.setItem('user', JSON.stringify(response.user))
+
+      await fetchEcoin()
+
+      return response
+    } catch (error) {
+      console.error('绑定失败:', error)
       throw error
     } finally {
       loading.value = false
@@ -100,6 +120,7 @@ export const useUserStore = defineStore('user', () => {
     balance,
     init,
     login,
+    bindAccount,
     logout,
     fetchEcoin,
     refreshEcoin

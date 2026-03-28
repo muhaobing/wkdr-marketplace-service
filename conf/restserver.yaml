@@ -25,6 +25,7 @@ config:
     expiration: 14400
     whitelist:
       - "/marketplace/login"
+      - "/marketplace/user/bind"
       - "/openapi/"
       - "/mock/"
       - "/ping"
@@ -37,7 +38,6 @@ config:
       - account: "lawmind"
         secret: "ChangeMeOpenAPIJwtSecret"
     paths:
-      - "/openapi/user"
       - "/openapi/ecoin"
   # 微信支付配置
   wechat_pay:

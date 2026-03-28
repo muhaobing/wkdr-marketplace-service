@@ -82,9 +82,17 @@ opsApi.interceptors.response.use(responseInterceptor, responseErrorHandler)
 
 // 用户认证相关 API
 export const authApi = {
-  // 登录（电话号码/邮箱）
+  // 登录（电话号码/邮箱 + 密钥）
   login(data) {
     return api.post('/login', data)
+  },
+  // 绑定业务平台账号（免登录，成功后返回 token，与登录一致）
+  bind(data) {
+    return api.post('/user/bind', data)
+  },
+  // 是否已有 biz_code + biz_user_id 绑定（免登录）
+  checkBinding(params) {
+    return api.get('/user/bind/check', { params })
   }
 }
 

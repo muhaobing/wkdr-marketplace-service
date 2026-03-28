@@ -29,7 +29,7 @@ type AuthConfig struct {
 // JWTConfig 系统间 JWT：请求体仅含 jwt 字段，业务参数在 payload；account 与 secret 成对，验签时按 payload.account 选用对应 secret
 type JWTConfig struct {
 	Clients           []JWTClient `yaml:"clients"`            // 多组调用方，每组 account + secret 一一对应
-	Paths             []string    `yaml:"paths"`              // 需 JWT 的路径前缀（如 /openapi/user、/openapi/ecoin；勿配 /openapi/callback）
+	Paths             []string    `yaml:"paths"`              // 需 JWT 的路径前缀（如 /openapi/ecoin；勿配 /openapi/callback）
 	ExpirationSeconds uint32      `yaml:"expiration_seconds"` // JWT 最大存活时间（秒），0 表示使用 DefaultJWTExpirationSeconds；须含 iat、exp，且 exp-iat 不得超过此值
 }
 

@@ -78,7 +78,7 @@ func InitializeResources() *Resources {
 	healthyResource := healthy.NewHealthyResource()
 	marketplaceResource := marketplace.NewMarketplaceResource(skuService, orderService, ecoinService, userService, cartService)
 	opsResource := ops.NewOpsResource(skuService, orderService)
-	openAPIResource := openapi.NewOpenAPIResource(ecoinService, paymentService, userService, orderService)
+	openAPIResource := openapi.NewOpenAPIResource(ecoinService, paymentService, orderService)
 	mockResource := mock.NewMockResource()
 
 	// 初始化定时任务

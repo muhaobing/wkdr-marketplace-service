@@ -1,13 +1,16 @@
 package marketplace
 
 import (
+	"errors"
 	"math"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/muhaobing/std-go/restserver/registry"
 
 	"wdkr-marketplace-service/internal/common/config"
+	"wdkr-marketplace-service/internal/common/utils/auth_utils"
 	"wdkr-marketplace-service/internal/common/utils/http_utils"
 	"wdkr-marketplace-service/internal/domain/cart"
 	"wdkr-marketplace-service/internal/domain/ecoin"
@@ -492,6 +495,114 @@ func (r *MarketplaceResource) Login(ctx *gin.Context) {
 	http_utils.WriteResponse(ctx, resp, nil)
 }
 
+// BindUserRequest 用户绑定（与业务平台账号关联，成功后返回 session）
+type BindUserRequest struct {
+	BizCode   string `json:"biz_code" binding:"required"`    // 业务平台代码
+	BizUserId uint64 `json:"biz_user_id" binding:"required"` // 业务平台用户 ID
+	TelNo     string `json:"tel_no"`                         // 手机号
+	Email     string `json:"email"`                          // 邮箱
+	Password  string `json:"password" binding:"required"`    // 密码
+}
+
+// BindUser 绑定用户
+// POST /marketplace/user/bind（免 session，与 /marketplace/login 相同）
+func (r *MarketplaceResource) BindUser(ctx *gin.Context) {
+	var req BindUserRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		http_utils.WriteResponse(ctx, nil, err)
+		return
+	}
+
+	resp, err := r.userService.BindUser(ctx.Request.Context(), &user.BindUserRequest{
+		Password:  req.Password,
+		BizCode:   req.BizCode,
+		BizUserId: req.BizUserId,
+		TelNo:     req.TelNo,
+		Email:     req.Email,
+	})
+	if err != nil {
+		http_utils.WriteResponse(ctx, nil, err)
+		return
+	}
+
+	http_utils.WriteResponse(ctx, resp, nil)
+}
+
+// CheckBizBinding 校验 biz_code + biz_user_id 是否已有绑定（免登录，供登录页预检）
+// GET /marketplace/user/bind/check?biz_code=&biz_user_id=
+func (r *MarketplaceResource) CheckBizBinding(ctx *gin.Context) {
+	bizCode := strings.TrimSpace(ctx.Query("biz_code"))
+	bizUserIdStr := strings.TrimSpace(ctx.Query("biz_user_id"))
+	if bizCode == "" {
+		http_utils.WriteResponse(ctx, nil, errors.New("biz_code is required"))
+		return
+	}
+	if bizUserIdStr == "" {
+		http_utils.WriteResponse(ctx, nil, errors.New("biz_user_id is required"))
+		return
+	}
+	bizUserId, err := strconv.ParseUint(bizUserIdStr, 10, 64)
+	if err != nil || bizUserId == 0 {
+		http_utils.WriteResponse(ctx, nil, errors.New("biz_user_id must be a positive integer"))
+		return
+	}
+	u, err := r.userService.GetUserByBiz(ctx.Request.Context(), bizCode, bizUserId)
+	if err != nil {
+		http_utils.WriteResponse(ctx, nil, err)
+		return
+	}
+	http_utils.WriteResponse(ctx, map[string]bool{"bound": u != nil}, nil)
+}
+
+// UnbindUserBody 解绑请求体（当前用户从 session 解析）
+type UnbindUserBody struct {
+	BizCode string `json:"biz_code" binding:"required"` // 业务平台代码
+}
+
+// UnbindUser 解绑
+// POST /marketplace/user/unbind
+func (r *MarketplaceResource) UnbindUser(ctx *gin.Context) {
+	u, err := auth_utils.UserFromGinContext(ctx)
+	if err != nil {
+		http_utils.WriteResponse(ctx, nil, err)
+		return
+	}
+
+	var req UnbindUserBody
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		http_utils.WriteResponse(ctx, nil, err)
+		return
+	}
+
+	if err := r.userService.UnbindUser(ctx.Request.Context(), &user.UnbindUserRequest{
+		UserId:  u.Id,
+		BizCode: req.BizCode,
+	}); err != nil {
+		http_utils.WriteResponse(ctx, nil, err)
+		return
+	}
+
+	http_utils.WriteResponse(ctx, nil, nil)
+}
+
+// ListUserBindings 当前用户的业务平台绑定列表
+// GET /marketplace/user/bindings
+func (r *MarketplaceResource) ListUserBindings(ctx *gin.Context) {
+	u, err := auth_utils.UserFromGinContext(ctx)
+	if err != nil {
+		http_utils.WriteResponse(ctx, nil, err)
+		return
+	}
+
+	bindings, err := r.userService.GetBindingsByUserId(ctx.Request.Context(), u.Id)
+	if err != nil {
+		http_utils.WriteResponse(ctx, nil, err)
+		return
+	}
+
+	http_utils.WriteResponse(ctx, bindings, nil)
+}
+
 // ==================== 购物车接口 ====================
 
 // AddToCartRequest 添加购物车请求
@@ -668,6 +779,10 @@ func (r *MarketplaceResource) Router() registry.Registry {
 		{
 			// 用户登录接口
 			group.POST("/login", r.Login)
+			group.POST("/user/bind", r.BindUser)
+			group.GET("/user/bind/check", r.CheckBizBinding)
+			group.POST("/user/unbind", r.UnbindUser)
+			group.GET("/user/bindings", r.ListUserBindings)
 
 			// 商品接口
 			group.GET("/skus", r.ListSkus)

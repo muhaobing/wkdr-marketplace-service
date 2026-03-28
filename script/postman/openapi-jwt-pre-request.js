@@ -6,7 +6,7 @@
  *    - jwt_account   与 conf 中 jwt.clients[].account 一致
  *    - jwt_secret    与对应 client 的 secret 一致
  *    - jwt_ttl_seconds（可选）默认 300，须 ≤ 服务端 jwt.expiration_seconds
- *    - jwt_payload_json（可选）业务字段 JSON 字符串；bind 须含 password（及 biz_code、biz_user_id、tel_no/email 等）
+ *    - jwt_payload_json（可选）业务字段 JSON 字符串（仅 /openapi/ecoin 等需 JWT 的接口）
  * 2. Body 选 raw / JSON，可留空或任意占位；脚本会覆盖为 {"jwt":"..."}
  * 3. Content-Type: application/json
  *
