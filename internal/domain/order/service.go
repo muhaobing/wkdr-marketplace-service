@@ -818,7 +818,7 @@ func (s *orderServiceImpl) ListOrders(ctx context.Context, req *ListOrdersReques
 	}, nil
 }
 
-// SyncOrderStatus 同步订单状态（仅查询，不触发履约）
+// SyncOrderStatus 同步订单状态：待支付且货币支付时会向渠道查单；若查得已支付则更新业务订单并 asyncAutoFulfill（与微信回调里 HandlePaymentSuccess 行为对齐）
 func (s *orderServiceImpl) SyncOrderStatus(ctx context.Context, orderNo string) (*ordermodel.Order, error) {
 	if orderNo == "" {
 		return nil, errors.New("order_no is required")
@@ -850,6 +850,10 @@ func (s *orderServiceImpl) SyncOrderStatus(ctx context.Context, orderNo string) 
 			if err := s.orderRepo.UpdateOrderToPaid(ctx, orderNo, paymentOrder.PayTime); err != nil {
 				return nil, fmt.Errorf("failed to update order to paid: %w", err)
 			}
+			// 与微信异步回调路径一致：查单确认支付后立即触发履约（否则仅依赖 order_fulfill_scan 定时任务）
+			fmt.Printf("[SyncOrderStatus] order=%s marked paid via payment channel query (payment_order_no=%s pay_time=%d), scheduling auto fulfill\n",
+				orderNo, order.PaymentOrderNo, paymentOrder.PayTime)
+			go s.asyncAutoFulfill(orderNo)
 		} else if paymentOrder.IsClosed() {
 			cancelTime := uint32(time.Now().Unix())
 			if err := s.orderRepo.UpdateOrderToCancelled(ctx, orderNo, cancelTime, "支付超时关闭"); err != nil {

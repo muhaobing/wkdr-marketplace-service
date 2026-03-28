@@ -91,11 +91,27 @@
                 <td class="col-action">
                   <button
                     type="button"
-                    class="btn-link danger"
+                    class="unbind-btn"
                     :disabled="unbindingCode === b.biz_code"
                     @click="confirmUnbind(b)"
                   >
-                    {{ unbindingCode === b.biz_code ? '处理中…' : '解除绑定' }}
+                    <span v-if="unbindingCode === b.biz_code" class="unbind-btn__spinner" aria-hidden="true" />
+                    <svg
+                      v-else
+                      class="unbind-btn__icon"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M18.84 12.25l1.72-1.71a4 4 0 0 0-5.66-5.66l-1.72 1.71" />
+                      <path d="M5.16 12.75l-1.72 1.71a4 4 0 0 0 5.66 5.66l1.72-1.71" />
+                      <line x1="2" y1="2" x2="22" y2="22" />
+                    </svg>
+                    <span>{{ unbindingCode === b.biz_code ? '处理中…' : '解除绑定' }}</span>
                   </button>
                 </td>
               </tr>
@@ -492,27 +508,76 @@ onMounted(() => {
 }
 
 .col-action {
-  width: 120px;
+  width: 132px;
   white-space: nowrap;
+  vertical-align: middle;
 }
 
-.btn-link {
-  background: none;
-  border: none;
-  padding: 0;
+.unbind-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 7px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: #b91c1c;
+  background: transparent;
+  border: 1px solid var(--gray-200, #e2e8f0);
+  border-radius: 9px;
+  box-shadow: none;
   cursor: pointer;
-  color: var(--primary, #2563eb);
-  text-decoration: underline;
-  font-size: 13px;
+  transition:
+    background 0.18s ease,
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    color 0.18s ease,
+    transform 0.12s ease;
 }
 
-.btn-link.danger {
-  color: var(--danger, #dc2626);
+.unbind-btn:hover:not(:disabled) {
+  color: #991b1b;
+  background: transparent;
+  border-color: var(--gray-300, #cbd5e1);
 }
 
-.btn-link:disabled {
-  opacity: 0.5;
+.unbind-btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.unbind-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(148, 163, 184, 0.45);
+}
+
+.unbind-btn:disabled {
+  opacity: 0.72;
   cursor: not-allowed;
+  transform: none;
+}
+
+.unbind-btn__icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  color: inherit;
+}
+
+.unbind-btn__spinner {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+  border: 2px solid rgba(185, 28, 28, 0.2);
+  border-top-color: #b91c1c;
+  border-radius: 50%;
+  animation: unbind-spin 0.55s linear infinite;
+}
+
+@keyframes unbind-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .password-hint {

@@ -3,7 +3,6 @@ package openapi
 import (
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -176,6 +175,18 @@ func (r *OpenAPIResource) PostEcoinTransactions(ctx *gin.Context) {
 
 // ==================== 支付回调接口 ====================
 
+const maxPayCallbackLogBody = 8192
+
+// logPaymentCallback 使用 fmt 打到 stdout，与项目内 [WARN] 等一致，便于 shell 重定向到 backend.log（标准库 log 默认走 stderr，易与文件日志不一致）
+func logPaymentCallback(tag string, body []byte) {
+	n := len(body)
+	s := string(body)
+	if n > maxPayCallbackLogBody {
+		s = string(body[:maxPayCallbackLogBody]) + fmt.Sprintf("...(truncated, total_bytes=%d)", n)
+	}
+	fmt.Printf("[%s] bytes=%d body=%s\n", tag, n, s)
+}
+
 // WechatPayNotify 微信支付回调
 // POST /openapi/callback/wechat/pay
 func (r *OpenAPIResource) WechatPayNotify(ctx *gin.Context) {
@@ -188,14 +199,19 @@ func (r *OpenAPIResource) WechatPayNotify(ctx *gin.Context) {
 		return
 	}
 
-	log.Println("WechatPayNotify:", string(body))
+	logPaymentCallback("WechatPayNotify", body)
 	result, err := r.paymentService.HandleNotify(ctx.Request.Context(), "wechat", body)
 	if err != nil {
+		fmt.Printf("[WechatPayNotify] HandleNotify error: %v\n", err)
 		ctx.JSON(http.StatusInternalServerError, gin.H{
 			"code":    "FAIL",
 			"message": err.Error(),
 		})
 		return
+	}
+	if result != nil {
+		fmt.Printf("[WechatPayNotify] HandleNotify ok biz_order_no=%s payment_status=%d pay_time=%d\n",
+			result.BizOrderNo, result.Status, result.PayTime)
 	}
 
 	// 支付成功 → 联动更新业务订单并触发履约
@@ -223,14 +239,17 @@ func (r *OpenAPIResource) WechatRefundNotify(ctx *gin.Context) {
 		return
 	}
 
+	logPaymentCallback("WechatRefundNotify", body)
 	_, err = r.paymentService.HandleNotify(ctx.Request.Context(), "wechat_refund", body)
 	if err != nil {
+		fmt.Printf("[WechatRefundNotify] HandleNotify error: %v\n", err)
 		ctx.JSON(http.StatusInternalServerError, gin.H{
 			"code":    "FAIL",
 			"message": err.Error(),
 		})
 		return
 	}
+	fmt.Printf("[WechatRefundNotify] HandleNotify ok\n")
 
 	ctx.JSON(http.StatusOK, gin.H{
 		"code":    "SUCCESS",
@@ -247,10 +266,16 @@ func (r *OpenAPIResource) AlipayPayNotify(ctx *gin.Context) {
 		return
 	}
 
+	logPaymentCallback("AlipayPayNotify", body)
 	result, err := r.paymentService.HandleNotify(ctx.Request.Context(), "alipay", body)
 	if err != nil {
+		fmt.Printf("[AlipayPayNotify] HandleNotify error: %v\n", err)
 		ctx.String(http.StatusInternalServerError, "fail")
 		return
+	}
+	if result != nil {
+		fmt.Printf("[AlipayPayNotify] HandleNotify ok biz_order_no=%s payment_status=%d pay_time=%d\n",
+			result.BizOrderNo, result.Status, result.PayTime)
 	}
 
 	if result != nil && result.Status == payment_model.PaymentStatusPaid {
