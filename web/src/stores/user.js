@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { authApi, ecoinApi } from '../api'
-import { STORAGE_TOKEN_KEY } from '../constants/storage.js'
+import { STORAGE_TOKEN_KEY, STORAGE_BINDINGS_KEY } from '../constants/storage.js'
 
 export const useUserStore = defineStore('user', () => {
   // 用户数据
@@ -44,6 +44,7 @@ export const useUserStore = defineStore('user', () => {
       localStorage.setItem('user', JSON.stringify(response.user))
 
       await fetchEcoin()
+      await fetchBindingsRemote().catch(() => {})
 
       return response
     } catch (error) {
@@ -66,6 +67,7 @@ export const useUserStore = defineStore('user', () => {
       localStorage.setItem('user', JSON.stringify(response.user))
 
       await fetchEcoin()
+      await fetchBindingsRemote().catch(() => {})
 
       return response
     } catch (error) {
@@ -83,6 +85,28 @@ export const useUserStore = defineStore('user', () => {
     ecoin.value = null
     localStorage.removeItem(STORAGE_TOKEN_KEY)
     localStorage.removeItem('user')
+    localStorage.removeItem(STORAGE_BINDINGS_KEY)
+  }
+
+  /** 拉取并缓存当前用户的业务平台绑定（与 LawMind 跳转校验一致） */
+  async function fetchBindingsRemote() {
+    const list = await authApi.listUserBindings()
+    try {
+      localStorage.setItem(STORAGE_BINDINGS_KEY, JSON.stringify(list ?? []))
+    } catch (_) {}
+    return Array.isArray(list) ? list : []
+  }
+
+  /** 仅读本地缓存（无网络）；路由守卫以 fetchBindingsRemote 为准 */
+  function getCachedBindings() {
+    try {
+      const raw = localStorage.getItem(STORAGE_BINDINGS_KEY)
+      if (!raw) return []
+      const parsed = JSON.parse(raw)
+      return Array.isArray(parsed) ? parsed : []
+    } catch {
+      return []
+    }
   }
 
   // 获取用户积分
@@ -124,6 +148,8 @@ export const useUserStore = defineStore('user', () => {
     bindAccount,
     logout,
     fetchEcoin,
-    refreshEcoin
+    refreshEcoin,
+    fetchBindingsRemote,
+    getCachedBindings
   }
 })

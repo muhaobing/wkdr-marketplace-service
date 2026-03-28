@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { toast } from '../utils/toast'
+import { bindingListContains, parseBizQueryFromRoute } from '../utils/bizBindings.js'
 import { STORAGE_TOKEN_KEY } from '../constants/storage.js'
 
 const routes = [
@@ -77,10 +78,45 @@ const router = createRouter({
 })
 
 // 路由守卫 - 检查登录状态和权限
-router.beforeEach((to, from, next) => {
+router.beforeEach(async (to, from, next) => {
   const token = localStorage.getItem(STORAGE_TOKEN_KEY)
   const userStr = localStorage.getItem('user')
   const isLoggedIn = !!token
+
+  const bizParams = parseBizQueryFromRoute(to.query)
+
+  // LawMind 跳转带 biz_code、biz_user_id：已登录则校验当前账号是否绑定该业务身份
+  if (bizParams && isLoggedIn) {
+    const { useUserStore } = await import('../stores/user.js')
+    const userStore = useUserStore()
+    try {
+      const bindings = await userStore.fetchBindingsRemote()
+      if (!bindingListContains(bindings, bizParams.biz_code, bizParams.biz_user_id)) {
+        userStore.logout()
+        toast.error('当前账号与 LawMind 跳转参数不一致，请重新登录')
+        next({
+          name: 'Login',
+          query: {
+            ...to.query,
+            redirect: to.path || '/'
+          }
+        })
+        return
+      }
+    } catch (e) {
+      console.error(e)
+      userStore.logout()
+      toast.error('无法校验业务绑定，请重新登录')
+      next({
+        name: 'Login',
+        query: {
+          ...to.query,
+          redirect: to.path || '/'
+        }
+      })
+      return
+    }
+  }
 
   // 如果页面需要登录但用户未登录
   if (to.meta.requiresAuth && !isLoggedIn) {

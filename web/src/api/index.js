@@ -96,6 +96,10 @@ export const authApi = {
   // 是否已有 biz_code + biz_user_id 绑定（免登录）
   checkBinding(params) {
     return api.get('/user/bind/check', { params })
+  },
+  /** 当前登录用户的业务平台绑定列表（需 Authorization） */
+  listUserBindings() {
+    return api.get('/user/bindings')
   }
 }
 
