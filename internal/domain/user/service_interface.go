@@ -8,18 +8,19 @@ import (
 
 // BindUserRequest 用户绑定请求
 type BindUserRequest struct {
+	Password  string `json:"password"`    // 用户密码（与商城登录一致，用于校验并生成 secret_key）
 	BizCode   string `json:"biz_code"`    // 业务平台代码
 	BizUserId uint64 `json:"biz_user_id"` // 业务平台用户ID
 	TelNo     string `json:"tel_no"`      // 手机号（优先）
 	Email     string `json:"email"`       // 邮箱（tel_no为空时使用）
-	Secret    string `json:"secret"`      // 用户密钥（用于生成secret_key）
 }
 
-// BindUserResponse 用户绑定响应
+// BindUserResponse 用户绑定响应（绑定成功后即完成登录，返回 session token）
 type BindUserResponse struct {
-	UserId    uint   `json:"user_id"`     // 商城中心用户ID
-	IsNewUser bool   `json:"is_new_user"` // 是否为新创建的用户
-	SecretKey string `json:"secret_key"`  // 用户密钥（仅新用户返回）
+	UserId    uint            `json:"user_id"`     // 商城中心用户ID
+	IsNewUser bool            `json:"is_new_user"` // 是否为新创建的用户
+	Token     string          `json:"token"`       // session token（Authorization: Bearer）
+	User      *usermodel.User `json:"user"`        // 用户信息（不含 secret_key）
 }
 
 // UnbindUserRequest 用户解绑请求
@@ -39,13 +40,6 @@ type LoginRequest struct {
 	TelNo  string `json:"tel_no"` // 手机号
 	Email  string `json:"email"`  // 邮箱
 	Secret string `json:"secret"` // 用户密钥
-}
-
-// BizLoginRequest 业务平台登录请求
-type BizLoginRequest struct {
-	BizCode   string `json:"biz_code"`    // 业务平台代码
-	BizUserId uint64 `json:"biz_user_id"` // 业务平台用户ID
-	Secret    string `json:"secret"`      // 用户密钥
 }
 
 // LoginResponse 登录响应
@@ -80,9 +74,6 @@ type UserService interface {
 
 	// Login 用户登录（电话号码/邮箱）
 	Login(ctx context.Context, req *LoginRequest) (*LoginResponse, error)
-
-	// BizLogin 业务平台登录
-	BizLogin(ctx context.Context, req *BizLoginRequest) (*LoginResponse, error)
 
 	// GetBindingsByUserId 获取用户所有绑定信息
 	GetBindingsByUserId(ctx context.Context, userId uint) ([]*usermodel.UserBinding, error)

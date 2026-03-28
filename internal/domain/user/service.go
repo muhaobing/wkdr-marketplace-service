@@ -31,9 +31,8 @@ func NewUserService(userRepo repo.UserRepo, bindingRepo repo.UserBindingRepo, ec
 	}
 }
 
-// BindUser 绑定用户（包含注册逻辑）
+// BindUser 绑定用户（包含注册逻辑）；成功后签发 session，返回 token
 func (s *userServiceImpl) BindUser(ctx context.Context, req *BindUserRequest) (*BindUserResponse, error) {
-	// 参数校验
 	if req.BizCode == "" {
 		return nil, errors.New("biz_code is required")
 	}
@@ -43,26 +42,39 @@ func (s *userServiceImpl) BindUser(ctx context.Context, req *BindUserRequest) (*
 	if req.TelNo == "" && req.Email == "" {
 		return nil, errors.New("tel_no or email is required")
 	}
-	if req.Secret == "" {
-		return nil, errors.New("secret is required")
+	if req.Password == "" {
+		return nil, errors.New("password is required")
 	}
 
-	// 检查该业务账号是否已绑定其他用户
 	existingBinding, err := s.bindingRepo.GetBindingByBiz(ctx, req.BizCode, req.BizUserId)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check existing binding: %w", err)
 	}
 	if existingBinding != nil {
-		// 已绑定，返回已绑定的用户信息
+		user, err := s.userRepo.GetUserById(ctx, existingBinding.UserId)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get user: %w", err)
+		}
+		if user == nil {
+			return nil, errors.New("user not found")
+		}
+		if !user.VerifySecretKey(req.Password) {
+			return nil, errors.New("invalid password")
+		}
+		loginResp, err := s.generateLoginResponse(ctx, user)
+		if err != nil {
+			return nil, err
+		}
 		return &BindUserResponse{
-			UserId:    existingBinding.UserId,
+			UserId:    user.Id,
 			IsNewUser: false,
+			Token:     loginResp.Token,
+			User:      loginResp.User,
 		}, nil
 	}
 
 	var response *BindUserResponse
 	err = database.Transaction(ctx, func(ctx context.Context) error {
-		// 根据身份标识查找用户（优先手机号，其次邮箱）
 		user, err := s.findUserByIdentity(ctx, req.TelNo, req.Email)
 		if err != nil {
 			return fmt.Errorf("failed to find user by identity: %w", err)
@@ -70,20 +82,20 @@ func (s *userServiceImpl) BindUser(ctx context.Context, req *BindUserRequest) (*
 
 		isNewUser := false
 		if user == nil {
-			// 用户不存在，创建新用户
 			user, err = s.createUser(ctx, req)
 			if err != nil {
 				return fmt.Errorf("failed to create user: %w", err)
 			}
 			isNewUser = true
-
-			// 为新用户初始化积分账户
 			if _, err = s.ecoinSvc.InitUserEcoin(ctx, uint64(user.Id)); err != nil {
 				return fmt.Errorf("failed to init user ecoin: %w", err)
 			}
+		} else {
+			if !user.VerifySecretKey(req.Password) {
+				return errors.New("invalid password")
+			}
 		}
 
-		// 创建绑定记录
 		binding := &usermodel.UserBinding{
 			UserId:    user.Id,
 			BizCode:   req.BizCode,
@@ -97,10 +109,6 @@ func (s *userServiceImpl) BindUser(ctx context.Context, req *BindUserRequest) (*
 			UserId:    user.Id,
 			IsNewUser: isNewUser,
 		}
-		// 新用户返回密钥
-		if isNewUser {
-			response.SecretKey = user.SecretKey
-		}
 		return nil
 	})
 
@@ -108,6 +116,20 @@ func (s *userServiceImpl) BindUser(ctx context.Context, req *BindUserRequest) (*
 		return nil, err
 	}
 
+	user, err := s.userRepo.GetUserById(ctx, response.UserId)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user: %w", err)
+	}
+	if user == nil {
+		return nil, errors.New("user not found")
+	}
+
+	loginResp, err := s.generateLoginResponse(ctx, user)
+	if err != nil {
+		return nil, err
+	}
+	response.Token = loginResp.Token
+	response.User = loginResp.User
 	return response, nil
 }
 
@@ -234,46 +256,6 @@ func (s *userServiceImpl) Login(ctx context.Context, req *LoginRequest) (*LoginR
 	return s.generateLoginResponse(ctx, user)
 }
 
-// BizLogin 业务平台登录
-func (s *userServiceImpl) BizLogin(ctx context.Context, req *BizLoginRequest) (*LoginResponse, error) {
-	// 参数校验
-	if req.BizCode == "" {
-		return nil, errors.New("biz_code is required")
-	}
-	if req.BizUserId == 0 {
-		return nil, errors.New("biz_user_id is required")
-	}
-	if req.Secret == "" {
-		return nil, errors.New("secret is required")
-	}
-
-	// 查找绑定记录
-	binding, err := s.bindingRepo.GetBindingByBiz(ctx, req.BizCode, req.BizUserId)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get binding: %w", err)
-	}
-	if binding == nil {
-		return nil, errors.New("binding not found")
-	}
-
-	// 获取用户
-	user, err := s.userRepo.GetUserById(ctx, binding.UserId)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get user: %w", err)
-	}
-	if user == nil {
-		return nil, errors.New("user not found")
-	}
-
-	// 验证密钥
-	if !user.VerifySecretKey(req.Secret) {
-		return nil, errors.New("invalid secret")
-	}
-
-	// 生成登录响应
-	return s.generateLoginResponse(ctx, user)
-}
-
 // GetBindingsByUserId 获取用户所有绑定信息
 func (s *userServiceImpl) GetBindingsByUserId(ctx context.Context, userId uint) ([]*usermodel.UserBinding, error) {
 	if userId == 0 {
@@ -363,8 +345,8 @@ func (s *userServiceImpl) createUser(ctx context.Context, req *BindUserRequest) 
 		return nil, err
 	}
 
-	// 生成并更新密钥（基于secret + id）
-	secretKey := usermodel.GenerateSecretKey(req.Secret, user.Id)
+	// 生成并更新密钥（基于 password + id）
+	secretKey := usermodel.GenerateSecretKey(req.Password, user.Id)
 	if err := s.userRepo.UpdateUserSecretKey(ctx, user.Id, secretKey); err != nil {
 		return nil, err
 	}

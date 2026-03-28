@@ -25,6 +25,7 @@ func main() {
 	handler.RegisterHandler(&cache.CacheHandler{})
 	handler.RegisterHandler(&middleware.RecoveryHandler{})
 	handler.RegisterHandler(&middleware.AuthValidationHandler{})
+	handler.RegisterHandler(&middleware.JWTValidationHandler{})
 
 	// 2. init resources
 	resources := resource.InitializeResources()
@@ -36,6 +37,7 @@ func main() {
 			cache.CacheHandlerKey,
 			middleware.RecoveryHandlerKey,
 			middleware.AuthValidationHandlerKey,
+			middleware.JWTValidationHandlerKey,
 		),
 		registry.RouterRegistry(resources),
 	); err != nil {

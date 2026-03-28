@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/muhaobing/std-go/restserver/registry"
@@ -43,7 +42,7 @@ type BindUserRequest struct {
 	BizUserId uint64 `json:"biz_user_id" binding:"required"` // 业务平台用户ID
 	TelNo     string `json:"tel_no"`                         // 手机号
 	Email     string `json:"email"`                          // 邮箱
-	Secret    string `json:"secret" binding:"required"`      // 用户密钥
+	Password  string `json:"password" binding:"required"`    // 用户密码（绑定成功后签发 session）
 }
 
 // BindUser 绑定用户
@@ -56,11 +55,11 @@ func (r *OpenAPIResource) BindUser(ctx *gin.Context) {
 	}
 
 	resp, err := r.userService.BindUser(ctx.Request.Context(), &user.BindUserRequest{
+		Password:  req.Password,
 		BizCode:   req.BizCode,
 		BizUserId: req.BizUserId,
 		TelNo:     req.TelNo,
 		Email:     req.Email,
-		Secret:    req.Secret,
 	})
 	if err != nil {
 		http_utils.WriteResponse(ctx, nil, err)
@@ -97,46 +96,21 @@ func (r *OpenAPIResource) UnbindUser(ctx *gin.Context) {
 	http_utils.WriteResponse(ctx, nil, nil)
 }
 
-// BizLoginRequest 业务平台登录请求
-type BizLoginRequest struct {
-	BizCode   string `json:"biz_code" binding:"required"`    // 业务平台代码
-	BizUserId uint64 `json:"biz_user_id" binding:"required"` // 业务平台用户ID
-	Secret    string `json:"secret" binding:"required"`      // 用户密钥
+// UserBindingsRequest 查询绑定列表（JWT 中间件解析后的 body）
+type UserBindingsRequest struct {
+	UserId uint `json:"user_id" binding:"required"` // 商城用户ID
 }
 
-// BizLogin 业务平台登录
-// POST /openapi/user/login
-func (r *OpenAPIResource) BizLogin(ctx *gin.Context) {
-	var req BizLoginRequest
+// PostUserBindings 获取用户绑定信息
+// POST /openapi/user/bindings（业务参数在 JWT payload 中）
+func (r *OpenAPIResource) PostUserBindings(ctx *gin.Context) {
+	var req UserBindingsRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
 		http_utils.WriteResponse(ctx, nil, err)
 		return
 	}
 
-	resp, err := r.userService.BizLogin(ctx.Request.Context(), &user.BizLoginRequest{
-		BizCode:   req.BizCode,
-		BizUserId: req.BizUserId,
-		Secret:    req.Secret,
-	})
-	if err != nil {
-		http_utils.WriteResponse(ctx, nil, err)
-		return
-	}
-
-	http_utils.WriteResponse(ctx, resp, nil)
-}
-
-// GetUserBindings 获取用户绑定信息
-// GET /openapi/user/:user_id/bindings
-func (r *OpenAPIResource) GetUserBindings(ctx *gin.Context) {
-	userIdStr := ctx.Param("user_id")
-	userId, err := strconv.ParseUint(userIdStr, 10, 32)
-	if err != nil {
-		http_utils.WriteResponse(ctx, nil, err)
-		return
-	}
-
-	bindings, err := r.userService.GetBindingsByUserId(ctx.Request.Context(), uint(userId))
+	bindings, err := r.userService.GetBindingsByUserId(ctx.Request.Context(), req.UserId)
 	if err != nil {
 		http_utils.WriteResponse(ctx, nil, err)
 		return
@@ -213,17 +187,21 @@ func (r *OpenAPIResource) DeductEcoin(ctx *gin.Context) {
 	http_utils.WriteResponse(ctx, transaction, nil)
 }
 
-// GetUserEcoin 获取用户积分信息
-// GET /openapi/ecoin/:user_id
-func (r *OpenAPIResource) GetUserEcoin(ctx *gin.Context) {
-	userIdStr := ctx.Param("user_id")
-	userId, err := strconv.ParseUint(userIdStr, 10, 64)
-	if err != nil {
+// EcoinBalanceRequest 查询积分余额（JWT payload）
+type EcoinBalanceRequest struct {
+	UserId uint64 `json:"user_id" binding:"required"` // 用户ID
+}
+
+// PostEcoinBalance 获取用户积分信息
+// POST /openapi/ecoin/balance（业务参数在 JWT payload 中）
+func (r *OpenAPIResource) PostEcoinBalance(ctx *gin.Context) {
+	var req EcoinBalanceRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
 		http_utils.WriteResponse(ctx, nil, err)
 		return
 	}
 
-	ecoinInfo, err := r.ecoinService.GetUserEcoin(ctx.Request.Context(), userId)
+	ecoinInfo, err := r.ecoinService.GetUserEcoin(ctx.Request.Context(), req.UserId)
 	if err != nil {
 		http_utils.WriteResponse(ctx, nil, err)
 		return
@@ -254,29 +232,24 @@ func (r *OpenAPIResource) InitUserEcoin(ctx *gin.Context) {
 	http_utils.WriteResponse(ctx, ecoinInfo, nil)
 }
 
-// GetEcoinTransactions 获取积分流水列表
-// GET /openapi/ecoin/:user_id/transactions
-func (r *OpenAPIResource) GetEcoinTransactions(ctx *gin.Context) {
-	userIdStr := ctx.Param("user_id")
-	userId, err := strconv.ParseUint(userIdStr, 10, 64)
-	if err != nil {
-		http_utils.WriteResponse(ctx, nil, err)
-		return
-	}
+// EcoinTransactionsRequest 积分流水列表（JWT payload）
+type EcoinTransactionsRequest struct {
+	UserId uint64 `json:"user_id" binding:"required"` // 用户ID
+	Offset int    `json:"offset"`                     // 偏移量
+	Limit  int    `json:"limit"`                      // 每页数量
+}
 
-	type ListRequest struct {
-		Offset int `form:"offset"` // 偏移量
-		Limit  int `form:"limit"`  // 每页数量
-	}
-
-	var req ListRequest
-	if err := ctx.ShouldBindQuery(&req); err != nil {
+// PostEcoinTransactions 获取积分流水列表
+// POST /openapi/ecoin/transactions（业务参数在 JWT payload 中）
+func (r *OpenAPIResource) PostEcoinTransactions(ctx *gin.Context) {
+	var req EcoinTransactionsRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
 		http_utils.WriteResponse(ctx, nil, err)
 		return
 	}
 
 	transactions, err := r.ecoinService.GetEcoinTransactionList(ctx.Request.Context(), &ecoin.EcoinTransactionListRequest{
-		UserId: userId,
+		UserId: req.UserId,
 		Offset: req.Offset,
 		Limit:  req.Limit,
 	})
@@ -383,15 +356,14 @@ func (r *OpenAPIResource) Router() registry.Registry {
 			// 用户接口
 			group.POST("/user/bind", r.BindUser)
 			group.POST("/user/unbind", r.UnbindUser)
-			group.POST("/user/login", r.BizLogin)
-			group.GET("/user/:user_id/bindings", r.GetUserBindings)
+			group.POST("/user/bindings", r.PostUserBindings)
 
 			// 积分接口
 			group.POST("/ecoin/add", r.AddEcoin)
 			group.POST("/ecoin/deduct", r.DeductEcoin)
 			group.POST("/ecoin/init", r.InitUserEcoin)
-			group.GET("/ecoin/:user_id", r.GetUserEcoin)
-			group.GET("/ecoin/:user_id/transactions", r.GetEcoinTransactions)
+			group.POST("/ecoin/balance", r.PostEcoinBalance)
+			group.POST("/ecoin/transactions", r.PostEcoinTransactions)
 
 			// 支付回调接口
 			group.POST("/callback/wechat/pay", r.WechatPayNotify)

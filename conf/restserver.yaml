@@ -23,17 +23,22 @@ config:
   auth:
     aes_key: "ThisIsNotAAesKey"
     expiration: 14400
-    # 不需要鉴权的路径白名单（支持前缀匹配）
     whitelist:
       - "/marketplace/login"
-      - "/openapi/user/login"
-      - "/openapi/user/bind"
-      - "/openapi/callback/"
+      - "/openapi/"
       - "/mock/"
       - "/ping"
     # 需要管理员权限的路径前缀
     admin_paths:
       - "/ops/"
+  jwt:
+    expiration_seconds: 300
+    clients:
+      - account: "lawmind"
+        secret: "ChangeMeOpenAPIJwtSecret"
+    paths:
+      - "/openapi/user"
+      - "/openapi/ecoin"
   # 微信支付配置
   wechat_pay:
     app_id: "wxa73175af23fa8262"

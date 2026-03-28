@@ -41,13 +41,12 @@ Authorization: Bearer {token}
 | 路径 | 鉴权要求 |
 |------|----------|
 | `/marketplace/login` | 免鉴权 |
-| `/openapi/user/login` | 免鉴权 |
 | `/openapi/user/bind` | 免鉴权 |
 | `/openapi/callback/*` | 免鉴权（第三方回调） |
 | `/mock/*` | 免鉴权（测试接口） |
 | `/ping` | 免鉴权 |
 | `/marketplace/*` | 用户登录鉴权 |
-| `/openapi/*` | 用户登录鉴权 |
+| `/openapi/*`（除 callback 等） | JWT 鉴权（见部署配置） |
 | `/ops/*` | 管理员权限（Admin） |
 
 ### 通用枚举
@@ -842,31 +841,7 @@ null
 
 ---
 
-### 3.3 业务平台登录
-
-**POST** `/openapi/user/login`
-
-> 鉴权：免鉴权
-
-**请求参数**
-
-| 字段 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| biz_code | string | 是 | 业务平台代码 |
-| biz_user_id | uint64 | 是 | 业务平台用户 ID |
-| secret | string | 是 | 用户密钥 |
-
-**响应 data**
-
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| token | string | 登录 Token |
-| user_id | uint | 用户 ID |
-| user | object | 用户信息 |
-
----
-
-### 3.4 获取用户绑定列表
+### 3.3 获取用户绑定列表
 
 **GET** `/openapi/user/:user_id/bindings`
 
@@ -884,7 +859,7 @@ null
 
 ---
 
-### 3.5 增加积分
+### 3.4 增加积分
 
 **POST** `/openapi/ecoin/add`
 
@@ -906,7 +881,7 @@ null
 
 ---
 
-### 3.6 扣除积分
+### 3.5 扣除积分
 
 **POST** `/openapi/ecoin/deduct`
 
@@ -928,7 +903,7 @@ null
 
 ---
 
-### 3.7 初始化积分账户
+### 3.6 初始化积分账户
 
 **POST** `/openapi/ecoin/init`
 
@@ -946,7 +921,7 @@ null
 
 ---
 
-### 3.8 查询积分余额
+### 3.7 查询积分余额
 
 **GET** `/openapi/ecoin/:user_id`
 
@@ -964,7 +939,7 @@ null
 
 ---
 
-### 3.9 查询积分流水
+### 3.8 查询积分流水
 
 **GET** `/openapi/ecoin/:user_id/transactions`
 
