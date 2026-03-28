@@ -66,12 +66,14 @@ func (r *skuRepoImpl) UpdateSku(ctx context.Context, sku *skumodel.Sku) error {
 	return database.FromContext(ctx).Model(&skumodel.Sku{}).
 		Where("id = ?", sku.Id).
 		Updates(map[string]interface{}{
-			"sku_name":        sku.SkuName,
-			"sku_avatar":      sku.SkuAvatar,
-			"sku_desc":        sku.SkuDesc,
-			"cost":            sku.Cost,
-			"delivery_method": sku.DeliveryMethod,
-			"multi_select":    sku.MultiSelect,
+			"sku_name":             sku.SkuName,
+			"sku_avatar":           sku.SkuAvatar,
+			"sku_desc":             sku.SkuDesc,
+			"cost":                 sku.Cost,
+			"delivery_method":      sku.DeliveryMethod,
+			"fulfill_mode":         sku.FulfillMode,
+			"fulfill_ecoin_amount": sku.FulfillEcoinAmount,
+			"multi_select":         sku.MultiSelect,
 		}).Error
 }
 

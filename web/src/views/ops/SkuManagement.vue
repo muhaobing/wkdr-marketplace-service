@@ -70,6 +70,7 @@
             <th>业务域</th>
             <th>价格</th>
             <th>多选</th>
+            <th>履约</th>
             <th>状态</th>
             <th>创建时间</th>
             <th>操作</th>
@@ -77,7 +78,7 @@
         </thead>
         <tbody>
           <tr v-if="skuList.length === 0">
-            <td colspan="9" class="empty-row">暂无数据</td>
+            <td colspan="10" class="empty-row">暂无数据</td>
           </tr>
           <tr v-for="sku in skuList" :key="sku.id">
             <td>{{ sku.id }}</td>
@@ -95,6 +96,10 @@
               <span :class="sku.multi_select === 1 ? 'badge-success' : 'badge-default'">
                 {{ sku.multi_select === 1 ? '支持' : '不支持' }}
               </span>
+            </td>
+            <td>
+              <span v-if="sku.fulfill_mode === 1" class="badge-info">积分 {{ sku.fulfill_ecoin_amount ?? 0 }}/件</span>
+              <span v-else class="badge-default">回调</span>
             </td>
             <td>
               <label class="toggle-switch" :class="{ disabled: sku.toggling }">
@@ -268,11 +273,30 @@
           </div>
           
           <div class="form-group">
-            <label>履约回调接口</label>
+            <label>履约方式 <span class="required">*</span></label>
+            <select v-model.number="formData.fulfill_mode">
+              <option :value="0">接口回调</option>
+              <option :value="1">积分发放</option>
+            </select>
+          </div>
+
+          <div v-if="formData.fulfill_mode === 0" class="form-group">
+            <label>履约回调接口 <span class="required">*</span></label>
             <input 
               type="text" 
               v-model="formData.delivery_method" 
-              placeholder="请输入履约回调接口URL"
+              placeholder="POST 回调 URL，body 含 sku_code、biz_user_id"
+            >
+          </div>
+
+          <div v-if="formData.fulfill_mode === 1" class="form-group">
+            <label>每件发放积分 <span class="required">*</span></label>
+            <input 
+              type="number" 
+              v-model.number="formData.fulfill_ecoin_amount" 
+              placeholder="下单履约时按件数×此数额发放"
+              min="0"
+              step="0.01"
             >
           </div>
         </div>
@@ -320,7 +344,9 @@ const formData = reactive({
   cost: '',
   sku_avatar: '',
   sku_desc: '',
+  fulfill_mode: 0,
   delivery_method: '',
+  fulfill_ecoin_amount: null,
   multi_select: 0
 })
 
@@ -453,7 +479,9 @@ function openEditModal(sku) {
   formData.cost = sku.cost
   formData.sku_avatar = sku.sku_avatar || ''
   formData.sku_desc = sku.sku_desc || ''
+  formData.fulfill_mode = sku.fulfill_mode ?? 0
   formData.delivery_method = sku.delivery_method || ''
+  formData.fulfill_ecoin_amount = sku.fulfill_ecoin_amount ?? null
   formData.multi_select = sku.multi_select || 0
   showModal.value = true
 }
@@ -472,7 +500,9 @@ function resetFormData() {
   formData.cost = ''
   formData.sku_avatar = ''
   formData.sku_desc = ''
+  formData.fulfill_mode = 0
   formData.delivery_method = ''
+  formData.fulfill_ecoin_amount = null
   formData.multi_select = 0
 }
 
@@ -482,6 +512,17 @@ async function handleSubmit() {
   if (!formData.sku_code || !formData.sku_name || !formData.biz_code || formData.cost === '') {
     toast.warning('请填写必填字段')
     return
+  }
+  if (formData.fulfill_mode === 0 && !String(formData.delivery_method || '').trim()) {
+    toast.warning('接口回调模式请填写履约回调接口 URL')
+    return
+  }
+  if (formData.fulfill_mode === 1) {
+    const amt = Number(formData.fulfill_ecoin_amount)
+    if (!Number.isFinite(amt) || amt <= 0) {
+      toast.warning('积分发放模式请填写大于 0 的每件发放积分')
+      return
+    }
   }
 
   submitting.value = true
@@ -493,7 +534,9 @@ async function handleSubmit() {
       cost: parseFloat(formData.cost),
       sku_avatar: formData.sku_avatar,
       sku_desc: formData.sku_desc,
-      delivery_method: formData.delivery_method,
+      fulfill_mode: formData.fulfill_mode,
+      delivery_method: formData.fulfill_mode === 0 ? formData.delivery_method : '',
+      fulfill_ecoin_amount: formData.fulfill_mode === 1 ? Number(formData.fulfill_ecoin_amount) : 0,
       multi_select: formData.multi_select
     }
 
@@ -863,6 +906,16 @@ onMounted(async () => {
   border-radius: 6px;
   background-color: #ecfdf5;
   color: #047857;
+  font-weight: 500;
+}
+
+.badge-info {
+  display: inline-block;
+  padding: 3px 10px;
+  font-size: 12px;
+  border-radius: 6px;
+  background-color: #eff6ff;
+  color: #1d4ed8;
   font-weight: 500;
 }
 

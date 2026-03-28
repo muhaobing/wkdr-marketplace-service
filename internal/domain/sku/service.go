@@ -55,17 +55,23 @@ func (s *skuServiceImpl) CreateSku(ctx context.Context, req *CreateSkuRequest) (
 		return nil, fmt.Errorf("sku with code %s already exists in biz %s", req.SkuCode, req.BizCode)
 	}
 
+	if err := validateFulfillConfig(req.FulfillMode, req.DeliveryMethod, req.FulfillEcoinAmount); err != nil {
+		return nil, err
+	}
+
 	// 创建商品
 	sku := &skumodel.Sku{
-		BizCode:        req.BizCode,
-		SkuCode:        req.SkuCode,
-		SkuName:        req.SkuName,
-		SkuAvatar:      req.SkuAvatar,
-		SkuDesc:        req.SkuDesc,
-		SkuStatus:      skumodel.SkuStatusOffline, // 默认未上架
-		Cost:           req.Cost,
-		DeliveryMethod: req.DeliveryMethod,
-		MultiSelect:    req.MultiSelect,
+		BizCode:            req.BizCode,
+		SkuCode:            req.SkuCode,
+		SkuName:            req.SkuName,
+		SkuAvatar:          req.SkuAvatar,
+		SkuDesc:            req.SkuDesc,
+		SkuStatus:          skumodel.SkuStatusOffline, // 默认未上架
+		Cost:               req.Cost,
+		DeliveryMethod:     req.DeliveryMethod,
+		FulfillMode:        req.FulfillMode,
+		FulfillEcoinAmount: req.FulfillEcoinAmount,
+		MultiSelect:        req.MultiSelect,
 	}
 
 	if err := s.skuRepo.CreateSku(ctx, sku); err != nil {
@@ -136,12 +142,18 @@ func (s *skuServiceImpl) EditSku(ctx context.Context, req *EditSkuRequest) (*sku
 		return nil, errors.New("sku not found")
 	}
 
+	if err := validateFulfillConfig(req.FulfillMode, req.DeliveryMethod, req.FulfillEcoinAmount); err != nil {
+		return nil, err
+	}
+
 	// 更新商品信息
 	sku.SkuName = req.SkuName
 	sku.SkuAvatar = req.SkuAvatar
 	sku.SkuDesc = req.SkuDesc
 	sku.Cost = req.Cost
 	sku.DeliveryMethod = req.DeliveryMethod
+	sku.FulfillMode = req.FulfillMode
+	sku.FulfillEcoinAmount = req.FulfillEcoinAmount
 	sku.MultiSelect = req.MultiSelect
 
 	if err := s.skuRepo.UpdateSku(ctx, sku); err != nil {
@@ -171,9 +183,8 @@ func (s *skuServiceImpl) ListingSku(ctx context.Context, id uint64) error {
 		return errors.New("sku is already listed")
 	}
 
-	// 上架前校验：必须有履约方式
-	if sku.DeliveryMethod == "" {
-		return errors.New("delivery_method is required before listing")
+	if err := validateFulfillConfig(sku.FulfillMode, sku.DeliveryMethod, sku.FulfillEcoinAmount); err != nil {
+		return err
 	}
 
 	// 更新状态为已上架
@@ -301,6 +312,10 @@ func (s *skuServiceImpl) FulfillSku(ctx context.Context, req *FulfillSkuRequest)
 		return nil, errors.New("sku is not listed, cannot fulfill")
 	}
 
+	if sku.FulfillMode == skumodel.FulfillModeEcoinGrant {
+		return nil, errors.New("sku uses ecoin grant fulfill, HTTP callback is not applicable")
+	}
+
 	// 检查履约方式是否配置
 	if sku.DeliveryMethod == "" {
 		return nil, errors.New("sku delivery method is not configured")
@@ -386,4 +401,17 @@ func (s *skuServiceImpl) callDeliveryMethod(ctx context.Context, url, skuCode, b
 		Success: true,
 		Message: callbackResp.Message,
 	}, nil
+}
+
+func validateFulfillConfig(mode uint8, deliveryMethod string, ecoinAmount float64) error {
+	if mode == skumodel.FulfillModeEcoinGrant {
+		if ecoinAmount <= 0 {
+			return errors.New("fulfill_ecoin_amount must be positive for ecoin grant mode")
+		}
+		return nil
+	}
+	if deliveryMethod == "" {
+		return errors.New("delivery_method is required for callback fulfill mode")
+	}
+	return nil
 }

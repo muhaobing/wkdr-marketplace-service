@@ -1,18 +1,25 @@
 import axios from 'axios'
 
-// 所有接口统一带 /market/api 前缀（nginx 去掉此前缀后转发到后端）
-// 开发环境：相对路径 + Vite 代理；生产环境：默认 https://www.lawmind.top（可用 VITE_API_ORIGIN 覆盖）
-const apiOrigin = import.meta.env.VITE_API_ORIGIN ?? (import.meta.env.DEV ? '' : 'https://www.lawmind.top')
+// VITE_ENV=local：请求 /marketplace、/ops，由 Vite 代理到 localhost:10302，无 /market/api 前缀
+// 否则：生产构建默认 https://lawmind.top/market/api；开发可用相对路径走 Vite 的 /market/api 代理（或设 VITE_API_ORIGIN）
+const isLocal = import.meta.env.VITE_ENV === 'local'
 
-function joinApiBase(path) {
-  if (!apiOrigin) {
-    return path
+function joinApiBase(suffix) {
+  if (isLocal) {
+    return suffix
   }
-  return `${apiOrigin.replace(/\/$/, '')}${path}`
+  const explicit = import.meta.env.VITE_API_ORIGIN
+  if (explicit !== undefined && explicit !== '') {
+    return `${String(explicit).replace(/\/$/, '')}/market/api${suffix}`
+  }
+  if (import.meta.env.PROD) {
+    return `https://lawmind.top/market/api${suffix}`
+  }
+  return `/market/api${suffix}`
 }
 
 const api = axios.create({
-  baseURL: joinApiBase('/market/api/marketplace'),
+  baseURL: joinApiBase('/marketplace'),
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json'
@@ -21,7 +28,7 @@ const api = axios.create({
 
 // 运营 API 实例
 const opsApi = axios.create({
-  baseURL: joinApiBase('/market/api/ops'),
+  baseURL: joinApiBase('/ops'),
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json'

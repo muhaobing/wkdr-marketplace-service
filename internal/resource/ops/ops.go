@@ -32,14 +32,16 @@ func NewOpsResource(
 
 // CreateSkuRequest 创建商品请求
 type CreateSkuRequest struct {
-	BizCode        string  `json:"biz_code" binding:"required"` // 业务编码
-	SkuCode        string  `json:"sku_code" binding:"required"` // 商品代码
-	SkuName        string  `json:"sku_name" binding:"required"` // 商品名称
-	SkuAvatar      string  `json:"sku_avatar"`                  // 商品图标
-	SkuDesc        string  `json:"sku_desc"`                    // 商品描述
-	Cost           float32 `json:"cost" binding:"required"`     // 商品售价(积分)
-	DeliveryMethod string  `json:"delivery_method"`             // 履约回调接口
-	MultiSelect    uint8   `json:"multi_select"`                // 是否支持多选：0-不支持，1-支持
+	BizCode            string  `json:"biz_code" binding:"required"` // 业务编码
+	SkuCode            string  `json:"sku_code" binding:"required"` // 商品代码
+	SkuName            string  `json:"sku_name" binding:"required"` // 商品名称
+	SkuAvatar          string  `json:"sku_avatar"`                  // 商品图标
+	SkuDesc            string  `json:"sku_desc"`                    // 商品描述
+	Cost               float32 `json:"cost" binding:"required"`     // 商品售价(积分)
+	DeliveryMethod     string  `json:"delivery_method"`             // 履约回调接口（fulfill_mode=0）
+	FulfillMode        uint8   `json:"fulfill_mode"`                // 履约模式：0-接口回调，1-积分发放
+	FulfillEcoinAmount float64 `json:"fulfill_ecoin_amount"`        // 积分发放：每件发放积分数
+	MultiSelect        uint8   `json:"multi_select"`                // 是否支持多选：0-不支持，1-支持
 }
 
 // CreateSku 创建商品
@@ -52,14 +54,16 @@ func (r *OpsResource) CreateSku(ctx *gin.Context) {
 	}
 
 	skuInfo, err := r.skuService.CreateSku(ctx.Request.Context(), &sku.CreateSkuRequest{
-		BizCode:        req.BizCode,
-		SkuCode:        req.SkuCode,
-		SkuName:        req.SkuName,
-		SkuAvatar:      req.SkuAvatar,
-		SkuDesc:        req.SkuDesc,
-		Cost:           req.Cost,
-		DeliveryMethod: req.DeliveryMethod,
-		MultiSelect:    req.MultiSelect,
+		BizCode:            req.BizCode,
+		SkuCode:            req.SkuCode,
+		SkuName:            req.SkuName,
+		SkuAvatar:          req.SkuAvatar,
+		SkuDesc:            req.SkuDesc,
+		Cost:               req.Cost,
+		DeliveryMethod:     req.DeliveryMethod,
+		FulfillMode:        req.FulfillMode,
+		FulfillEcoinAmount: req.FulfillEcoinAmount,
+		MultiSelect:        req.MultiSelect,
 	})
 	if err != nil {
 		http_utils.WriteResponse(ctx, nil, err)
@@ -71,13 +75,15 @@ func (r *OpsResource) CreateSku(ctx *gin.Context) {
 
 // EditSkuRequest 编辑商品请求
 type EditSkuRequest struct {
-	Id             uint64  `json:"id" binding:"required"`       // 商品ID
-	SkuName        string  `json:"sku_name" binding:"required"` // 商品名称
-	SkuAvatar      string  `json:"sku_avatar"`                  // 商品图标
-	SkuDesc        string  `json:"sku_desc"`                    // 商品描述
-	Cost           float32 `json:"cost" binding:"required"`     // 商品售价(积分)
-	DeliveryMethod string  `json:"delivery_method"`             // 履约回调接口
-	MultiSelect    uint8   `json:"multi_select"`                // 是否支持多选：0-不支持，1-支持
+	Id                 uint64  `json:"id" binding:"required"`       // 商品ID
+	SkuName            string  `json:"sku_name" binding:"required"` // 商品名称
+	SkuAvatar          string  `json:"sku_avatar"`                  // 商品图标
+	SkuDesc            string  `json:"sku_desc"`                    // 商品描述
+	Cost               float32 `json:"cost" binding:"required"`     // 商品售价(积分)
+	DeliveryMethod     string  `json:"delivery_method"`             // 履约回调接口（fulfill_mode=0）
+	FulfillMode        uint8   `json:"fulfill_mode"`                // 履约模式：0-接口回调，1-积分发放
+	FulfillEcoinAmount float64 `json:"fulfill_ecoin_amount"`        // 积分发放：每件发放积分数
+	MultiSelect        uint8   `json:"multi_select"`                // 是否支持多选：0-不支持，1-支持
 }
 
 // EditSku 编辑商品
@@ -90,13 +96,15 @@ func (r *OpsResource) EditSku(ctx *gin.Context) {
 	}
 
 	skuInfo, err := r.skuService.EditSku(ctx.Request.Context(), &sku.EditSkuRequest{
-		Id:             req.Id,
-		SkuName:        req.SkuName,
-		SkuAvatar:      req.SkuAvatar,
-		SkuDesc:        req.SkuDesc,
-		Cost:           req.Cost,
-		DeliveryMethod: req.DeliveryMethod,
-		MultiSelect:    req.MultiSelect,
+		Id:                 req.Id,
+		SkuName:            req.SkuName,
+		SkuAvatar:          req.SkuAvatar,
+		SkuDesc:            req.SkuDesc,
+		Cost:               req.Cost,
+		DeliveryMethod:     req.DeliveryMethod,
+		FulfillMode:        req.FulfillMode,
+		FulfillEcoinAmount: req.FulfillEcoinAmount,
+		MultiSelect:        req.MultiSelect,
 	})
 	if err != nil {
 		http_utils.WriteResponse(ctx, nil, err)

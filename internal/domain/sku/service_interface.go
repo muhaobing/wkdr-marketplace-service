@@ -8,25 +8,29 @@ import (
 
 // CreateSkuRequest 创建商品请求
 type CreateSkuRequest struct {
-	BizCode        string  `json:"biz_code"`        // 业务编码
-	SkuCode        string  `json:"sku_code"`        // 商品代码
-	SkuName        string  `json:"sku_name"`        // 商品名称
-	SkuAvatar      string  `json:"sku_avatar"`      // 商品图标
-	SkuDesc        string  `json:"sku_desc"`        // 商品描述
-	Cost           float32 `json:"cost"`            // 商品售价(积分)
-	DeliveryMethod string  `json:"delivery_method"` // 履约回调接口
-	MultiSelect    uint8   `json:"multi_select"`    // 是否支持多选下单：0-不支持，1-支持
+	BizCode            string  `json:"biz_code"`             // 业务编码
+	SkuCode            string  `json:"sku_code"`             // 商品代码
+	SkuName            string  `json:"sku_name"`             // 商品名称
+	SkuAvatar          string  `json:"sku_avatar"`           // 商品图标
+	SkuDesc            string  `json:"sku_desc"`             // 商品描述
+	Cost               float32 `json:"cost"`                 // 商品售价(积分)
+	DeliveryMethod     string  `json:"delivery_method"`      // 履约回调接口（fulfill_mode=0）
+	FulfillMode        uint8   `json:"fulfill_mode"`         // 履约模式：0-接口回调，1-积分发放
+	FulfillEcoinAmount float64 `json:"fulfill_ecoin_amount"` // 积分发放模式下每件发放的积分数
+	MultiSelect        uint8   `json:"multi_select"`         // 是否支持多选下单：0-不支持，1-支持
 }
 
 // EditSkuRequest 编辑商品请求
 type EditSkuRequest struct {
-	Id             uint64  `json:"id"`              // 商品ID
-	SkuName        string  `json:"sku_name"`        // 商品名称
-	SkuAvatar      string  `json:"sku_avatar"`      // 商品图标
-	SkuDesc        string  `json:"sku_desc"`        // 商品描述
-	Cost           float32 `json:"cost"`            // 商品售价(积分)
-	DeliveryMethod string  `json:"delivery_method"` // 履约回调接口
-	MultiSelect    uint8   `json:"multi_select"`    // 是否支持多选下单：0-不支持，1-支持
+	Id                 uint64  `json:"id"`                   // 商品ID
+	SkuName            string  `json:"sku_name"`             // 商品名称
+	SkuAvatar          string  `json:"sku_avatar"`           // 商品图标
+	SkuDesc            string  `json:"sku_desc"`             // 商品描述
+	Cost               float32 `json:"cost"`                 // 商品售价(积分)
+	DeliveryMethod     string  `json:"delivery_method"`      // 履约回调接口（fulfill_mode=0）
+	FulfillMode        uint8   `json:"fulfill_mode"`         // 履约模式：0-接口回调，1-积分发放
+	FulfillEcoinAmount float64 `json:"fulfill_ecoin_amount"` // 积分发放模式下每件发放的积分数
+	MultiSelect        uint8   `json:"multi_select"`         // 是否支持多选下单：0-不支持，1-支持
 }
 
 // ListSkuRequest 商品列表请求
