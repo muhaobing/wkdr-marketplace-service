@@ -176,9 +176,10 @@
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { orderApi, paymentApi } from '../api'
+import { orderApi, paymentApi, skuApi } from '../api'
 import { useUserStore } from '../stores/user'
 import { toast, confirm } from '../utils/toast'
+import { isEcoinGrantSku } from '../utils/sku'
 
 const route = useRoute()
 const router = useRouter()
@@ -273,14 +274,34 @@ async function fetchOrder(silent = false) {
   }
 }
 
+async function filterOutEcoinForGrantSkus(methods) {
+  const list = Array.isArray(methods) ? [...methods] : []
+  const items = order.value?.items
+  if (!items?.length) return list
+  const ids = [...new Set(items.map(i => i.sku_id).filter(id => id > 0))]
+  for (const id of ids) {
+    try {
+      const sku = await skuApi.detail(id)
+      if (isEcoinGrantSku(sku)) {
+        return list.filter(m => m.channel !== 'ecoin')
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+  return list
+}
+
 async function fetchPaymentMethods() {
   try {
-    paymentMethods.value = await paymentApi.methods()
+    const raw = await paymentApi.methods()
+    paymentMethods.value = await filterOutEcoinForGrantSkus(raw)
   } catch (error) {
-    paymentMethods.value = [
+    const fallback = [
       { channel: 'ecoin', name: '积分支付', pay_method: 'ecoin' },
       { channel: 'wechat', name: '微信扫码支付', pay_method: 'native' }
     ]
+    paymentMethods.value = await filterOutEcoinForGrantSkus(fallback)
   }
 }
 

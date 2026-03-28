@@ -60,7 +60,7 @@
 
               <div class="item-price">
                 ¥{{ item.cost.toFixed(2) }}
-                <div class="ecoin-price">({{ toEcoin(item.cost) }} 积分)</div>
+                <div v-if="!isEcoinGrantSku(item)" class="ecoin-price">({{ toEcoin(item.cost) }} 积分)</div>
               </div>
 
               <div class="item-quantity">
@@ -73,7 +73,7 @@
 
               <div class="item-total">
                 ¥{{ (item.cost * item.quantity).toFixed(2) }}
-                <div class="ecoin-price">({{ toEcoin(item.cost * item.quantity) }} 积分)</div>
+                <div v-if="!isEcoinGrantSku(item)" class="ecoin-price">({{ toEcoin(item.cost * item.quantity) }} 积分)</div>
               </div>
 
               <div class="item-action">
@@ -104,7 +104,7 @@
               <span>已选 <strong>{{ selectedItems.length }}</strong> 件商品</span>
               <span class="total-price">
                 合计: <strong>¥{{ selectedTotalPrice.toFixed(2) }}</strong>
-                <span class="ecoin-price">({{ toEcoin(selectedTotalPrice) }} 积分)</span>
+                <span v-if="!selectedHasEcoinGrantSku" class="ecoin-price">({{ toEcoin(selectedTotalPrice) }} 积分)</span>
               </span>
             </div>
             <button 
@@ -128,6 +128,7 @@ import { useCartStore } from '../stores/cart'
 import { useUserStore } from '../stores/user'
 import { ecoinApi } from '../api'
 import { toast, confirm } from '../utils/toast'
+import { isEcoinGrantSku } from '../utils/sku'
 
 const router = useRouter()
 const cartStore = useCartStore()
@@ -143,6 +144,9 @@ function toEcoin(cost) {
 const cartItems = computed(() => cartStore.itemsWithSelected)
 const selectedItems = computed(() => cartStore.selectedItems)
 const selectedTotalPrice = computed(() => cartStore.selectedTotalPrice)
+const selectedHasEcoinGrantSku = computed(() =>
+  selectedItems.value.some(item => isEcoinGrantSku(item))
+)
 const isAllSelected = computed(() => cartStore.isAllSelected)
 const loading = computed(() => cartStore.loading)
 

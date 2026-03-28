@@ -189,12 +189,15 @@ func (s *cartServiceImpl) GetCartList(ctx context.Context, userId uint64) (*Cart
 		}
 
 		itemWithSku := &cartmodel.CartItemWithSku{
-			CartItem:  *item,
-			SkuCode:   skuInfo.SkuCode,
-			SkuName:   skuInfo.SkuName,
-			SkuAvatar: skuInfo.SkuAvatar,
-			Cost:      skuInfo.Cost,
-			SkuStatus: skuInfo.SkuStatus,
+			CartItem:           *item,
+			SkuCode:            skuInfo.SkuCode,
+			SkuName:            skuInfo.SkuName,
+			SkuAvatar:          skuInfo.SkuAvatar,
+			Cost:               skuInfo.Cost,
+			SkuStatus:          skuInfo.SkuStatus,
+			DeliveryMethod:     skuInfo.DeliveryMethod,
+			FulfillMode:        skuInfo.FulfillMode,
+			FulfillEcoinAmount: skuInfo.FulfillEcoinAmount,
 		}
 		result = append(result, itemWithSku)
 

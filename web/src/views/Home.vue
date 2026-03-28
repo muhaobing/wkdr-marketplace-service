@@ -60,7 +60,7 @@
             <div class="product-footer">
               <div class="product-price">
                 <span class="price-rmb">¥{{ product.cost.toFixed(2) }}</span>
-                <span class="price-ecoin">{{ toEcoin(product.cost) }} 积分</span>
+                <span v-if="!isEcoinGrantSku(product)" class="price-ecoin">{{ toEcoin(product.cost) }} 积分</span>
               </div>
             </div>
           </div>
@@ -76,6 +76,7 @@ import { useRouter } from 'vue-router'
 import { skuApi, ecoinApi } from '../api'
 import { useCartStore } from '../stores/cart'
 import { toast } from '../utils/toast'
+import { isEcoinGrantSku } from '../utils/sku'
 
 const router = useRouter()
 const cartStore = useCartStore()

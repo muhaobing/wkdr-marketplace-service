@@ -21,9 +21,12 @@ func (c *CartItem) TableName() string {
 // CartItemWithSku 购物车商品项（包含商品信息）
 type CartItemWithSku struct {
 	CartItem
-	SkuCode   string  `json:"sku_code"`
-	SkuName   string  `json:"sku_name"`
-	SkuAvatar string  `json:"sku_avatar"`
-	Cost      float32 `json:"cost"`
-	SkuStatus uint8   `json:"sku_status"`
+	SkuCode            string  `json:"sku_code"`
+	SkuName            string  `json:"sku_name"`
+	SkuAvatar          string  `json:"sku_avatar"`
+	Cost               float32 `json:"cost"`
+	SkuStatus          uint8   `json:"sku_status"`
+	DeliveryMethod     string  `json:"delivery_method"`
+	FulfillMode        uint8   `json:"fulfill_mode"`
+	FulfillEcoinAmount float64 `json:"fulfill_ecoin_amount"`
 }

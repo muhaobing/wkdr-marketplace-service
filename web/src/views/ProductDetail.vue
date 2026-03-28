@@ -39,7 +39,7 @@
               
               <div class="product-price">
                 <span class="price-value">¥{{ product.cost.toFixed(2) }}</span>
-                <span class="price-ecoin">({{ toEcoin(product.cost) }} 积分)</span>
+                <span v-if="!isEcoinGrantSku(product)" class="price-ecoin">({{ toEcoin(product.cost) }} 积分)</span>
               </div>
 
               <div class="product-desc">
@@ -86,6 +86,7 @@ import { skuApi, orderApi, ecoinApi } from '../api'
 import { useCartStore } from '../stores/cart'
 import { useUserStore } from '../stores/user'
 import { toast } from '../utils/toast'
+import { isEcoinGrantSku } from '../utils/sku'
 
 const route = useRoute()
 const router = useRouter()

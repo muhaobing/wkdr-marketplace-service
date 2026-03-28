@@ -214,6 +214,10 @@ func (s *orderServiceImpl) buildOrder(ctx context.Context, req *CreateOrderReque
 				return nil, nil, fmt.Errorf("sku %d is not available", skuItem.SkuId)
 			}
 
+			if req.PayType == ordermodel.PayTypeEcoin && skuInfo.IsEcoinGrantFulfill() {
+				return nil, nil, errors.New("积分类商品不支持积分支付，请使用在线支付")
+			}
+
 			// 计算价格
 			itemTotal := skuInfo.Cost * float32(skuItem.Quantity)
 			totalAmount += itemTotal
@@ -353,7 +357,27 @@ func (s *orderServiceImpl) PayOrder(ctx context.Context, req *PayOrderRequest) (
 
 // payWithEcoin 积分支付
 func (s *orderServiceImpl) payWithEcoin(ctx context.Context, order *ordermodel.Order) (*PayOrderResponse, error) {
-	err := database.Transaction(ctx, func(ctx context.Context) error {
+	items, err := s.orderRepo.GetOrderItemsByOrderId(ctx, order.Id)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get order items: %w", err)
+	}
+	for _, it := range items {
+		if it.SkuId == 0 {
+			continue
+		}
+		skuInfo, err := s.skuService.GetSkuById(ctx, it.SkuId)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get sku %d: %w", it.SkuId, err)
+		}
+		if skuInfo == nil {
+			return nil, fmt.Errorf("sku %d not found", it.SkuId)
+		}
+		if skuInfo.IsEcoinGrantFulfill() {
+			return nil, errors.New("积分类商品不支持积分支付，请使用在线支付")
+		}
+	}
+
+	err = database.Transaction(ctx, func(ctx context.Context) error {
 		ecoinAmount := float64(order.PayAmount) / float64(config.GetConf().EcoinUnitPrice)
 		_, err := s.ecoinSvc.DeductEcoin(ctx, &ecoin.DeductEcoinRequest{
 			UserId:      order.UserId,

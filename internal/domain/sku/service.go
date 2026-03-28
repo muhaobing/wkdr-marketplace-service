@@ -56,7 +56,11 @@ func (s *skuServiceImpl) CreateSku(ctx context.Context, req *CreateSkuRequest) (
 		return nil, fmt.Errorf("sku with code %s already exists in biz %s", req.SkuCode, req.BizCode)
 	}
 
-	if err := validateFulfillConfig(req.FulfillMode, req.DeliveryMethod, req.FulfillEcoinAmount); err != nil {
+	if err := validateFulfillSku(&skumodel.Sku{
+		DeliveryMethod:     req.DeliveryMethod,
+		FulfillMode:        req.FulfillMode,
+		FulfillEcoinAmount: req.FulfillEcoinAmount,
+	}); err != nil {
 		return nil, err
 	}
 
@@ -143,7 +147,11 @@ func (s *skuServiceImpl) EditSku(ctx context.Context, req *EditSkuRequest) (*sku
 		return nil, errors.New("sku not found")
 	}
 
-	if err := validateFulfillConfig(req.FulfillMode, req.DeliveryMethod, req.FulfillEcoinAmount); err != nil {
+	if err := validateFulfillSku(&skumodel.Sku{
+		DeliveryMethod:     req.DeliveryMethod,
+		FulfillMode:        req.FulfillMode,
+		FulfillEcoinAmount: req.FulfillEcoinAmount,
+	}); err != nil {
 		return nil, err
 	}
 
@@ -184,7 +192,11 @@ func (s *skuServiceImpl) ListingSku(ctx context.Context, id uint64) error {
 		return errors.New("sku is already listed")
 	}
 
-	if err := validateFulfillConfig(sku.FulfillMode, sku.DeliveryMethod, sku.FulfillEcoinAmount); err != nil {
+	if err := validateFulfillSku(sku); err != nil {
+		// 常见原因：库里 fulfill_mode / fulfill_ecoin_amount 仍为默认 0（未迁移列、或创建后未保存履约配置）
+		if sku.FulfillMode == skumodel.FulfillModeCallback && sku.FulfillEcoinAmount <= 0 && strings.TrimSpace(sku.DeliveryMethod) == "" {
+			return fmt.Errorf("%w；若本商品为积分发放，请在运营后台编辑并保存「履约方式=积分发放」及每件发放积分（或检查库表 fulfill_mode / fulfill_ecoin_amount 是否已写入）", err)
+		}
 		return err
 	}
 
@@ -404,16 +416,18 @@ func (s *skuServiceImpl) callDeliveryMethod(ctx context.Context, url, skuCode, b
 	}, nil
 }
 
-func validateFulfillConfig(mode uint8, deliveryMethod string, ecoinAmount float64) error {
-	dm := strings.TrimSpace(deliveryMethod)
-	// 积分模式：显式 fulfill_mode=1，或未写入 mode 但已配每件积分且未填回调（与 Sku.IsEcoinGrantFulfill 一致）
-	if mode == skumodel.FulfillModeEcoinGrant || (ecoinAmount > 0 && dm == "") {
-		if ecoinAmount <= 0 {
+// validateFulfillSku 与 Sku.IsEcoinGrantFulfill 判定一致，避免分散两处条件不一致
+func validateFulfillSku(sku *skumodel.Sku) error {
+	if sku == nil {
+		return errors.New("sku is required")
+	}
+	if sku.IsEcoinGrantFulfill() {
+		if sku.FulfillEcoinAmount <= 0 {
 			return errors.New("fulfill_ecoin_amount must be positive for ecoin grant mode")
 		}
 		return nil
 	}
-	if dm == "" {
+	if strings.TrimSpace(sku.DeliveryMethod) == "" {
 		return errors.New("delivery_method is required for callback fulfill mode")
 	}
 	return nil
