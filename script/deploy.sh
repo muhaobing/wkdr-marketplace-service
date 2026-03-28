@@ -10,10 +10,43 @@ BIN_DIR="${PROJECT_DIR}/bin"
 LOG_DIR="${PROJECT_DIR}/logs"
 TARGET="${1:-all}"
 
+# 与 go.mod 中 go 版本保持一致
+REQUIRED_GO_MAJOR=1
+REQUIRED_GO_MINOR=18
+
 echo "[deploy] project root: ${PROJECT_DIR}"
 
 command_exists() {
   command -v "$1" >/dev/null 2>&1
+}
+
+# 要求本机 Go >= 1.18（不满足则退出，避免无提示的编译/行为差异）
+ensure_go_version() {
+  command_exists go || {
+    echo "[deploy] go not found; install Go ${REQUIRED_GO_MAJOR}.${REQUIRED_GO_MINOR}+ first"
+    exit 1
+  }
+  local raw major minor
+  raw="$(go env GOVERSION 2>/dev/null | sed 's/^go//')"
+  if [[ -z "${raw}" ]]; then
+    raw="$(go version 2>/dev/null | awk '{print $3}' | sed 's/^go//')"
+  fi
+  if [[ -z "${raw}" ]]; then
+    echo "[deploy] cannot detect Go version"
+    exit 1
+  fi
+  if [[ "${raw}" =~ ^([0-9]+)\.([0-9]+) ]]; then
+    major="${BASH_REMATCH[1]}"
+    minor="${BASH_REMATCH[2]}"
+  else
+    echo "[deploy] cannot parse Go version from: ${raw}"
+    exit 1
+  fi
+  if (( major < REQUIRED_GO_MAJOR )) || { (( major == REQUIRED_GO_MAJOR )) && (( minor < REQUIRED_GO_MINOR )); }; then
+    echo "[deploy] require Go >= ${REQUIRED_GO_MAJOR}.${REQUIRED_GO_MINOR}, got ${raw} (from go env GOVERSION / go version)"
+    exit 1
+  fi
+  echo "[deploy] Go version OK: ${raw}"
 }
 
 install_pkg() {
@@ -41,6 +74,7 @@ ensure_dependencies() {
 
 ensure_backend_dependencies() {
   command_exists go || install_pkg golang
+  ensure_go_version
 }
 
 ensure_frontend_dependencies() {
