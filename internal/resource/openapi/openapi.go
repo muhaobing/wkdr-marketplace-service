@@ -3,6 +3,7 @@ package openapi
 import (
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -187,6 +188,7 @@ func (r *OpenAPIResource) WechatPayNotify(ctx *gin.Context) {
 		return
 	}
 
+	log.Println("WechatPayNotify:", string(body))
 	result, err := r.paymentService.HandleNotify(ctx.Request.Context(), "wechat", body)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{
