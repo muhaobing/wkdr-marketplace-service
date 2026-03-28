@@ -48,7 +48,7 @@ config:
     api_key: "7H8j9K2s5D8f7G9h1J3k5L7m8N9b0V8z"
     serial_no: "56FCA42324AD15BBE258203AB1AE6FA08FC473B3"
     private_key_path: "script/keys/1739371658_20260213_cert/apiclient_key.pem"
-    notify_url: "https://your-domain.com/openapi/callback/wechat/pay"
-    refund_notify_url: "https://your-domain.com/openapi/callback/wechat/refund"
-  ecoin_unit_price: 0.0001
+    notify_url: "https://www.lawmind.top/market/api/openapi/callback/wechat/pay"
+    refund_notify_url: "https://www.lawmind.top/market/api/openapi/callback/wechat/refund"
+  ecoin_unit_price: 1
   ecoin_expire_seconds: 2592000
