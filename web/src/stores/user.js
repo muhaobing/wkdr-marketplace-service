@@ -120,6 +120,15 @@ export const useUserStore = defineStore('user', () => {
     return Array.isArray(list) ? list : []
   }
 
+  /** 合并更新当前用户信息（个人中心修改手机号/邮箱后同步 Pinia 与 localStorage） */
+  function patchUser(partial) {
+    if (!user.value || !partial || typeof partial !== 'object') return
+    user.value = { ...user.value, ...partial }
+    try {
+      localStorage.setItem('user', JSON.stringify(user.value))
+    } catch (_) {}
+  }
+
   /** 仅读 localStorage，路由守卫与 LawMind 跳转校验用此数据 */
   function getCachedBindings() {
     try {
@@ -174,6 +183,7 @@ export const useUserStore = defineStore('user', () => {
     refreshEcoin,
     fetchBindingsRemote,
     getCachedBindings,
-    hydrateBindingsIfNeeded
+    hydrateBindingsIfNeeded,
+    patchUser
   }
 })

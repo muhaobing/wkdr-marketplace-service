@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
+	"strings"
 	"time"
 
 	"github.com/muhaobing/std-go/go-common/cache"
@@ -339,6 +341,98 @@ func (s *userServiceImpl) generateLoginResponse(ctx context.Context, user *userm
 		User:     user,
 		Bindings: bindings,
 	}, nil
+}
+
+var (
+	phonePatternCN = regexp.MustCompile(`^1[3-9]\d{9}$`)
+	emailPattern   = regexp.MustCompile(`^[^\s@]+@[^\s@]+\.[^\s@]+$`)
+)
+
+// UpdateProfile 更新手机号、邮箱（唯一性校验，并刷新 Redis 中当前 session 的用户信息）
+func (s *userServiceImpl) UpdateProfile(ctx context.Context, userId uint, req *UpdateProfileRequest, sessionId string) (*usermodel.User, error) {
+	if req == nil {
+		return nil, errors.New("request is required")
+	}
+	if userId == 0 {
+		return nil, errors.New("user id is required")
+	}
+	if sessionId == "" {
+		return nil, errors.New("session is required")
+	}
+
+	telNo := strings.TrimSpace(req.TelNo)
+	email := strings.TrimSpace(req.Email)
+	if telNo == "" && email == "" {
+		return nil, errors.New("手机号与邮箱至少填写一项")
+	}
+	if telNo != "" && !phonePatternCN.MatchString(telNo) {
+		return nil, errors.New("手机号格式不正确")
+	}
+	if email != "" && !emailPattern.MatchString(email) {
+		return nil, errors.New("邮箱格式不正确")
+	}
+
+	if telNo != "" {
+		other, err := s.userRepo.GetUserByTelNo(ctx, telNo)
+		if err != nil {
+			return nil, fmt.Errorf("failed to check phone: %w", err)
+		}
+		if other != nil && other.Id != userId {
+			return nil, errors.New("手机号已被使用")
+		}
+	}
+	if email != "" {
+		other, err := s.userRepo.GetUserByEmail(ctx, email)
+		if err != nil {
+			return nil, fmt.Errorf("failed to check email: %w", err)
+		}
+		if other != nil && other.Id != userId {
+			return nil, errors.New("邮箱已被使用")
+		}
+	}
+
+	if err := s.userRepo.UpdateUserContact(ctx, userId, telNo, email); err != nil {
+		return nil, fmt.Errorf("failed to update user: %w", err)
+	}
+
+	fresh, err := s.userRepo.GetUserById(ctx, userId)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load user: %w", err)
+	}
+	if fresh == nil {
+		return nil, errors.New("user not found")
+	}
+
+	sessionJSON, err := fresh.ToJSON()
+	if err != nil {
+		return nil, fmt.Errorf("failed to serialize user: %w", err)
+	}
+
+	conf := config.GetConf()
+	if conf == nil {
+		return nil, errors.New("config not initialized")
+	}
+	expiration := time.Duration(conf.Auth.Expiration) * time.Second
+
+	redis := cache.FromContext(ctx)
+	if redis == nil {
+		return nil, errors.New("redis client not initialized")
+	}
+	ttl, err := redis.TTL(ctx, sessionId).Result()
+	if err != nil {
+		return nil, fmt.Errorf("failed to read session ttl: %w", err)
+	}
+	if ttl == -2*time.Second {
+		return nil, errors.New("登录会话已失效，请重新登录")
+	}
+	if ttl <= 0 || ttl > expiration {
+		ttl = expiration
+	}
+	if err = redis.Set(ctx, sessionId, sessionJSON, ttl).Err(); err != nil {
+		return nil, fmt.Errorf("failed to refresh session: %w", err)
+	}
+
+	return fresh, nil
 }
 
 // findUserByIdentity 根据身份标识查找用户（优先手机号，其次邮箱）

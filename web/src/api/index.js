@@ -120,6 +120,14 @@ export const authApi = {
   /** 修改登录密钥（需 Authorization） */
   changePassword(data) {
     return api.post('/user/password', data)
+  },
+  /** 更新手机号、邮箱（需 Authorization，服务端校验唯一性） */
+  updateProfile(data) {
+    return api.post('/user/profile', data)
+  },
+  /** 解除与某业务平台的绑定（需 Authorization） */
+  unbindBiz(bizCode) {
+    return api.post('/user/unbind', { biz_code: bizCode })
   }
 }
 

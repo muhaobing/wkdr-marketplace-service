@@ -654,6 +654,46 @@ func (r *MarketplaceResource) ChangePassword(ctx *gin.Context) {
 	http_utils.WriteResponse(ctx, gin.H{"ok": true}, nil)
 }
 
+// UpdateProfile 更新当前用户手机号、邮箱（唯一性由服务层校验，并刷新 Redis session）
+// POST /marketplace/user/profile
+func (r *MarketplaceResource) UpdateProfile(ctx *gin.Context) {
+	u, err := auth_utils.UserFromGinContext(ctx)
+	if err != nil {
+		http_utils.WriteResponse(ctx, nil, err)
+		return
+	}
+	var reqBody user.UpdateProfileRequest
+	if err := ctx.ShouldBindJSON(&reqBody); err != nil {
+		http_utils.WriteResponse(ctx, nil, err)
+		return
+	}
+	authHeader := strings.TrimSpace(ctx.GetHeader("Authorization"))
+	token := authHeader
+	if strings.HasPrefix(authHeader, "Bearer ") {
+		token = strings.TrimSpace(strings.TrimPrefix(authHeader, "Bearer "))
+	}
+	if token == "" {
+		http_utils.WriteResponse(ctx, nil, errors.New("missing authorization"))
+		return
+	}
+	conf := config.GetConf()
+	if conf == nil {
+		http_utils.WriteResponse(ctx, nil, errors.New("config not initialized"))
+		return
+	}
+	sessionId, err := auth_utils.ParseAuthToken(token, conf.Auth.AesKey)
+	if err != nil {
+		http_utils.WriteResponse(ctx, nil, err)
+		return
+	}
+	fresh, err := r.userService.UpdateProfile(ctx.Request.Context(), u.Id, &reqBody, sessionId)
+	if err != nil {
+		http_utils.WriteResponse(ctx, nil, err)
+		return
+	}
+	http_utils.WriteResponse(ctx, fresh, nil)
+}
+
 // ==================== 购物车接口 ====================
 
 // AddToCartRequest 添加购物车请求
@@ -836,6 +876,7 @@ func (r *MarketplaceResource) Router() registry.Registry {
 			group.POST("/user/unbind", r.UnbindUser)
 			group.GET("/user/bindings", r.ListUserBindings)
 			group.POST("/user/password", r.ChangePassword)
+			group.POST("/user/profile", r.UpdateProfile)
 
 			// 商品接口
 			group.GET("/skus", r.ListSkus)

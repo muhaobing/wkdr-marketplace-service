@@ -5,11 +5,23 @@
         <h1>个人中心</h1>
       </div>
 
-      <!-- 账户信息 -->
+      <!-- 账户信息：手机号、邮箱支持行内编辑 -->
       <div class="card info-card">
-        <div class="section-header">
+        <div class="section-header section-header--row">
           <h2>账户信息</h2>
+          <div v-if="!accountEditing" class="header-actions">
+            <button type="button" class="btn btn-secondary btn-sm" @click="startAccountEdit">编辑</button>
+          </div>
+          <div v-else class="header-actions">
+            <button type="button" class="btn btn-secondary btn-sm" :disabled="contactSaving" @click="cancelAccountEdit">
+              取消
+            </button>
+            <button type="button" class="btn btn-primary btn-sm" :disabled="contactSaving" @click="submitAccountEdit">
+              {{ contactSaving ? '提交中…' : '提交' }}
+            </button>
+          </div>
         </div>
+        <div v-if="contactError" class="contact-error" role="alert">{{ contactError }}</div>
         <dl class="info-grid">
           <div class="info-row">
             <dt>用户 ID</dt>
@@ -17,11 +29,17 @@
           </div>
           <div class="info-row">
             <dt>手机号</dt>
-            <dd>{{ user?.tel_no || '未设置' }}</dd>
+            <dd v-if="!accountEditing" class="field-text">{{ user?.tel_no || '未设置' }}</dd>
+            <dd v-else class="field-edit">
+              <input v-model="contactDraft.tel_no" type="text" class="input" maxlength="11" placeholder="11 位手机号" />
+            </dd>
           </div>
           <div class="info-row">
             <dt>邮箱</dt>
-            <dd>{{ user?.email || '未设置' }}</dd>
+            <dd v-if="!accountEditing" class="field-text">{{ user?.email || '未设置' }}</dd>
+            <dd v-else class="field-edit">
+              <input v-model="contactDraft.email" type="email" class="input" maxlength="128" placeholder="邮箱" />
+            </dd>
           </div>
           <div class="info-row">
             <dt>角色</dt>
@@ -61,6 +79,7 @@
                 <th>平台代码</th>
                 <th>业务用户 ID</th>
                 <th>绑定时间</th>
+                <th class="col-action">操作</th>
               </tr>
             </thead>
             <tbody>
@@ -69,6 +88,16 @@
                 <td><code>{{ b.biz_code }}</code></td>
                 <td>{{ b.biz_user_id }}</td>
                 <td>{{ formatTime(b.ctime) }}</td>
+                <td class="col-action">
+                  <button
+                    type="button"
+                    class="btn-link danger"
+                    :disabled="unbindingCode === b.biz_code"
+                    @click="confirmUnbind(b)"
+                  >
+                    {{ unbindingCode === b.biz_code ? '处理中…' : '解除绑定' }}
+                  </button>
+                </td>
               </tr>
             </tbody>
           </table>
@@ -123,7 +152,7 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useUserStore } from '../stores/user'
 import { authApi, metaApi } from '../api'
-import { toast } from '../utils/toast'
+import { toast, confirm } from '../utils/toast'
 import PasswordInput from '../components/PasswordInput.vue'
 
 const userStore = useUserStore()
@@ -133,6 +162,12 @@ const user = computed(() => userStore.user)
 const bindings = ref([])
 const bindingsLoading = ref(false)
 const bizNameMap = ref({})
+const unbindingCode = ref('')
+
+const accountEditing = ref(false)
+const contactSaving = ref(false)
+const contactDraft = reactive({ tel_no: '', email: '' })
+const contactError = ref('')
 
 const pwdForm = reactive({
   oldSecret: '',
@@ -169,6 +204,57 @@ async function loadBizNames() {
   }
 }
 
+function startAccountEdit() {
+  contactError.value = ''
+  contactDraft.tel_no = user.value?.tel_no || ''
+  contactDraft.email = user.value?.email || ''
+  accountEditing.value = true
+}
+
+function cancelAccountEdit() {
+  accountEditing.value = false
+  contactError.value = ''
+}
+
+function validateContact() {
+  const tel = String(contactDraft.tel_no || '').trim()
+  const email = String(contactDraft.email || '').trim()
+  if (!tel && !email) {
+    return '手机号与邮箱至少填写一项'
+  }
+  if (tel && !/^1[3-9]\d{9}$/.test(tel)) {
+    return '请输入正确的手机号'
+  }
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return '请输入正确的邮箱地址'
+  }
+  return ''
+}
+
+async function submitAccountEdit() {
+  contactError.value = ''
+  const err = validateContact()
+  if (err) {
+    contactError.value = err
+    return
+  }
+  contactSaving.value = true
+  try {
+    const data = await authApi.updateProfile({
+      tel_no: String(contactDraft.tel_no || '').trim(),
+      email: String(contactDraft.email || '').trim()
+    })
+    userStore.patchUser(data)
+    accountEditing.value = false
+    toast.success('已保存')
+  } catch (e) {
+    contactError.value = e?.message || '保存失败'
+    toast.error(contactError.value)
+  } finally {
+    contactSaving.value = false
+  }
+}
+
 async function loadBindings() {
   bindingsLoading.value = true
   try {
@@ -176,13 +262,27 @@ async function loadBindings() {
     bindings.value = Array.isArray(list) ? list : []
   } catch (e) {
     const status = e?.response?.status
-    // 401：全局拦截器已清 token 并跳转登录，勿再 toast「Unauthorized」造成误解
     if (status !== 401) {
       toast.error(e?.message || '加载绑定列表失败')
     }
     bindings.value = userStore.getCachedBindings()
   } finally {
     bindingsLoading.value = false
+  }
+}
+
+async function confirmUnbind(row) {
+  const ok = await confirm(`确定解除与「${bizNameMap.value[row.biz_code] || row.biz_code}」的绑定吗？`)
+  if (!ok) return
+  unbindingCode.value = row.biz_code
+  try {
+    await authApi.unbindBiz(row.biz_code)
+    toast.success('已解除绑定')
+    await loadBindings()
+  } catch (e) {
+    toast.error(e?.message || '解绑失败')
+  } finally {
+    unbindingCode.value = ''
   }
 }
 
@@ -256,8 +356,23 @@ onMounted(() => {
   flex-wrap: wrap;
 }
 
+.header-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .btn-sm {
   padding: 8px 16px;
+  font-size: 13px;
+}
+
+.contact-error {
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #fef2f2;
+  color: #b91c1c;
   font-size: 13px;
 }
 
@@ -291,6 +406,25 @@ onMounted(() => {
   margin: 0;
   font-size: 14px;
   color: var(--gray-800);
+}
+
+.field-text {
+  font-weight: 500;
+}
+
+.field-edit .input {
+  width: 100%;
+  max-width: 360px;
+  padding: 10px 12px;
+  border: 1px solid var(--gray-200);
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.field-edit .input:focus {
+  outline: none;
+  border-color: var(--primary, #2563eb);
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
 }
 
 .role-tag {
@@ -355,6 +489,30 @@ onMounted(() => {
   background: var(--gray-50);
   padding: 2px 6px;
   border-radius: 4px;
+}
+
+.col-action {
+  width: 120px;
+  white-space: nowrap;
+}
+
+.btn-link {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: var(--primary, #2563eb);
+  text-decoration: underline;
+  font-size: 13px;
+}
+
+.btn-link.danger {
+  color: var(--danger, #dc2626);
+}
+
+.btn-link:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .password-hint {

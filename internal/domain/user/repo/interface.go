@@ -23,6 +23,9 @@ type UserRepo interface {
 	// UpdateUserSecretKey 更新用户密钥
 	UpdateUserSecretKey(ctx context.Context, id uint, secretKey string) error
 
+	// UpdateUserContact 更新手机号、邮箱
+	UpdateUserContact(ctx context.Context, id uint, telNo, email string) error
+
 	// GetUserForUpdate 获取用户信息（加锁）
 	GetUserForUpdate(ctx context.Context, id uint) (*usermodel.User, error)
 }

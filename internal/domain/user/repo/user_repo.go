@@ -74,6 +74,16 @@ func (r *userRepoImpl) UpdateUserSecretKey(ctx context.Context, id uint, secretK
 		Update("secret_key", secretKey).Error
 }
 
+// UpdateUserContact 更新手机号、邮箱
+func (r *userRepoImpl) UpdateUserContact(ctx context.Context, id uint, telNo, email string) error {
+	return database.FromContext(ctx).Model(&usermodel.User{}).
+		Where("id = ?", id).
+		Updates(map[string]interface{}{
+			"tel_no": telNo,
+			"email":  email,
+		}).Error
+}
+
 // GetUserForUpdate 获取用户信息（加锁）
 func (r *userRepoImpl) GetUserForUpdate(ctx context.Context, id uint) (*usermodel.User, error) {
 	var user usermodel.User

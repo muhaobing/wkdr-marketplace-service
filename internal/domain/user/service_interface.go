@@ -57,6 +57,12 @@ type ChangePasswordRequest struct {
 	NewSecret string `json:"new_secret"` // 新密码
 }
 
+// UpdateProfileRequest 更新当前用户手机号、邮箱（需登录）
+type UpdateProfileRequest struct {
+	TelNo string `json:"tel_no"` // 手机号
+	Email string `json:"email"`  // 邮箱
+}
+
 // UserService 用户服务接口
 type UserService interface {
 	// BindUser 绑定用户（包含注册逻辑）
@@ -88,4 +94,7 @@ type UserService interface {
 
 	// ChangePassword 修改登录密钥
 	ChangePassword(ctx context.Context, userId uint, req *ChangePasswordRequest) error
+
+	// UpdateProfile 更新手机号、邮箱（校验唯一性，并刷新当前 session 在 Redis 中的用户信息）
+	UpdateProfile(ctx context.Context, userId uint, req *UpdateProfileRequest, sessionId string) (*usermodel.User, error)
 }
