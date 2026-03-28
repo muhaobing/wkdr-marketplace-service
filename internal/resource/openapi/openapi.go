@@ -1,18 +1,24 @@
 package openapi
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/muhaobing/std-go/restserver/registry"
 
+	"wdkr-marketplace-service/internal/common/constant/err_code"
+	"wdkr-marketplace-service/internal/common/constant/sys_err"
 	"wdkr-marketplace-service/internal/common/utils/http_utils"
 	"wdkr-marketplace-service/internal/domain/ecoin"
 	"wdkr-marketplace-service/internal/domain/order"
 	"wdkr-marketplace-service/internal/domain/payment"
 	"wdkr-marketplace-service/internal/domain/payment/payment_model"
+	"wdkr-marketplace-service/internal/domain/user"
 )
 
 // OpenAPIResource OpenAPI接口资源（面向内部平台及外部支付回调）
@@ -20,26 +26,56 @@ type OpenAPIResource struct {
 	ecoinService   ecoin.EcoinService
 	paymentService payment.PaymentService
 	orderService   order.OrderService
+	userService    user.UserService
 }
 
 // NewOpenAPIResource 创建OpenAPI资源实例
-func NewOpenAPIResource(ecoinService ecoin.EcoinService, paymentService payment.PaymentService, orderService order.OrderService) *OpenAPIResource {
+func NewOpenAPIResource(ecoinService ecoin.EcoinService, paymentService payment.PaymentService, orderService order.OrderService, userService user.UserService) *OpenAPIResource {
 	return &OpenAPIResource{
 		ecoinService:   ecoinService,
 		paymentService: paymentService,
 		orderService:   orderService,
+		userService:    userService,
 	}
+}
+
+// resolveUserIDByBizBinding 根据 biz_code + biz_user_id 查绑定得到商城 user_id；无绑定时返回 sys_err.ErrUserBindingNotFound
+func (r *OpenAPIResource) resolveUserIDByBizBinding(ctx context.Context, bizCode string, bizUserId uint64) (uint64, error) {
+	bizCode = strings.TrimSpace(bizCode)
+	if bizCode == "" {
+		return 0, errors.New("biz_code is required")
+	}
+	if bizUserId == 0 {
+		return 0, errors.New("biz_user_id is required")
+	}
+	u, err := r.userService.GetUserByBiz(ctx, bizCode, bizUserId)
+	if err != nil {
+		return 0, err
+	}
+	if u == nil {
+		return 0, sys_err.ErrUserBindingNotFound
+	}
+	return uint64(u.Id), nil
+}
+
+func writeOpenAPIError(ctx *gin.Context, err error) {
+	if errors.Is(err, sys_err.ErrUserBindingNotFound) {
+		http_utils.WriteResponseWithRetcode(ctx, err_code.UserBindingNotFound, err.Error())
+		return
+	}
+	http_utils.WriteResponse(ctx, nil, err)
 }
 
 // ==================== 积分接口 ====================
 
-// AddEcoinRequest 增加积分请求
+// AddEcoinRequest 增加积分请求（按业务身份定位商城用户）
 type AddEcoinRequest struct {
-	UserId      uint64  `json:"user_id" binding:"required"`     // 用户ID
-	Amount      float64 `json:"amount" binding:"required,gt=0"` // 积分数量（必须大于0）
-	SourceType  string  `json:"source_type" binding:"required"` // 来源类型
-	SourceId    string  `json:"source_id"`                      // 来源业务ID
-	Description string  `json:"description"`                    // 描述
+	BizCode     string  `json:"biz_code" binding:"required"`      // 业务平台代码
+	BizUserId   uint64  `json:"biz_user_id" binding:"required"` // 业务平台用户 ID
+	Amount      float64 `json:"amount" binding:"required,gt=0"`   // 积分数量（必须大于0）
+	SourceType  string  `json:"source_type" binding:"required"`   // 来源类型
+	SourceId    string  `json:"source_id"`                        // 来源业务ID
+	Description string  `json:"description"`                      // 描述
 }
 
 // AddEcoin 增加积分
@@ -51,8 +87,14 @@ func (r *OpenAPIResource) AddEcoin(ctx *gin.Context) {
 		return
 	}
 
+	userId, err := r.resolveUserIDByBizBinding(ctx.Request.Context(), req.BizCode, req.BizUserId)
+	if err != nil {
+		writeOpenAPIError(ctx, err)
+		return
+	}
+
 	transaction, err := r.ecoinService.AddEcoin(ctx.Request.Context(), &ecoin.AddEcoinRequest{
-		UserId:      req.UserId,
+		UserId:      userId,
 		Amount:      req.Amount,
 		SourceType:  req.SourceType,
 		SourceId:    req.SourceId,
@@ -66,13 +108,14 @@ func (r *OpenAPIResource) AddEcoin(ctx *gin.Context) {
 	http_utils.WriteResponse(ctx, transaction, nil)
 }
 
-// DeductEcoinRequest 扣除积分请求
+// DeductEcoinRequest 扣除积分请求（按业务身份定位商城用户）
 type DeductEcoinRequest struct {
-	UserId      uint64  `json:"user_id" binding:"required"`     // 用户ID
-	Amount      float64 `json:"amount" binding:"required,gt=0"` // 积分数量（必须大于0）
-	SourceType  string  `json:"source_type" binding:"required"` // 来源类型
-	SourceId    string  `json:"source_id"`                      // 来源业务ID
-	Description string  `json:"description"`                    // 描述
+	BizCode     string  `json:"biz_code" binding:"required"`      // 业务平台代码
+	BizUserId   uint64  `json:"biz_user_id" binding:"required"` // 业务平台用户 ID
+	Amount      float64 `json:"amount" binding:"required,gt=0"`   // 积分数量（必须大于0）
+	SourceType  string  `json:"source_type" binding:"required"`   // 来源类型
+	SourceId    string  `json:"source_id"`                        // 来源业务ID
+	Description string  `json:"description"`                      // 描述
 }
 
 // DeductEcoin 扣除积分
@@ -84,8 +127,14 @@ func (r *OpenAPIResource) DeductEcoin(ctx *gin.Context) {
 		return
 	}
 
+	userId, err := r.resolveUserIDByBizBinding(ctx.Request.Context(), req.BizCode, req.BizUserId)
+	if err != nil {
+		writeOpenAPIError(ctx, err)
+		return
+	}
+
 	transaction, err := r.ecoinService.DeductEcoin(ctx.Request.Context(), &ecoin.DeductEcoinRequest{
-		UserId:      req.UserId,
+		UserId:      userId,
 		Amount:      req.Amount,
 		SourceType:  req.SourceType,
 		SourceId:    req.SourceId,
@@ -99,9 +148,10 @@ func (r *OpenAPIResource) DeductEcoin(ctx *gin.Context) {
 	http_utils.WriteResponse(ctx, transaction, nil)
 }
 
-// EcoinBalanceRequest 查询积分余额（JWT payload）
+// EcoinBalanceRequest 查询积分余额（按业务身份定位商城用户；JWT 仍用于鉴权）
 type EcoinBalanceRequest struct {
-	UserId uint64 `json:"user_id" binding:"required"` // 用户ID
+	BizCode   string `json:"biz_code" binding:"required"`      // 业务平台代码
+	BizUserId uint64 `json:"biz_user_id" binding:"required"` // 业务平台用户 ID
 }
 
 // PostEcoinBalance 获取用户积分信息
@@ -113,7 +163,13 @@ func (r *OpenAPIResource) PostEcoinBalance(ctx *gin.Context) {
 		return
 	}
 
-	ecoinInfo, err := r.ecoinService.GetUserEcoin(ctx.Request.Context(), req.UserId)
+	userId, err := r.resolveUserIDByBizBinding(ctx.Request.Context(), req.BizCode, req.BizUserId)
+	if err != nil {
+		writeOpenAPIError(ctx, err)
+		return
+	}
+
+	ecoinInfo, err := r.ecoinService.GetUserEcoin(ctx.Request.Context(), userId)
 	if err != nil {
 		http_utils.WriteResponse(ctx, nil, err)
 		return
@@ -144,11 +200,12 @@ func (r *OpenAPIResource) InitUserEcoin(ctx *gin.Context) {
 	http_utils.WriteResponse(ctx, ecoinInfo, nil)
 }
 
-// EcoinTransactionsRequest 积分流水列表（JWT payload）
+// EcoinTransactionsRequest 积分流水列表（按业务身份定位商城用户；JWT payload）
 type EcoinTransactionsRequest struct {
-	UserId uint64 `json:"user_id" binding:"required"` // 用户ID
-	Offset int    `json:"offset"`                     // 偏移量
-	Limit  int    `json:"limit"`                      // 每页数量
+	BizCode   string `json:"biz_code" binding:"required"`      // 业务平台代码
+	BizUserId uint64 `json:"biz_user_id" binding:"required"` // 业务平台用户 ID
+	Offset    int    `json:"offset"`                           // 偏移量
+	Limit     int    `json:"limit"`                            // 每页数量
 }
 
 // PostEcoinTransactions 获取积分流水列表
@@ -160,8 +217,14 @@ func (r *OpenAPIResource) PostEcoinTransactions(ctx *gin.Context) {
 		return
 	}
 
+	userId, err := r.resolveUserIDByBizBinding(ctx.Request.Context(), req.BizCode, req.BizUserId)
+	if err != nil {
+		writeOpenAPIError(ctx, err)
+		return
+	}
+
 	transactions, err := r.ecoinService.GetEcoinTransactionList(ctx.Request.Context(), &ecoin.EcoinTransactionListRequest{
-		UserId: req.UserId,
+		UserId: userId,
 		Offset: req.Offset,
 		Limit:  req.Limit,
 	})

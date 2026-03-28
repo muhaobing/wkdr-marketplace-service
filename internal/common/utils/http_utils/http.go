@@ -26,3 +26,11 @@ func WriteResponse(ctx *gin.Context, data interface{}, err error) {
 		})
 	}
 }
+
+// WriteResponseWithRetcode 指定 retcode（如 err_code.UserBindingNotFound），HTTP 仍为 200
+func WriteResponseWithRetcode(ctx *gin.Context, retcode int, message string) {
+	ctx.JSON(http.StatusOK, &CommonResponse{
+		Retcode: retcode,
+		Message: message,
+	})
+}
