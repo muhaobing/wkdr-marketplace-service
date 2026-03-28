@@ -83,12 +83,13 @@ router.beforeEach((to, from, next) => {
 
   // 如果页面需要登录但用户未登录
   if (to.meta.requiresAuth && !isLoggedIn) {
-    // 保留 URL 上的 biz_code、biz_user_id 等（与 LawMind 跳转对接），不能只传 redirect
+    // 业务参数（biz_code、biz_user_id 等）只放在顶层 query，由 ...to.query 带上
+    // redirect 只用「路径」：若用 to.fullPath，会把 ?& 再塞进 redirect，易与顶层参数冲突或导致 URL 解析截断
     next({
       name: 'Login',
       query: {
         ...to.query,
-        redirect: to.fullPath
+        redirect: to.path || '/'
       }
     })
     return
