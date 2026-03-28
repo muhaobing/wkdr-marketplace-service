@@ -45,20 +45,30 @@
                 class="custom-select"
                 :class="{
                   'custom-select--open': bindPlatformOpen,
-                  'custom-select--disabled': bindPlatformFromQuery
+                  'custom-select--disabled':
+                    bindPlatformFromQuery ||
+                    bindPlatformOptionsLoading ||
+                    !bindPlatformOptions.length
                 }"
               >
                 <button
                   type="button"
                   class="custom-select__trigger form-input form-input--compact"
-                  :class="{ 'custom-select__trigger--placeholder': !bindForm.biz_code }"
-                  :disabled="bindPlatformFromQuery"
+                  :class="{
+                    'custom-select__trigger--placeholder':
+                      !bindForm.biz_code || bindPlatformOptionsLoading
+                  }"
+                  :disabled="
+                    bindPlatformFromQuery ||
+                    bindPlatformOptionsLoading ||
+                    !bindPlatformOptions.length
+                  "
                   :aria-expanded="bindPlatformOpen"
                   :aria-haspopup="!bindPlatformFromQuery"
                   :aria-labelledby="bindPlatformLabelId"
                   @click.stop="toggleBindPlatform"
                 >
-                  <span class="custom-select__value">{{ bindPlatformDisplay }}</span>
+                  <span class="custom-select__value">{{ bindPlatformTriggerLabel }}</span>
                   <svg class="custom-select__chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                     <polyline points="6 9 12 15 18 9" />
                   </svg>
@@ -284,7 +294,7 @@
 import { ref, reactive, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useUserStore } from '../stores/user'
-import { authApi } from '../api'
+import { authApi, metaApi } from '../api'
 
 const router = useRouter()
 const route = useRoute()
@@ -302,7 +312,9 @@ function hasBothValidBindQuery() {
 const bindPlatformLabelId = 'bind-platform-label'
 const bindPlatformOpen = ref(false)
 const bindPlatformSelectRef = ref(null)
-const bindPlatformOptions = [{ value: 'lawmind', label: 'LawMind' }]
+/** { value: code, label: name }，来自 GET /marketplace/biz_codes */
+const bindPlatformOptions = ref([])
+const bindPlatformOptionsLoading = ref(true)
 
 const bindForm = reactive({
   biz_code: '',
@@ -316,12 +328,35 @@ const bindForm = reactive({
 const bindPlatformDisplay = computed(() => {
   const v = bindForm.biz_code
   if (!v) return '请选择绑定平台'
-  const o = bindPlatformOptions.find((x) => x.value === v)
-  return o ? o.label : '请选择绑定平台'
+  const o = bindPlatformOptions.value.find((x) => x.value === v)
+  return o ? o.label : v
 })
+
+const bindPlatformTriggerLabel = computed(() => {
+  if (bindPlatformOptionsLoading.value) return '加载平台列表…'
+  if (!bindPlatformOptions.value.length && !bindForm.biz_code) return '暂无可用平台'
+  return bindPlatformDisplay.value
+})
+
+async function loadBizCodes() {
+  bindPlatformOptionsLoading.value = true
+  try {
+    const list = await metaApi.listBizCodes()
+    bindPlatformOptions.value = (list || []).map(row => ({
+      value: row.code,
+      label: row.name
+    }))
+  } catch {
+    bindPlatformOptions.value = []
+  } finally {
+    bindPlatformOptionsLoading.value = false
+  }
+}
 
 function toggleBindPlatform() {
   if (bindPlatformFromQuery.value) return
+  if (bindPlatformOptionsLoading.value) return
+  if (!bindPlatformOptions.value.length) return
   bindPlatformOpen.value = !bindPlatformOpen.value
 }
 
@@ -402,6 +437,7 @@ async function applyQueryAndBindCheck() {
 onMounted(() => {
   document.addEventListener('click', onBindDocClick)
   document.addEventListener('keydown', onBindDocKeydown)
+  loadBizCodes()
   applyQueryAndBindCheck()
 })
 

@@ -96,6 +96,14 @@ export const authApi = {
   }
 }
 
+// 商城元数据（免登录）
+export const metaApi = {
+  /** 业务平台 biz_code 枚举，供绑定页下拉 */
+  listBizCodes() {
+    return api.get('/biz_codes')
+  }
+}
+
 // 商品相关 API
 export const skuApi = {
   // 获取商品列表

@@ -12,6 +12,7 @@ import (
 	"wdkr-marketplace-service/internal/common/config"
 	"wdkr-marketplace-service/internal/common/utils/auth_utils"
 	"wdkr-marketplace-service/internal/common/utils/http_utils"
+	bizcoderepo "wdkr-marketplace-service/internal/domain/bizcode/repo"
 	"wdkr-marketplace-service/internal/domain/cart"
 	"wdkr-marketplace-service/internal/domain/ecoin"
 	"wdkr-marketplace-service/internal/domain/order"
@@ -27,6 +28,7 @@ type MarketplaceResource struct {
 	ecoinService ecoin.EcoinService
 	userService  user.UserService
 	cartService  cart.CartService
+	bizCodeRepo  bizcoderepo.BizCodeRepo
 }
 
 // NewMarketplaceResource 创建商城资源实例
@@ -36,6 +38,7 @@ func NewMarketplaceResource(
 	ecoinService ecoin.EcoinService,
 	userService user.UserService,
 	cartService cart.CartService,
+	bizCodeRepo bizcoderepo.BizCodeRepo,
 ) *MarketplaceResource {
 	return &MarketplaceResource{
 		skuService:   skuService,
@@ -43,6 +46,7 @@ func NewMarketplaceResource(
 		ecoinService: ecoinService,
 		userService:  userService,
 		cartService:  cartService,
+		bizCodeRepo:  bizCodeRepo,
 	}
 }
 
@@ -504,6 +508,24 @@ type BindUserRequest struct {
 	Password  string `json:"password" binding:"required"`    // 密码
 }
 
+// ListBizCodes 业务平台编码枚举（供绑定页下拉；数据由 biz_code_enum_tab 维护）
+// GET /marketplace/biz_codes
+func (r *MarketplaceResource) ListBizCodes(ctx *gin.Context) {
+	list, err := r.bizCodeRepo.ListAll(ctx.Request.Context())
+	if err != nil {
+		http_utils.WriteResponse(ctx, nil, err)
+		return
+	}
+	out := make([]gin.H, 0, len(list))
+	for _, row := range list {
+		out = append(out, gin.H{
+			"code": row.Code,
+			"name": row.Name,
+		})
+	}
+	http_utils.WriteResponse(ctx, out, nil)
+}
+
 // BindUser 绑定用户
 // POST /marketplace/user/bind（免 session，与 /marketplace/login 相同）
 func (r *MarketplaceResource) BindUser(ctx *gin.Context) {
@@ -779,6 +801,7 @@ func (r *MarketplaceResource) Router() registry.Registry {
 		{
 			// 用户登录接口
 			group.POST("/login", r.Login)
+			group.GET("/biz_codes", r.ListBizCodes)
 			group.POST("/user/bind", r.BindUser)
 			group.GET("/user/bind/check", r.CheckBizBinding)
 			group.POST("/user/unbind", r.UnbindUser)

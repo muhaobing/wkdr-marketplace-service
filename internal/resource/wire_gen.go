@@ -10,6 +10,7 @@ import (
 	"context"
 
 	"wdkr-marketplace-service/internal/cron"
+	bizcoderepo "wdkr-marketplace-service/internal/domain/bizcode/repo"
 	"wdkr-marketplace-service/internal/domain/cart"
 	cartrepo "wdkr-marketplace-service/internal/domain/cart/repo"
 	"wdkr-marketplace-service/internal/domain/ecoin"
@@ -59,6 +60,7 @@ func InitializeResources() *Resources {
 	userRepo := userrepo.NewUserRepo()
 	userBindingRepo := userrepo.NewUserBindingRepo()
 	cartRepo := cartrepo.NewCartRepo()
+	bizCodeRepo := bizcoderepo.NewBizCodeRepo()
 
 	// 初始化支付渠道
 	wechatPayConfig := payment.NewWechatPayConfig()
@@ -76,7 +78,7 @@ func InitializeResources() *Resources {
 
 	// 初始化 Resources
 	healthyResource := healthy.NewHealthyResource()
-	marketplaceResource := marketplace.NewMarketplaceResource(skuService, orderService, ecoinService, userService, cartService)
+	marketplaceResource := marketplace.NewMarketplaceResource(skuService, orderService, ecoinService, userService, cartService, bizCodeRepo)
 	opsResource := ops.NewOpsResource(skuService, orderService)
 	openAPIResource := openapi.NewOpenAPIResource(ecoinService, paymentService, orderService)
 	mockResource := mock.NewMockResource()

@@ -25,6 +25,7 @@ config:
     expiration: 14400
     whitelist:
       - "/marketplace/login"
+      - "/marketplace/biz_codes"
       - "/marketplace/user/bind"
       - "/openapi/"
       - "/mock/"

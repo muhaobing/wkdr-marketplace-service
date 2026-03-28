@@ -24,6 +24,26 @@ CREATE TABLE `user_tab` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户表';
 
 -- -----------------------------------------------------------
+-- 1.0 业务平台编码枚举 (biz_code_enum_tab)
+-- LawMind 多租户类型等；绑定 biz_code 取值须与此表一致（同 biz_user_id 在不同 biz_code 下可重复）
+-- -----------------------------------------------------------
+DROP TABLE IF EXISTS `biz_code_enum_tab`;
+CREATE TABLE `biz_code_enum_tab` (
+    `id` INT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键',
+    `code` VARCHAR(64) NOT NULL COMMENT '编码，如 LawMind_ToC',
+    `name` VARCHAR(128) NOT NULL COMMENT '展示名称',
+    `ctime` INT UNSIGNED NOT NULL DEFAULT 0 COMMENT '创建时间戳',
+    `mtime` INT UNSIGNED NOT NULL DEFAULT 0 COMMENT '更新时间戳',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_code` (`code`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='业务平台编码枚举';
+
+INSERT INTO `biz_code_enum_tab` (`code`, `name`, `ctime`, `mtime`) VALUES
+('LawMind_ToC', 'LawMind C端用户', 0, 0),
+('LawMind_Enterprise', 'LawMind 企业用户', 0, 0),
+('LawMind_Admin', 'LawMind 运营人员', 0, 0);
+
+-- -----------------------------------------------------------
 -- 1.1 用户绑定表 (user_binding_tab)
 -- 记录用户与业务平台的绑定关系
 -- 唯一键: user_id + biz_code + biz_user_id（同业务域同账号只允许绑定一个商城账号）
@@ -32,7 +52,7 @@ DROP TABLE IF EXISTS `user_binding_tab`;
 CREATE TABLE `user_binding_tab` (
     `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键ID',
     `user_id` INT UNSIGNED NOT NULL COMMENT '商城用户ID',
-    `biz_code` VARCHAR(32) NOT NULL DEFAULT '' COMMENT '业务平台代码',
+    `biz_code` VARCHAR(64) NOT NULL DEFAULT '' COMMENT '业务平台代码（见 biz_code_enum_tab）',
     `biz_user_id` BIGINT UNSIGNED NOT NULL COMMENT '业务平台用户ID',
     `ctime` INT UNSIGNED NOT NULL DEFAULT 0 COMMENT '创建时间戳',
     `mtime` INT UNSIGNED NOT NULL DEFAULT 0 COMMENT '更新时间戳',

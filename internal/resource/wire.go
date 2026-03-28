@@ -7,6 +7,7 @@ import (
 	"github.com/google/wire"
 
 	"wdkr-marketplace-service/internal/cron"
+	bizcoderepo "wdkr-marketplace-service/internal/domain/bizcode/repo"
 	"wdkr-marketplace-service/internal/domain/cart"
 	cartrepo "wdkr-marketplace-service/internal/domain/cart/repo"
 	"wdkr-marketplace-service/internal/domain/ecoin"
@@ -34,6 +35,7 @@ var RepoSet = wire.NewSet(
 	userrepo.NewUserRepo,
 	userrepo.NewUserBindingRepo,
 	cartrepo.NewCartRepo,
+	bizcoderepo.NewBizCodeRepo,
 )
 
 // PaymentSet 提供支付相关实例（支付渠道 + 支付服务）
