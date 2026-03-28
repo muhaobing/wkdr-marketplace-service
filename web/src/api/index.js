@@ -1,5 +1,6 @@
 import axios from 'axios'
 import router from '../router/index.js'
+import { STORAGE_TOKEN_KEY } from '../constants/storage.js'
 
 // VITE_ENV=local：请求 /marketplace、/ops，由 Vite 代理到 localhost:10302，无 /market/api 前缀
 // 否则：生产构建默认 https://lawmind.top/market/api；开发可用相对路径走 Vite 的 /market/api 代理（或设 VITE_API_ORIGIN）
@@ -38,7 +39,7 @@ const opsApi = axios.create({
 
 // 请求拦截器 - 添加 token
 const requestInterceptor = config => {
-  const token = localStorage.getItem('token')
+  const token = localStorage.getItem(STORAGE_TOKEN_KEY)
   if (token) {
     config.headers['Authorization'] = `Bearer ${token}`
   }
@@ -62,7 +63,7 @@ const responseErrorHandler = error => {
   // 401 未授权：用 router 跳转并保留当前 query（biz_code、biz_user_id、redirect 等）
   // 禁止 window.location.href = .../login，否则会丢掉 ? 参数；登录页拉 biz_codes 若 401 会二次覆盖 URL
   if (error.response && error.response.status === 401) {
-    localStorage.removeItem('token')
+    localStorage.removeItem(STORAGE_TOKEN_KEY)
     localStorage.removeItem('user')
     const q = { ...router.currentRoute.value.query }
     router.replace({ name: 'Login', query: q }).catch(() => {})

@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { toast } from '../utils/toast'
+import { STORAGE_TOKEN_KEY } from '../constants/storage.js'
 
 const routes = [
   {
@@ -77,7 +78,7 @@ const router = createRouter({
 
 // 路由守卫 - 检查登录状态和权限
 router.beforeEach((to, from, next) => {
-  const token = localStorage.getItem('token')
+  const token = localStorage.getItem(STORAGE_TOKEN_KEY)
   const userStr = localStorage.getItem('user')
   const isLoggedIn = !!token
 

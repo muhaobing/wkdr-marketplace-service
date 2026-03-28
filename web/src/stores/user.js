@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { authApi, ecoinApi } from '../api'
+import { STORAGE_TOKEN_KEY } from '../constants/storage.js'
 
 export const useUserStore = defineStore('user', () => {
   // 用户数据
@@ -18,7 +19,7 @@ export const useUserStore = defineStore('user', () => {
 
   // 初始化 - 从 localStorage 恢复登录状态
   function init() {
-    const savedToken = localStorage.getItem('token')
+    const savedToken = localStorage.getItem(STORAGE_TOKEN_KEY)
     const savedUser = localStorage.getItem('user')
     if (savedToken && savedUser) {
       token.value = savedToken
@@ -39,7 +40,7 @@ export const useUserStore = defineStore('user', () => {
       token.value = response.token
       user.value = response.user
 
-      localStorage.setItem('token', response.token)
+      localStorage.setItem(STORAGE_TOKEN_KEY, response.token)
       localStorage.setItem('user', JSON.stringify(response.user))
 
       await fetchEcoin()
@@ -61,7 +62,7 @@ export const useUserStore = defineStore('user', () => {
       token.value = response.token
       user.value = response.user
 
-      localStorage.setItem('token', response.token)
+      localStorage.setItem(STORAGE_TOKEN_KEY, response.token)
       localStorage.setItem('user', JSON.stringify(response.user))
 
       await fetchEcoin()
@@ -80,7 +81,7 @@ export const useUserStore = defineStore('user', () => {
     token.value = null
     user.value = null
     ecoin.value = null
-    localStorage.removeItem('token')
+    localStorage.removeItem(STORAGE_TOKEN_KEY)
     localStorage.removeItem('user')
   }
 
