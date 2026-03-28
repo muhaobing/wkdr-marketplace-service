@@ -17,10 +17,11 @@ type BindUserRequest struct {
 
 // BindUserResponse 用户绑定响应（绑定成功后即完成登录，返回 session token）
 type BindUserResponse struct {
-	UserId    uint            `json:"user_id"`     // 商城中心用户ID
-	IsNewUser bool            `json:"is_new_user"` // 是否为新创建的用户
-	Token     string          `json:"token"`       // session token（Authorization: Bearer）
-	User      *usermodel.User `json:"user"`        // 用户信息（不含 secret_key）
+	UserId    uint                       `json:"user_id"`     // 商城中心用户ID
+	IsNewUser bool                       `json:"is_new_user"` // 是否为新创建的用户
+	Token     string                     `json:"token"`       // session token（Authorization: Bearer）
+	User      *usermodel.User            `json:"user"`        // 用户信息（不含 secret_key）
+	Bindings  []*usermodel.UserBinding   `json:"bindings"`    // 业务平台绑定列表（与 GET /user/bindings 一致）
 }
 
 // UnbindUserRequest 用户解绑请求
@@ -44,9 +45,16 @@ type LoginRequest struct {
 
 // LoginResponse 登录响应
 type LoginResponse struct {
-	Token  string          `json:"token"`   // 登录token
-	UserId uint            `json:"user_id"` // 用户ID
-	User   *usermodel.User `json:"user"`    // 用户信息
+	Token    string                   `json:"token"`    // 登录token
+	UserId   uint                     `json:"user_id"`  // 用户ID
+	User     *usermodel.User          `json:"user"`     // 用户信息
+	Bindings []*usermodel.UserBinding `json:"bindings"` // 业务平台绑定列表（与 GET /user/bindings 一致）
+}
+
+// ChangePasswordRequest 修改登录密钥（需验证原密码）
+type ChangePasswordRequest struct {
+	OldSecret string `json:"old_secret"` // 原密码（与登录密钥一致）
+	NewSecret string `json:"new_secret"` // 新密码
 }
 
 // UserService 用户服务接口
@@ -77,4 +85,7 @@ type UserService interface {
 
 	// GetBindingsByUserId 获取用户所有绑定信息
 	GetBindingsByUserId(ctx context.Context, userId uint) ([]*usermodel.UserBinding, error)
+
+	// ChangePassword 修改登录密钥
+	ChangePassword(ctx context.Context, userId uint, req *ChangePasswordRequest) error
 }

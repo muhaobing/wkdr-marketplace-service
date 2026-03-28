@@ -625,6 +625,35 @@ func (r *MarketplaceResource) ListUserBindings(ctx *gin.Context) {
 	http_utils.WriteResponse(ctx, bindings, nil)
 }
 
+// ChangePasswordBody 修改登录密钥
+type ChangePasswordBody struct {
+	OldSecret string `json:"old_secret" binding:"required"`
+	NewSecret string `json:"new_secret" binding:"required"`
+}
+
+// ChangePassword 修改当前用户登录密钥
+// POST /marketplace/user/password
+func (r *MarketplaceResource) ChangePassword(ctx *gin.Context) {
+	u, err := auth_utils.UserFromGinContext(ctx)
+	if err != nil {
+		http_utils.WriteResponse(ctx, nil, err)
+		return
+	}
+	var req ChangePasswordBody
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		http_utils.WriteResponse(ctx, nil, err)
+		return
+	}
+	if err := r.userService.ChangePassword(ctx.Request.Context(), u.Id, &user.ChangePasswordRequest{
+		OldSecret: req.OldSecret,
+		NewSecret: req.NewSecret,
+	}); err != nil {
+		http_utils.WriteResponse(ctx, nil, err)
+		return
+	}
+	http_utils.WriteResponse(ctx, gin.H{"ok": true}, nil)
+}
+
 // ==================== 购物车接口 ====================
 
 // AddToCartRequest 添加购物车请求
@@ -806,6 +835,7 @@ func (r *MarketplaceResource) Router() registry.Registry {
 			group.GET("/user/bind/check", r.CheckBizBinding)
 			group.POST("/user/unbind", r.UnbindUser)
 			group.GET("/user/bindings", r.ListUserBindings)
+			group.POST("/user/password", r.ChangePassword)
 
 			// 商品接口
 			group.GET("/skus", r.ListSkus)

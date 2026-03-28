@@ -17,6 +17,23 @@ export const useUserStore = defineStore('user', () => {
   const balance = computed(() => ecoin.value?.available_stock || 0)
   const isAdmin = computed(() => user.value?.role === 1)
 
+  function setCachedBindingsList(list) {
+    try {
+      localStorage.setItem(STORAGE_BINDINGS_KEY, JSON.stringify(Array.isArray(list) ? list : []))
+    } catch (_) {}
+  }
+
+  /** 已有登录态但本地无绑定缓存时补拉一次（如旧版本仅写了 token、或用户清过 storage） */
+  async function hydrateBindingsIfNeeded() {
+    const savedToken = localStorage.getItem(STORAGE_TOKEN_KEY)
+    if (!savedToken) return
+    try {
+      const raw = localStorage.getItem(STORAGE_BINDINGS_KEY)
+      if (raw != null && raw !== '') return
+    } catch (_) {}
+    await fetchBindingsRemote().catch(() => {})
+  }
+
   // 初始化 - 从 localStorage 恢复登录状态
   function init() {
     const savedToken = localStorage.getItem(STORAGE_TOKEN_KEY)
@@ -44,7 +61,11 @@ export const useUserStore = defineStore('user', () => {
       localStorage.setItem('user', JSON.stringify(response.user))
 
       await fetchEcoin()
-      await fetchBindingsRemote().catch(() => {})
+      if (Array.isArray(response.bindings)) {
+        setCachedBindingsList(response.bindings)
+      } else {
+        await fetchBindingsRemote().catch(() => {})
+      }
 
       return response
     } catch (error) {
@@ -67,7 +88,11 @@ export const useUserStore = defineStore('user', () => {
       localStorage.setItem('user', JSON.stringify(response.user))
 
       await fetchEcoin()
-      await fetchBindingsRemote().catch(() => {})
+      if (Array.isArray(response.bindings)) {
+        setCachedBindingsList(response.bindings)
+      } else {
+        await fetchBindingsRemote().catch(() => {})
+      }
 
       return response
     } catch (error) {
@@ -88,16 +113,14 @@ export const useUserStore = defineStore('user', () => {
     localStorage.removeItem(STORAGE_BINDINGS_KEY)
   }
 
-  /** 拉取并缓存当前用户的业务平台绑定（与 LawMind 跳转校验一致） */
+  /** 拉取并缓存当前用户的业务平台绑定（登录/绑定接口已带 bindings 时可不调用） */
   async function fetchBindingsRemote() {
     const list = await authApi.listUserBindings()
-    try {
-      localStorage.setItem(STORAGE_BINDINGS_KEY, JSON.stringify(list ?? []))
-    } catch (_) {}
+    setCachedBindingsList(list ?? [])
     return Array.isArray(list) ? list : []
   }
 
-  /** 仅读本地缓存（无网络）；路由守卫以 fetchBindingsRemote 为准 */
+  /** 仅读 localStorage，路由守卫与 LawMind 跳转校验用此数据 */
   function getCachedBindings() {
     try {
       const raw = localStorage.getItem(STORAGE_BINDINGS_KEY)
@@ -150,6 +173,7 @@ export const useUserStore = defineStore('user', () => {
     fetchEcoin,
     refreshEcoin,
     fetchBindingsRemote,
-    getCachedBindings
+    getCachedBindings,
+    hydrateBindingsIfNeeded
   }
 })

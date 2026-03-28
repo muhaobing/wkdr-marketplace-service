@@ -37,9 +37,21 @@ const opsApi = axios.create({
   }
 })
 
-// 请求拦截器 - 添加 token
-const requestInterceptor = config => {
-  const token = localStorage.getItem(STORAGE_TOKEN_KEY)
+// 请求拦截器：从 localStorage（marketplace_token）附加 Authorization；若为空则回退 Pinia（例如其它标签页清过 storage）
+const requestInterceptor = async config => {
+  let token = localStorage.getItem(STORAGE_TOKEN_KEY)
+  if (!token) {
+    try {
+      const { useUserStore } = await import('../stores/user.js')
+      const u = useUserStore()
+      token = u.token
+      if (token) {
+        try {
+          localStorage.setItem(STORAGE_TOKEN_KEY, token)
+        } catch (_) {}
+      }
+    } catch (_) {}
+  }
   if (token) {
     config.headers['Authorization'] = `Bearer ${token}`
   }
@@ -59,12 +71,16 @@ const responseInterceptor = response => {
   return Promise.reject(new Error(data.message || '请求失败'))
 }
 
-const responseErrorHandler = error => {
-  // 401 未授权：用 router 跳转并保留当前 query（biz_code、biz_user_id、redirect 等）
-  // 禁止 window.location.href = .../login，否则会丢掉 ? 参数；登录页拉 biz_codes 若 401 会二次覆盖 URL
+const responseErrorHandler = async error => {
+  // 401 未授权：同步 Pinia 登出 + 跳转登录（与 localStorage 一致）
   if (error.response && error.response.status === 401) {
-    localStorage.removeItem(STORAGE_TOKEN_KEY)
-    localStorage.removeItem('user')
+    try {
+      const { useUserStore } = await import('../stores/user.js')
+      useUserStore().logout()
+    } catch (_) {
+      localStorage.removeItem(STORAGE_TOKEN_KEY)
+      localStorage.removeItem('user')
+    }
     const q = { ...router.currentRoute.value.query }
     router.replace({ name: 'Login', query: q }).catch(() => {})
   }
@@ -100,6 +116,10 @@ export const authApi = {
   /** 当前登录用户的业务平台绑定列表（需 Authorization） */
   listUserBindings() {
     return api.get('/user/bindings')
+  },
+  /** 修改登录密钥（需 Authorization） */
+  changePassword(data) {
+    return api.post('/user/password', data)
   }
 }
 

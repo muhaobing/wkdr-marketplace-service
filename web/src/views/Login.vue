@@ -156,10 +156,9 @@
 
             <div class="form-group form-group--compact">
               <label class="form-label">输入密码 <span class="req">*</span></label>
-              <input
+              <PasswordInput
                 v-model="bindForm.password"
-                type="password"
-                class="form-input form-input--compact"
+                compact
                 placeholder="设置登录密码"
                 required
                 autocomplete="new-password"
@@ -168,10 +167,9 @@
 
             <div class="form-group form-group--compact">
               <label class="form-label">确认密码 <span class="req">*</span></label>
-              <input
+              <PasswordInput
                 v-model="bindForm.password2"
-                type="password"
-                class="form-input form-input--compact"
+                compact
                 placeholder="再次输入"
                 required
                 autocomplete="new-password"
@@ -237,12 +235,11 @@
 
           <div class="form-group">
             <label class="form-label">用户密钥</label>
-            <input
+            <PasswordInput
               v-model="formData.secret"
-              type="password"
-              class="form-input"
               placeholder="请输入用户密钥"
               required
+              autocomplete="current-password"
             />
           </div>
 
@@ -295,6 +292,7 @@ import { ref, reactive, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useUserStore } from '../stores/user'
 import { authApi, metaApi } from '../api'
+import PasswordInput from '../components/PasswordInput.vue'
 
 const router = useRouter()
 const route = useRoute()

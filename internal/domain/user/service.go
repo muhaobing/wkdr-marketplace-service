@@ -70,6 +70,7 @@ func (s *userServiceImpl) BindUser(ctx context.Context, req *BindUserRequest) (*
 			IsNewUser: false,
 			Token:     loginResp.Token,
 			User:      loginResp.User,
+			Bindings:  loginResp.Bindings,
 		}, nil
 	}
 
@@ -130,6 +131,7 @@ func (s *userServiceImpl) BindUser(ctx context.Context, req *BindUserRequest) (*
 	}
 	response.Token = loginResp.Token
 	response.User = loginResp.User
+	response.Bindings = loginResp.Bindings
 	return response, nil
 }
 
@@ -264,6 +266,34 @@ func (s *userServiceImpl) GetBindingsByUserId(ctx context.Context, userId uint) 
 	return s.bindingRepo.GetBindingsByUserId(ctx, userId)
 }
 
+// ChangePassword 修改登录密钥
+func (s *userServiceImpl) ChangePassword(ctx context.Context, userId uint, req *ChangePasswordRequest) error {
+	if req == nil {
+		return errors.New("request is required")
+	}
+	if req.OldSecret == "" || req.NewSecret == "" {
+		return errors.New("原密码与新密码不能为空")
+	}
+	if req.OldSecret == req.NewSecret {
+		return errors.New("新密码不能与当前密码相同")
+	}
+	user, err := s.userRepo.GetUserById(ctx, userId)
+	if err != nil {
+		return fmt.Errorf("failed to get user: %w", err)
+	}
+	if user == nil {
+		return errors.New("user not found")
+	}
+	if !user.VerifySecretKey(req.OldSecret) {
+		return errors.New("原密码不正确")
+	}
+	newKey := usermodel.GenerateSecretKey(req.NewSecret, user.Id)
+	if err := s.userRepo.UpdateUserSecretKey(ctx, user.Id, newKey); err != nil {
+		return fmt.Errorf("failed to update password: %w", err)
+	}
+	return nil
+}
+
 // generateLoginResponse 生成登录响应（生成session、token并写入redis）
 func (s *userServiceImpl) generateLoginResponse(ctx context.Context, user *usermodel.User) (*LoginResponse, error) {
 	// 生成 session id: "session:$user_id:$login_timestamp"
@@ -298,10 +328,16 @@ func (s *userServiceImpl) generateLoginResponse(ctx context.Context, user *userm
 		return nil, fmt.Errorf("failed to save session to redis: %w", err)
 	}
 
+	var bindings []*usermodel.UserBinding
+	if list, err := s.GetBindingsByUserId(ctx, user.Id); err == nil {
+		bindings = list
+	}
+
 	return &LoginResponse{
-		Token:  token,
-		UserId: user.Id,
-		User:   user,
+		Token:    token,
+		UserId:   user.Id,
+		User:     user,
+		Bindings: bindings,
 	}, nil
 }
 

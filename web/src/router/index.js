@@ -46,6 +46,12 @@ const routes = [
     component: () => import('../views/EcoinCenter.vue'),
     meta: { requiresAuth: true }
   },
+  {
+    path: '/profile',
+    name: 'ProfileCenter',
+    component: () => import('../views/ProfileCenter.vue'),
+    meta: { requiresAuth: true }
+  },
   // 运营中心路由
   {
     path: '/ops',
@@ -85,28 +91,14 @@ router.beforeEach(async (to, from, next) => {
 
   const bizParams = parseBizQueryFromRoute(to.query)
 
-  // LawMind 跳转带 biz_code、biz_user_id：已登录则校验当前账号是否绑定该业务身份
+  // LawMind 跳转带 biz_code、biz_user_id：已登录则与本地缓存的绑定列表比对（登录/启动时已写入 localStorage，此处不再请求接口）
   if (bizParams && isLoggedIn) {
     const { useUserStore } = await import('../stores/user.js')
     const userStore = useUserStore()
-    try {
-      const bindings = await userStore.fetchBindingsRemote()
-      if (!bindingListContains(bindings, bizParams.biz_code, bizParams.biz_user_id)) {
-        userStore.logout()
-        toast.error('当前账号与 LawMind 跳转参数不一致，请重新登录')
-        next({
-          name: 'Login',
-          query: {
-            ...to.query,
-            redirect: to.path || '/'
-          }
-        })
-        return
-      }
-    } catch (e) {
-      console.error(e)
+    const bindings = userStore.getCachedBindings()
+    if (!bindingListContains(bindings, bizParams.biz_code, bizParams.biz_user_id)) {
       userStore.logout()
-      toast.error('无法校验业务绑定，请重新登录')
+      toast.error('当前账号与 LawMind 跳转参数不一致，请重新登录')
       next({
         name: 'Login',
         query: {
