@@ -30,9 +30,9 @@ func (c *AuthValidationHandler) Handle(ctx *gin.Context) {
 	conf := config.GetConf()
 	path := ctx.Request.URL.Path
 
-	// 检查是否在白名单中
+	// 检查是否在白名单中（避免 "/marketplace/user/bind" 前缀误匹配 "/marketplace/user/bindings"）
 	for _, whitePath := range conf.Auth.Whitelist {
-		if path == whitePath || strings.HasPrefix(path, whitePath) {
+		if pathMatchesWhitelistEntry(path, whitePath) {
 			ctx.Next()
 			return
 		}

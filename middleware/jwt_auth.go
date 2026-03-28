@@ -208,10 +208,10 @@ func shouldApplyJWTAuth(path string, conf *config.Conf) bool {
 		return false
 	}
 	for _, prefix := range j.Paths {
-		if prefix == "" {
+		if strings.TrimSpace(prefix) == "" {
 			continue
 		}
-		if path == prefix || strings.HasPrefix(path, prefix) {
+		if pathMatchesWhitelistEntry(path, prefix) {
 			return true
 		}
 	}
