@@ -3,6 +3,7 @@ restserver:
   server:
     port: 10302
     scheduler_port: 10303
+    scheduler_token: "ThisIsNotSchedulerToken"
     log: ""
   database:
     ip: "rm-2ze7ce8lnejdjnt70xo.mysql.rds.aliyuncs.com"
