@@ -22,7 +22,7 @@ restserver:
 config:
   auth:
     aes_key: "ThisIsNotAAesKey"
-    expiration: 14400
+    expiration: 86400
     # 无尾斜杠的项仅匹配自身或「自身/子路径」，不会把 user/bindings 误当成 user/bind 的前缀
     whitelist:
       - "/marketplace/login"
