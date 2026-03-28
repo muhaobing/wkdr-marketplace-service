@@ -10,7 +10,7 @@
             <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
           </svg>
         </div>
-        <span class="brand-text">商城中心</span>
+        <span class="brand-text">韦克德瑞官方商城</span>
       </router-link>
 
       <!-- 右侧：用户信息 -->

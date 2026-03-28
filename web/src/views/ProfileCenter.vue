@@ -85,7 +85,7 @@
             <tbody>
               <tr v-for="b in bindings" :key="b.id ? String(b.id) : `${b.biz_code}-${b.biz_user_id}`">
                 <td>{{ bizNameMap[b.biz_code] || b.biz_code }}</td>
-                <td><code>{{ b.biz_code }}</code></td>
+                <td><code class="biz-code">{{ b.biz_code }}</code></td>
                 <td>{{ b.biz_user_id }}</td>
                 <td>{{ formatTime(b.ctime) }}</td>
                 <td class="col-action">
@@ -500,11 +500,32 @@ onMounted(() => {
   letter-spacing: 0.04em;
 }
 
-.bindings-table code {
-  font-size: 13px;
-  background: var(--gray-50);
-  padding: 2px 6px;
-  border-radius: 4px;
+/* 平台代码：等宽 + 轻量标签感，避免默认 code 发灰、字重发虚 */
+.biz-code {
+  display: inline-block;
+  max-width: 100%;
+  font-family:
+    ui-monospace,
+    'SF Mono',
+    'Segoe UI Mono',
+    Menlo,
+    Monaco,
+    Consolas,
+    'Liberation Mono',
+    'Courier New',
+    monospace;
+  font-size: 12.5px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.03em;
+  line-height: 1.4;
+  color: var(--gray-800);
+  background: linear-gradient(180deg, var(--gray-50) 0%, var(--gray-100) 100%);
+  border: 1px solid var(--gray-200);
+  padding: 5px 11px;
+  border-radius: 8px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.85);
+  word-break: break-all;
 }
 
 .col-action {
