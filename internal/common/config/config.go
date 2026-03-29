@@ -2,6 +2,7 @@ package config
 
 import (
 	"strings"
+	"time"
 
 	"github.com/muhaobing/std-go/restserver/config"
 )
@@ -11,11 +12,12 @@ const DefaultJWTExpirationSeconds uint32 = 300
 
 // Conf 应用配置
 type Conf struct {
-	Auth               AuthConfig      `yaml:"auth"`       // 用户 session（AES+Redis）鉴权
-	JWT                JWTConfig       `yaml:"jwt"`        // OpenAPI 等系统间 JWT 鉴权（与 auth 独立）
-	WechatPay          WechatPayConfig `yaml:"wechat_pay"` // 微信支付配置
-	EcoinUnitPrice     float32         `yaml:"ecoin_unit_price"`
-	EcoinExpireSeconds uint32          `yaml:"ecoin_expire_seconds"` // 已废弃：保留键名兼容旧配置；积分过期由域服务按自然月计算，不再读取该秒数
+	Auth                       AuthConfig      `yaml:"auth"`       // 用户 session（AES+Redis）鉴权
+	JWT                        JWTConfig       `yaml:"jwt"`        // OpenAPI 等系统间 JWT 鉴权（与 auth 独立）
+	WechatPay                  WechatPayConfig `yaml:"wechat_pay"` // 微信支付配置
+	EcoinUnitPrice             float32         `yaml:"ecoin_unit_price"`
+	EcoinExpireSeconds         uint32          `yaml:"ecoin_expire_seconds"`          // 已废弃：保留键名兼容旧配置；积分过期由域服务按自然月计算，不再读取该秒数
+	EcoinIdempotencyTTLSeconds uint32          `yaml:"ecoin_idempotency_ttl_seconds"` // 积分加减幂等 Redis 键 TTL（秒），0 表示默认 12 小时
 }
 
 // AuthConfig 前台/运营端 session 鉴权
@@ -109,4 +111,12 @@ func GetWechatPayConfig() *WechatPayConfig {
 		return nil
 	}
 	return &globalConf.WechatPay
+}
+
+// GetEcoinIdempotencyTTL 积分加减幂等键过期时间（默认 12 小时）
+func GetEcoinIdempotencyTTL() time.Duration {
+	if globalConf == nil || globalConf.EcoinIdempotencyTTLSeconds == 0 {
+		return 12 * time.Hour
+	}
+	return time.Duration(globalConf.EcoinIdempotencyTTLSeconds) * time.Second
 }

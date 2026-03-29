@@ -4,11 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/muhaobing/std-go/go-common/database"
 
+	"wdkr-marketplace-service/internal/common/config"
 	"wdkr-marketplace-service/internal/common/constant/sys_err"
+	"wdkr-marketplace-service/internal/common/utils"
 	"wdkr-marketplace-service/internal/domain/ecoin/ecoin_model"
 	"wdkr-marketplace-service/internal/domain/ecoin/repo"
 )
@@ -64,7 +67,7 @@ func (s *ecoinServiceImpl) GetUserEcoin(ctx context.Context, userId uint64) (*ec
 	return userEcoin, nil
 }
 
-// AddEcoin 增加积分
+// AddEcoin 增加积分（source_id 非空时 Redis SETNX 幂等键仅含 source_type+source_id；未抢到键视为已成功并返回 nil,nil；TTL 见 ecoin_idempotency_ttl_seconds）
 func (s *ecoinServiceImpl) AddEcoin(ctx context.Context, req *AddEcoinRequest) (*ecoin_model.EcoinTransaction, error) {
 	if req.UserId == 0 {
 		return nil, errors.New("user id is required")
@@ -76,6 +79,28 @@ func (s *ecoinServiceImpl) AddEcoin(ctx context.Context, req *AddEcoinRequest) (
 		return nil, errors.New("source type is required")
 	}
 
+	if strings.TrimSpace(req.SourceId) == "" {
+		return s.addEcoinOnce(ctx, req)
+	}
+
+	key := utils.EcoinIdempotencyRedisKey(req.SourceType, req.SourceId)
+	ttl := config.GetEcoinIdempotencyTTL()
+	acquired, err := utils.TryAcquireIdempotencyKey(ctx, key, ttl)
+	if err != nil {
+		return nil, err
+	}
+	if !acquired {
+		return nil, nil
+	}
+	tx, err := s.addEcoinOnce(ctx, req)
+	if err != nil {
+		utils.ReleaseIdempotencyKey(ctx, key)
+		return nil, err
+	}
+	return tx, nil
+}
+
+func (s *ecoinServiceImpl) addEcoinOnce(ctx context.Context, req *AddEcoinRequest) (*ecoin_model.EcoinTransaction, error) {
 	var transaction *ecoin_model.EcoinTransaction
 	now := uint32(time.Now().Unix())
 	err := database.Transaction(ctx, func(ctx context.Context) error {
@@ -141,7 +166,7 @@ func (s *ecoinServiceImpl) AddEcoin(ctx context.Context, req *AddEcoinRequest) (
 	return transaction, nil
 }
 
-// DeductEcoin 扣除积分
+// DeductEcoin 扣除积分（幂等键与 AddEcoin 相同规则，同一 source_type+source_id 在 TTL 内先执行的接口会占用键）
 func (s *ecoinServiceImpl) DeductEcoin(ctx context.Context, req *DeductEcoinRequest) (*ecoin_model.EcoinTransaction, error) {
 	if req.UserId == 0 {
 		return nil, errors.New("user id is required")
@@ -153,6 +178,28 @@ func (s *ecoinServiceImpl) DeductEcoin(ctx context.Context, req *DeductEcoinRequ
 		return nil, errors.New("source type is required")
 	}
 
+	if strings.TrimSpace(req.SourceId) == "" {
+		return s.deductEcoinOnce(ctx, req)
+	}
+
+	key := utils.EcoinIdempotencyRedisKey(req.SourceType, req.SourceId)
+	ttl := config.GetEcoinIdempotencyTTL()
+	acquired, err := utils.TryAcquireIdempotencyKey(ctx, key, ttl)
+	if err != nil {
+		return nil, err
+	}
+	if !acquired {
+		return nil, nil
+	}
+	tx, err := s.deductEcoinOnce(ctx, req)
+	if err != nil {
+		utils.ReleaseIdempotencyKey(ctx, key)
+		return nil, err
+	}
+	return tx, nil
+}
+
+func (s *ecoinServiceImpl) deductEcoinOnce(ctx context.Context, req *DeductEcoinRequest) (*ecoin_model.EcoinTransaction, error) {
 	var transaction *ecoin_model.EcoinTransaction
 	now := uint32(time.Now().Unix())
 	err := database.Transaction(ctx, func(ctx context.Context) error {

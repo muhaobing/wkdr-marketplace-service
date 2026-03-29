@@ -4,11 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/muhaobing/std-go/go-common/database"
 
+	"wdkr-marketplace-service/internal/common/config"
 	"wdkr-marketplace-service/internal/common/constant/sys_err"
+	"wdkr-marketplace-service/internal/common/utils"
 	"wdkr-marketplace-service/internal/domain/companyecoin/companyecoin_model"
 	"wdkr-marketplace-service/internal/domain/companyecoin/repo"
 	"wdkr-marketplace-service/internal/domain/ecoin"
@@ -86,6 +89,29 @@ func (s *companyEcoinServiceImpl) AddCompanyEcoin(ctx context.Context, req *AddC
 	if req.Amount <= 0 || req.SourceType == "" {
 		return nil, errors.New("invalid add request")
 	}
+
+	if strings.TrimSpace(req.SourceId) == "" {
+		return s.addCompanyEcoinOnce(ctx, req)
+	}
+
+	key := utils.EcoinIdempotencyRedisKey(req.SourceType, req.SourceId)
+	ttl := config.GetEcoinIdempotencyTTL()
+	acquired, err := utils.TryAcquireIdempotencyKey(ctx, key, ttl)
+	if err != nil {
+		return nil, err
+	}
+	if !acquired {
+		return nil, nil
+	}
+	tx, err := s.addCompanyEcoinOnce(ctx, req)
+	if err != nil {
+		utils.ReleaseIdempotencyKey(ctx, key)
+		return nil, err
+	}
+	return tx, nil
+}
+
+func (s *companyEcoinServiceImpl) addCompanyEcoinOnce(ctx context.Context, req *AddCompanyEcoinRequest) (*companyecoin_model.CompanyEcoinTransaction, error) {
 	var tx *companyecoin_model.CompanyEcoinTransaction
 	now := uint32(time.Now().Unix())
 	err := database.Transaction(ctx, func(ctx context.Context) error {
@@ -147,6 +173,29 @@ func (s *companyEcoinServiceImpl) DeductCompanyEcoin(ctx context.Context, req *D
 	if req.Amount <= 0 || req.SourceType == "" {
 		return nil, errors.New("invalid deduct request")
 	}
+
+	if strings.TrimSpace(req.SourceId) == "" {
+		return s.deductCompanyEcoinOnce(ctx, req)
+	}
+
+	key := utils.EcoinIdempotencyRedisKey(req.SourceType, req.SourceId)
+	ttl := config.GetEcoinIdempotencyTTL()
+	acquired, err := utils.TryAcquireIdempotencyKey(ctx, key, ttl)
+	if err != nil {
+		return nil, err
+	}
+	if !acquired {
+		return nil, nil
+	}
+	tx, err := s.deductCompanyEcoinOnce(ctx, req)
+	if err != nil {
+		utils.ReleaseIdempotencyKey(ctx, key)
+		return nil, err
+	}
+	return tx, nil
+}
+
+func (s *companyEcoinServiceImpl) deductCompanyEcoinOnce(ctx context.Context, req *DeductCompanyEcoinRequest) (*companyecoin_model.CompanyEcoinTransaction, error) {
 	var tx *companyecoin_model.CompanyEcoinTransaction
 	now := uint32(time.Now().Unix())
 	err := database.Transaction(ctx, func(ctx context.Context) error {
