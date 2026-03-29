@@ -255,6 +255,67 @@ func (r *OpenAPIResource) PostEcoinBalance(ctx *gin.Context) {
 	http_utils.WriteResponse(ctx, ecoinInfo, nil)
 }
 
+// EcoinPaymentCheckRequest 预检积分是否足够支付（biz_code + biz_user_id + cost）
+type EcoinPaymentCheckRequest struct {
+	BizCode   string  `json:"biz_code" binding:"required"`    // 业务平台代码
+	BizUserId uint64  `json:"biz_user_id" binding:"required"` // 业务平台用户 ID
+	Cost      float64 `json:"cost" binding:"required,gt=0"`   // 所需积分
+}
+
+// PostEcoinPaymentCheck 校验绑定是否存在及可用积分是否 ≥ cost（JWT 鉴权，业务参数在 JSON）
+// POST /openapi/ecoin/payment_check
+// retcode：0 成功；UserBindingNotFound(-100404) 未绑定；EcoinInsufficientBalance(-100402) 余额不足；其他为 -1
+func (r *OpenAPIResource) PostEcoinPaymentCheck(ctx *gin.Context) {
+	var req EcoinPaymentCheckRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		http_utils.WriteResponse(ctx, nil, err)
+		return
+	}
+
+	userId, err := r.fetchUserIDByBizBinding(ctx.Request.Context(), req.BizCode, req.BizUserId)
+	if err != nil {
+		writeOpenAPIError(ctx, err)
+		return
+	}
+
+	cid, err := r.userCompanyId(ctx.Request.Context(), userId)
+	if err != nil {
+		http_utils.WriteResponse(ctx, nil, err)
+		return
+	}
+
+	var avail float64
+	if cid > 0 {
+		ce, err := r.companyEcoinService.GetCompanyEcoin(ctx.Request.Context(), cid)
+		if err != nil {
+			http_utils.WriteResponse(ctx, nil, err)
+			return
+		}
+		if ce != nil {
+			avail = ce.AvailableStock
+		}
+	} else {
+		ue, err := r.ecoinService.GetUserEcoin(ctx.Request.Context(), userId)
+		if err != nil {
+			http_utils.WriteResponse(ctx, nil, err)
+			return
+		}
+		if ue != nil {
+			avail = ue.AvailableStock
+		}
+	}
+
+	if avail < req.Cost {
+		http_utils.WriteResponseWithRetcode(ctx, err_code.EcoinInsufficientBalance, sys_err.ErrInsufficientEcoin.Error())
+		return
+	}
+
+	http_utils.WriteResponse(ctx, gin.H{
+		"available_stock": avail,
+		"cost":            req.Cost,
+	}, nil)
+}
+
 // InitUserEcoin 初始化用户积分账户
 // POST /openapi/ecoin/init
 func (r *OpenAPIResource) InitUserEcoin(ctx *gin.Context) {
@@ -471,6 +532,7 @@ func (r *OpenAPIResource) Router() registry.Registry {
 			group.POST("/ecoin/deduct", r.DeductEcoin)
 			group.POST("/ecoin/init", r.InitUserEcoin)
 			group.POST("/ecoin/balance", r.PostEcoinBalance)
+			group.POST("/ecoin/payment_check", r.PostEcoinPaymentCheck)
 			group.POST("/ecoin/transactions", r.PostEcoinTransactions)
 
 			// 支付回调接口
