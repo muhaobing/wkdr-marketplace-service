@@ -442,7 +442,8 @@ onUnmounted(() => {
     padding: 7px 8px;
   }
 
-  .nav-item span {
+  /* 只收拢顶栏图标旁文案；勿用 .nav-item span，否则会命中用户下拉内的 span，导致菜单只剩图标 */
+  .navbar-right > .nav-item:not(.user-item) > span:not(.badge) {
     display: none;
   }
 

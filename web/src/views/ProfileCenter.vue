@@ -80,7 +80,7 @@
             <thead>
               <tr>
                 <th>平台名称</th>
-                <th>平台代码</th>
+                <th class="col-biz-code">平台代码</th>
                 <th>业务用户 ID</th>
                 <th>绑定时间</th>
                 <th class="col-action">操作</th>
@@ -88,8 +88,11 @@
             </thead>
             <tbody>
               <tr v-for="b in bindings" :key="b.id ? String(b.id) : `${b.biz_code}-${b.biz_user_id}`">
-                <td>{{ bizNameMap[b.biz_code] || b.biz_code }}</td>
-                <td><code class="biz-code">{{ b.biz_code }}</code></td>
+                <td class="cell-platform">
+                  <div class="platform-title">{{ bizNameMap[b.biz_code] || b.biz_code }}</div>
+                  <code class="biz-code biz-code--under-name">{{ b.biz_code }}</code>
+                </td>
+                <td class="col-biz-code"><code class="biz-code">{{ b.biz_code }}</code></td>
                 <td>{{ b.biz_user_id }}</td>
                 <td>{{ formatTime(b.ctime) }}</td>
                 <td class="col-action">
@@ -512,7 +515,12 @@ onMounted(() => {
   letter-spacing: 0.04em;
 }
 
-/* 平台代码：等宽 + 轻量标签感，避免默认 code 发灰、字重发虚 */
+.platform-title {
+  font-weight: 500;
+  color: var(--gray-800);
+}
+
+/* 平台代码：等宽 + 轻量标签感；窄屏下列内展示见 .biz-code--under-name */
 .biz-code {
   display: inline-block;
   max-width: 100%;
@@ -537,7 +545,13 @@ onMounted(() => {
   padding: 5px 11px;
   border-radius: 8px;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.85);
-  word-break: break-all;
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+
+.biz-code--under-name {
+  display: none;
+  margin-top: 8px;
 }
 
 .col-action {
@@ -645,6 +659,15 @@ onMounted(() => {
   .info-row {
     grid-template-columns: 1fr;
     gap: 4px;
+  }
+
+  /* 极窄时独立「平台代码」列易把 code 挤成单字一行；隐藏该列，代码叠在平台名称下 */
+  .bindings-table .col-biz-code {
+    display: none;
+  }
+
+  .biz-code--under-name {
+    display: inline-block;
   }
 }
 </style>
