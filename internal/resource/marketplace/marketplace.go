@@ -65,7 +65,6 @@ func NewMarketplaceResource(
 
 // ListSkusRequest 商品列表请求
 type ListSkusRequest struct {
-	BizCode string `form:"biz_code"` // 业务域（可选）
 	SkuName string `form:"sku_name"` // 商品名称（模糊查询，可选）
 	Offset  int    `form:"offset"`   // 偏移量
 	Limit   int    `form:"limit"`    // 每页数量
@@ -92,7 +91,6 @@ func (r *MarketplaceResource) ListSkus(ctx *gin.Context) {
 	onlineStatus := skumodel.SkuStatusOnline
 
 	resp, err := r.skuService.ListSkus(ctx.Request.Context(), &sku.ListSkuRequest{
-		BizCode:                        req.BizCode,
 		SkuName:                        req.SkuName,
 		Status:                         &onlineStatus,
 		MarketplaceSkuScopeFilter:      true,

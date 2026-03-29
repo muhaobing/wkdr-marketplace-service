@@ -193,7 +193,7 @@ onMounted(async () => {
   padding: 8px 16px;
   margin-bottom: 24px;
   background: none;
-  color: var(--gray-500);
+  color: var(--text-navy-muted);
   font-size: 14px;
   font-weight: 500;
   transition: all 0.2s;
@@ -201,7 +201,7 @@ onMounted(async () => {
 }
 
 .back-btn:hover {
-  color: var(--gray-800);
+  color: var(--nav-navy);
   background-color: var(--gray-100);
 }
 
@@ -251,7 +251,7 @@ onMounted(async () => {
 .product-name {
   font-size: 28px;
   font-weight: 700;
-  color: var(--gray-800);
+  color: var(--nav-navy);
   margin-bottom: 8px;
   letter-spacing: -0.02em;
   line-height: 1.3;
@@ -259,7 +259,7 @@ onMounted(async () => {
 
 .product-code {
   font-size: 13px;
-  color: var(--gray-400);
+  color: var(--text-navy-muted);
   margin-bottom: 24px;
   font-weight: 500;
 }
@@ -293,7 +293,7 @@ onMounted(async () => {
 .product-desc h3 {
   font-size: 13px;
   font-weight: 600;
-  color: var(--gray-500);
+  color: var(--text-navy-muted);
   margin-bottom: 8px;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -301,7 +301,7 @@ onMounted(async () => {
 
 .product-desc p {
   font-size: 14px;
-  color: var(--gray-500);
+  color: var(--nav-navy);
   line-height: 1.7;
 }
 
@@ -315,7 +315,7 @@ onMounted(async () => {
 .quantity-label {
   font-size: 13px;
   font-weight: 600;
-  color: var(--gray-500);
+  color: var(--text-navy-muted);
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
@@ -358,6 +358,7 @@ onMounted(async () => {
   border-right: 1px solid var(--gray-200);
   font-size: 15px;
   font-weight: 600;
+  color: var(--nav-navy);
 }
 
 .quantity-control input::-webkit-outer-spin-button,
@@ -404,5 +405,13 @@ onMounted(async () => {
   .action-buttons {
     flex-direction: column;
   }
+}
+
+.empty-state {
+  color: var(--text-navy-muted);
+}
+
+.empty-state p {
+  color: var(--nav-navy);
 }
 </style>

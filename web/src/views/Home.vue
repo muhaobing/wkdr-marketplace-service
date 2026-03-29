@@ -108,7 +108,6 @@ async function fetchProducts() {
   loading.value = true
   try {
     const res = await skuApi.list({
-      biz_code: 'marketplace',
       limit: 100
     })
     products.value = res?.list || []
@@ -183,6 +182,7 @@ onMounted(async () => {
   border: 1px solid var(--gray-200);
   border-radius: 14px;
   font-size: 15px;
+  color: var(--nav-navy);
   background-color: var(--white);
   transition: all 0.25s;
   box-shadow: var(--shadow-sm);
@@ -260,7 +260,7 @@ onMounted(async () => {
   gap: 6px;
   padding: 8px 16px;
   background: white;
-  color: var(--gray-800);
+  color: var(--nav-navy);
   font-size: 13px;
   font-weight: 600;
   border-radius: 8px;
@@ -297,7 +297,7 @@ onMounted(async () => {
 .product-name {
   font-size: 15px;
   font-weight: 600;
-  color: var(--gray-800);
+  color: var(--nav-navy);
   margin-bottom: 4px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -307,7 +307,7 @@ onMounted(async () => {
 
 .product-desc {
   font-size: 13px;
-  color: var(--gray-400);
+  color: var(--text-navy-muted);
   margin-bottom: 14px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -360,5 +360,13 @@ onMounted(async () => {
   .image-overlay {
     display: none;
   }
+}
+
+.empty-state p {
+  color: var(--nav-navy);
+}
+
+.empty-state svg {
+  color: var(--nav-navy);
 }
 </style>
