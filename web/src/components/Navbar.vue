@@ -447,6 +447,11 @@ onUnmounted(() => {
     display: none;
   }
 
+  /* 顶栏用户区只保留头像（昵称太挤）；昵称仅在下拉层展示，下拉内为 .dropdown-menu 后代，不受本行影响 */
+  .user-item > span {
+    display: none;
+  }
+
   .badge {
     right: 0;
   }
