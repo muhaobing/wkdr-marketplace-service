@@ -9,4 +9,7 @@ const (
 
 	// UserBindingNotFound 业务身份 biz_code + biz_user_id 在商城未绑定商城用户
 	UserBindingNotFound = -100404
+
+	// EcoinInsufficientBalance 扣除积分时可用余额不足
+	EcoinInsufficientBalance = -100402
 )

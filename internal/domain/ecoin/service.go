@@ -8,6 +8,7 @@ import (
 
 	"github.com/muhaobing/std-go/go-common/database"
 
+	"wdkr-marketplace-service/internal/common/constant/sys_err"
 	"wdkr-marketplace-service/internal/domain/ecoin/ecoin_model"
 	"wdkr-marketplace-service/internal/domain/ecoin/repo"
 )
@@ -181,7 +182,7 @@ func (s *ecoinServiceImpl) DeductEcoin(ctx context.Context, req *DeductEcoinRequ
 			availableStock += g.RemainingStock
 		}
 		if availableStock < req.Amount {
-			return errors.New("insufficient ecoin balance")
+			return sys_err.ErrInsufficientEcoin
 		}
 
 		// 按最早过期优先扣减

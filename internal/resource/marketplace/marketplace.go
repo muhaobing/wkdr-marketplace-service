@@ -12,6 +12,8 @@ import (
 	"github.com/muhaobing/std-go/restserver/registry"
 
 	"wdkr-marketplace-service/internal/common/config"
+	"wdkr-marketplace-service/internal/common/constant/err_code"
+	"wdkr-marketplace-service/internal/common/constant/sys_err"
 	"wdkr-marketplace-service/internal/common/utils/auth_utils"
 	"wdkr-marketplace-service/internal/common/utils/http_utils"
 	bizcoderepo "wdkr-marketplace-service/internal/domain/bizcode/repo"
@@ -59,6 +61,14 @@ func NewMarketplaceResource(
 		bizCodeRepo:         bizCodeRepo,
 		companyRepo:         companyRepo,
 	}
+}
+
+func writeMarketplaceErr(ctx *gin.Context, err error) {
+	if errors.Is(err, sys_err.ErrInsufficientEcoin) {
+		http_utils.WriteResponseWithRetcode(ctx, err_code.EcoinInsufficientBalance, err.Error())
+		return
+	}
+	http_utils.WriteResponse(ctx, nil, err)
 }
 
 // ==================== 商品接口 ====================
@@ -174,7 +184,7 @@ func (r *MarketplaceResource) CreateOrder(ctx *gin.Context) {
 		Remark:   req.Remark,
 	})
 	if err != nil {
-		http_utils.WriteResponse(ctx, nil, err)
+		writeMarketplaceErr(ctx, err)
 		return
 	}
 
@@ -299,7 +309,7 @@ func (r *MarketplaceResource) PayOrder(ctx *gin.Context) {
 		OpenId:    req.OpenId,
 	})
 	if err != nil {
-		http_utils.WriteResponse(ctx, nil, err)
+		writeMarketplaceErr(ctx, err)
 		return
 	}
 
@@ -1007,7 +1017,7 @@ func (r *MarketplaceResource) CartCheckout(ctx *gin.Context) {
 		Remark:  req.Remark,
 	})
 	if err != nil {
-		http_utils.WriteResponse(ctx, nil, err)
+		writeMarketplaceErr(ctx, err)
 		return
 	}
 

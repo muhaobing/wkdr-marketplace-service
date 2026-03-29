@@ -8,6 +8,7 @@ import (
 
 	"github.com/muhaobing/std-go/go-common/database"
 
+	"wdkr-marketplace-service/internal/common/constant/sys_err"
 	"wdkr-marketplace-service/internal/domain/companyecoin/companyecoin_model"
 	"wdkr-marketplace-service/internal/domain/companyecoin/repo"
 	"wdkr-marketplace-service/internal/domain/ecoin"
@@ -174,7 +175,7 @@ func (s *companyEcoinServiceImpl) DeductCompanyEcoin(ctx context.Context, req *D
 			sum += g.RemainingStock
 		}
 		if sum < req.Amount {
-			return errors.New("insufficient ecoin balance")
+			return sys_err.ErrInsufficientEcoin
 		}
 		need := req.Amount
 		for _, g := range availGroups {

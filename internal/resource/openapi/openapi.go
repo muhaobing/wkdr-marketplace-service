@@ -66,6 +66,10 @@ func writeOpenAPIError(ctx *gin.Context, err error) {
 		http_utils.WriteResponseWithRetcode(ctx, err_code.UserBindingNotFound, err.Error())
 		return
 	}
+	if errors.Is(err, sys_err.ErrInsufficientEcoin) {
+		http_utils.WriteResponseWithRetcode(ctx, err_code.EcoinInsufficientBalance, err.Error())
+		return
+	}
 	http_utils.WriteResponse(ctx, nil, err)
 }
 
@@ -184,7 +188,7 @@ func (r *OpenAPIResource) DeductEcoin(ctx *gin.Context) {
 			Description:    req.Description,
 		})
 		if err != nil {
-			http_utils.WriteResponse(ctx, nil, err)
+			writeOpenAPIError(ctx, err)
 			return
 		}
 		http_utils.WriteResponse(ctx, tx, nil)
@@ -199,7 +203,7 @@ func (r *OpenAPIResource) DeductEcoin(ctx *gin.Context) {
 		Description: req.Description,
 	})
 	if err != nil {
-		http_utils.WriteResponse(ctx, nil, err)
+		writeOpenAPIError(ctx, err)
 		return
 	}
 
