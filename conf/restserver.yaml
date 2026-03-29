@@ -49,8 +49,8 @@ config:
     api_key: "7H8j9K2s5D8f7G9h1J3k5L7m8N9b0V8z"
     serial_no: "56FCA42324AD15BBE258203AB1AE6FA08FC473B3"
     private_key_path: "script/keys/1739371658_20260213_cert/apiclient_key.pem"
-    notify_url: "https://www.lawmind.top/market/api/openapi/callback/wechat/pay"
-    refund_notify_url: "https://www.lawmind.top/market/api/openapi/callback/wechat/refund"
+    notify_url: "http://www.lawmind.top/market/api/openapi/callback/wechat/pay"
+    refund_notify_url: "http://www.lawmind.top/market/api/openapi/callback/wechat/refund"
   ecoin_unit_price: 0.01
   # 已废弃（保留键名）；积分过期：当月最后一日 23:59:59（Asia/Shanghai）；当月最后 5 个自然日内购买顺延至次月最后一日 23:59:59
   ecoin_expire_seconds: 2592000

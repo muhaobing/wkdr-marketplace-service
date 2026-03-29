@@ -1,0 +1,25 @@
+# 示例：商城 API 经 Nginx 反代到本机 marketplace 后端（默认 10302）
+# 前端生产包请求的完整路径形如：
+#   https://www.lawmind.top/market/api/marketplace/biz_codes
+#   https://www.lawmind.top/market/api/openapi/...
+# 后端 Gin 实际路径为 /marketplace、/ops、/openapi 等（无 /market/api 前缀）。
+#
+# 用法：把下面 server/location 合并进站点配置后执行 nginx -t && reload。
+# 注意 proxy_pass 末尾的 / 与 location 的 /market/api/ 成对出现，少一个斜杠会导致路径错位。
+
+# 若静态页与 API 同站点，可并列：
+#   location /market/ { alias /path/to/dist/; try_files $uri $uri/ /market/index.html; }
+#   或 root + 与 Vite base=/market/ 一致的目录结构
+
+location /market/api/ {
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    # 去掉 /market/api 前缀，把 /market/api/marketplace/... 转成后端 /marketplace/...
+    proxy_pass http://127.0.0.1:10302/;
+    proxy_connect_timeout 10s;
+    proxy_read_timeout 60s;
+    proxy_send_timeout 60s;
+}

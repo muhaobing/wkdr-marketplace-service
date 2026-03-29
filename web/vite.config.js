@@ -1,11 +1,11 @@
-import { defineConfig, loadEnv } from 'vite'
+import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 
 export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, process.cwd(), '')
-  const isLocal = env.VITE_ENV === 'local'
+  // 与 src/api/index.js 一致：仅开发模式用直连 /marketplace、/ops；勿依赖 VITE_ENV
+  const isViteDev = mode === 'development'
 
-  const proxy = isLocal
+  const proxy = isViteDev
     ? {
         '/marketplace': { target: 'http://localhost:10302', changeOrigin: true },
         '/ops': { target: 'http://localhost:10302', changeOrigin: true }

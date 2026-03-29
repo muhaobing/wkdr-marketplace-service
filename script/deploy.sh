@@ -113,6 +113,9 @@ prepare_frontend() {
   else
     npm install --prefer-offline
   fi
+  # 必须打生产包：若用 npm run dev 部署，import.meta.env.DEV 恒为 true，API 不会带 /market/api
+  echo "[deploy] building frontend (production)..."
+  npm run build
 }
 
 start_backend() {
@@ -123,9 +126,9 @@ start_backend() {
 }
 
 start_frontend() {
-  echo "[deploy] starting frontend on :${FRONTEND_PORT} ..."
+  echo "[deploy] starting frontend (vite preview, production dist) on :${FRONTEND_PORT} ..."
   cd "${PROJECT_DIR}/web"
-  nohup npm run dev -- --host 0.0.0.0 --port "${FRONTEND_PORT}" > "${LOG_DIR}/frontend.log" 2>&1 &
+  nohup npm run preview -- --host 0.0.0.0 --port "${FRONTEND_PORT}" > "${LOG_DIR}/frontend.log" 2>&1 &
   echo "[deploy] frontend started, log: ${LOG_DIR}/frontend.log"
 }
 

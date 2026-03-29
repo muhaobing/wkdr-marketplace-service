@@ -2,22 +2,21 @@ import axios from 'axios'
 import router from '../router/index.js'
 import { STORAGE_TOKEN_KEY } from '../constants/storage.js'
 
-// VITE_ENV=local：请求 /marketplace、/ops，由 Vite 代理到 localhost:10302，无 /market/api 前缀
-// 否则：生产构建默认 https://lawmind.top/market/api；开发可用相对路径走 Vite 的 /market/api 代理（或设 VITE_API_ORIGIN）
-const isLocal = import.meta.env.VITE_ENV === 'local'
+// 开发服务器（npm run dev）：走 /marketplace、/ops，由 Vite 代理到后端，无 /market/api 前缀。
+// 生产构建：必须带 /market/api（或 VITE_API_ORIGIN + /market/api），与网关一致。
+// 勿用 VITE_ENV 判断：易被 .env / CI 污染，导致生产包仍不带 /market/api。
+const isViteDev = import.meta.env.DEV
 
 function joinApiBase(suffix) {
-  if (isLocal) {
+  if (isViteDev) {
     return suffix
   }
   const explicit = import.meta.env.VITE_API_ORIGIN
   if (explicit !== undefined && explicit !== '') {
     return `${String(explicit).replace(/\/$/, '')}/market/api${suffix}`
   }
-  if (import.meta.env.PROD) {
-    return `https://lawmind.top/market/api${suffix}`
-  }
-  return `/market/api${suffix}`
+  // 非本地 dev：固定走 www 域名（与线上入口一致；需后端 CORS 放行 www）
+  return `http://www.lawmind.top/market/api${suffix}`
 }
 
 const api = axios.create({

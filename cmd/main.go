@@ -21,6 +21,7 @@ func main() {
 	}
 
 	// 1. register rest server handler
+	handler.RegisterHandler(&middleware.CorsHandler{})
 	handler.RegisterHandler(&database.DatabaseHandler{})
 	handler.RegisterHandler(&cache.CacheHandler{})
 	handler.RegisterHandler(&middleware.RecoveryHandler{})
@@ -33,6 +34,7 @@ func main() {
 	// 3. init rest server (middleware + routes)
 	if err := restserver.Init(
 		registry.MiddlewareRegistry(
+			middleware.CorsHandlerKey,
 			database.DatabaseHandlerKey,
 			cache.CacheHandlerKey,
 			middleware.RecoveryHandlerKey,
