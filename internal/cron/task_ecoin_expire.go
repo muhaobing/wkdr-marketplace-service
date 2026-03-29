@@ -5,19 +5,22 @@ import (
 	"fmt"
 	"time"
 
+	"wdkr-marketplace-service/internal/domain/companyecoin"
 	"wdkr-marketplace-service/internal/domain/ecoin"
 )
 
 const ecoinExpireScanLimit = 500
 
-// EcoinExpireTask 积分过期扫描任务
+// EcoinExpireTask 积分过期扫描任务（个人 + 企业）
 type EcoinExpireTask struct {
-	ecoinService ecoin.EcoinService
+	ecoinService        ecoin.EcoinService
+	companyEcoinService companyecoin.CompanyEcoinService
 }
 
-func NewEcoinExpireTask(ecoinService ecoin.EcoinService) *EcoinExpireTask {
+func NewEcoinExpireTask(ecoinService ecoin.EcoinService, companyEcoinService companyecoin.CompanyEcoinService) *EcoinExpireTask {
 	return &EcoinExpireTask{
-		ecoinService: ecoinService,
+		ecoinService:        ecoinService,
+		companyEcoinService: companyEcoinService,
 	}
 }
 
@@ -31,12 +34,19 @@ func (t *EcoinExpireTask) Ticker() time.Duration {
 
 func (t *EcoinExpireTask) Handle(ctx context.Context) error {
 	now := uint32(time.Now().Unix())
-	processed, err := t.ecoinService.ExpireEcoinStock(ctx, now, ecoinExpireScanLimit)
+	n1, err := t.ecoinService.ExpireEcoinStock(ctx, now, ecoinExpireScanLimit)
 	if err != nil {
 		return fmt.Errorf("expire ecoin stock: %w", err)
 	}
-	if processed > 0 {
-		fmt.Printf("[EcoinExpireTask] processed expired groups: %d\n", processed)
+	if n1 > 0 {
+		fmt.Printf("[EcoinExpireTask] processed user expired groups: %d\n", n1)
+	}
+	n2, err := t.companyEcoinService.ExpireCompanyEcoinStock(ctx, now, ecoinExpireScanLimit)
+	if err != nil {
+		return fmt.Errorf("expire company ecoin stock: %w", err)
+	}
+	if n2 > 0 {
+		fmt.Printf("[EcoinExpireTask] processed company expired groups: %d\n", n2)
 	}
 	return nil
 }

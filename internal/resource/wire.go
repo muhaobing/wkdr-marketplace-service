@@ -10,6 +10,10 @@ import (
 	bizcoderepo "wdkr-marketplace-service/internal/domain/bizcode/repo"
 	"wdkr-marketplace-service/internal/domain/cart"
 	cartrepo "wdkr-marketplace-service/internal/domain/cart/repo"
+	comp
+	companyrepo "wdkr-marketplace-service/internal/domain/company/repo"
+	"wdkr-marketplace-service/internal/domain/companyecoin"
+	cartrepo "wdkr-marketplace-service/internal/domain/cart/repo"
 	"wdkr-marketplace-service/internal/domain/ecoin"
 	ecoinrepo "wdkr-marketplace-service/internal/domain/ecoin/repo"
 	"wdkr-marketplace-service/internal/domain/order"
@@ -36,6 +40,8 @@ var RepoSet = wire.NewSet(
 	userrepo.NewUserBindingRepo,
 	cartrepo.NewCartRepo,
 	bizcoderepo.NewBizCodeRepo,
+	companyrepo.NewCompanyRepo,
+	companyecoinrepo.NewCompanyEcoinRepo,
 )
 
 // PaymentSet 提供支付相关实例（支付渠道 + 支付服务）
@@ -49,6 +55,7 @@ var PaymentSet = wire.NewSet(
 // ServiceSet 提供所有 Service 实例
 var ServiceSet = wire.NewSet(
 	ecoin.NewEcoinService,
+	companyecoin.NewCompanyEcoinService,
 	sku.NewSkuService,
 	order.NewOrderService,
 	user.NewUserService,

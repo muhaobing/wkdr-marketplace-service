@@ -66,7 +66,7 @@
               <circle cx="12" cy="7" r="4"/>
             </svg>
           </div>
-          <span>{{ userName }}</span>
+          <span>{{ userName }}{{ enterpriseSuffix }}</span>
           <svg class="dropdown-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polyline points="6 9 12 15 18 9"/>
           </svg>
@@ -81,7 +81,7 @@
                 </svg>
               </div>
               <div>
-                <div class="dropdown-name">{{ userName }}</div>
+                <div class="dropdown-name">{{ userName }}{{ enterpriseSuffix }}</div>
                 <div class="dropdown-id">ID: {{ userId }}</div>
               </div>
             </div>
@@ -133,6 +133,7 @@ const userId = computed(() => userStore.userId)
 const userName = computed(() => userStore.userName)
 const balance = computed(() => userStore.balance)
 const isAdmin = computed(() => userStore.isAdmin)
+const enterpriseSuffix = computed(() => (userStore.isEnterpriseAccount ? '（企业）' : ''))
 
 function toggleDropdown() {
   showDropdown.value = !showDropdown.value
@@ -169,10 +170,8 @@ onUnmounted(() => {
   left: 0;
   right: 0;
   height: 64px;
-  background: rgba(255, 255, 255, 0.82);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  background: #0c1929;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   z-index: 1000;
 }
 
@@ -192,14 +191,19 @@ onUnmounted(() => {
   gap: 10px;
   font-size: 18px;
   font-weight: 700;
-  color: var(--primary-color);
+  color: #ffffff;
   letter-spacing: -0.02em;
+}
+
+.navbar-brand:hover {
+  color: #ffffff;
 }
 
 .brand-logo {
   width: 34px;
   height: 34px;
-  background: linear-gradient(135deg, var(--primary-color) 0%, #475569 100%);
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 10px;
   display: flex;
   align-items: center;
@@ -228,7 +232,7 @@ onUnmounted(() => {
   gap: 6px;
   font-size: 13px;
   font-weight: 500;
-  color: var(--gray-500);
+  color: rgba(255, 255, 255, 0.92);
   padding: 7px 14px;
   border-radius: 8px;
   transition: all 0.2s;
@@ -236,8 +240,13 @@ onUnmounted(() => {
 }
 
 .nav-item:hover {
-  color: var(--gray-800);
-  background-color: var(--gray-100);
+  color: #ffffff;
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.nav-item.router-link-active {
+  color: #ffffff;
+  background-color: rgba(255, 255, 255, 0.14);
 }
 
 .nav-item svg {
@@ -272,22 +281,27 @@ onUnmounted(() => {
 }
 
 .ecoin-item:hover {
-  background-color: #fffbeb;
-  color: #b45309;
+  background-color: rgba(245, 158, 11, 0.16);
+  color: #fbbf24;
+}
+
+.ecoin-item.router-link-active {
+  color: var(--warning);
+  background-color: rgba(245, 158, 11, 0.22);
 }
 
 .ops-item {
-  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-light) 100%);
-  color: white !important;
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff !important;
   font-weight: 600;
-  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  box-shadow: none;
 }
 
 .ops-item:hover {
-  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
+  background-color: rgba(255, 255, 255, 0.18);
   transform: translateY(-1px);
-  background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%);
-  color: white !important;
+  color: #ffffff !important;
 }
 
 .user-item {
@@ -299,7 +313,8 @@ onUnmounted(() => {
 .user-avatar {
   width: 28px;
   height: 28px;
-  background: linear-gradient(135deg, var(--gray-200) 0%, var(--gray-300) 100%);
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -309,14 +324,14 @@ onUnmounted(() => {
 .user-avatar svg {
   width: 16px;
   height: 16px;
-  color: var(--gray-500);
+  color: #ffffff;
 }
 
 .dropdown-arrow {
   width: 14px !important;
   height: 14px !important;
   transition: transform 0.2s;
-  color: var(--gray-400);
+  color: rgba(255, 255, 255, 0.75);
 }
 
 .dropdown-menu {

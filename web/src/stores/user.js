@@ -16,6 +16,12 @@ export const useUserStore = defineStore('user', () => {
   const userName = computed(() => user.value?.name || user.value?.email || user.value?.tel_no || '')
   const balance = computed(() => ecoin.value?.available_stock || 0)
   const isAdmin = computed(() => user.value?.role === 1)
+  /** 企业账号：company_id > 0（与后端 user_tab.company_id 一致） */
+  const isEnterpriseAccount = computed(() => {
+    const id = user.value?.company_id
+    return id != null && Number(id) > 0
+  })
+  const companyName = computed(() => user.value?.company_name || '')
 
   function setCachedBindingsList(list) {
     try {
@@ -175,6 +181,8 @@ export const useUserStore = defineStore('user', () => {
     userId,
     userName,
     balance,
+    isEnterpriseAccount,
+    companyName,
     init,
     login,
     bindAccount,

@@ -8,20 +8,22 @@ import (
 
 // BindUserRequest 用户绑定请求
 type BindUserRequest struct {
-	Password  string `json:"password"`    // 用户密码（与商城登录一致，用于校验并生成 secret_key）
-	BizCode   string `json:"biz_code"`    // 业务平台代码
-	BizUserId uint64 `json:"biz_user_id"` // 业务平台用户ID
-	TelNo     string `json:"tel_no"`      // 手机号（优先）
-	Email     string `json:"email"`       // 邮箱（tel_no为空时使用）
+	Password    string `json:"password"`     // 用户密码（与商城登录一致，用于校验并生成 secret_key）
+	BizCode     string `json:"biz_code"`     // 业务平台代码
+	BizUserId   uint64 `json:"biz_user_id"`  // 业务平台用户ID
+	TelNo       string `json:"tel_no"`       // 手机号（优先）
+	Email       string `json:"email"`        // 邮箱（tel_no为空时使用）
+	CompanyId   uint64 `json:"company_id"`   // 企业绑定：已有企业 ID（与 company_name 二选一）
+	CompanyName string `json:"company_name"` // 企业绑定：企业名称（可新建）
 }
 
 // BindUserResponse 用户绑定响应（绑定成功后即完成登录，返回 session token）
 type BindUserResponse struct {
-	UserId    uint                       `json:"user_id"`     // 商城中心用户ID
-	IsNewUser bool                       `json:"is_new_user"` // 是否为新创建的用户
-	Token     string                     `json:"token"`       // session token（Authorization: Bearer）
-	User      *usermodel.User            `json:"user"`        // 用户信息（不含 secret_key）
-	Bindings  []*usermodel.UserBinding   `json:"bindings"`    // 业务平台绑定列表（与 GET /user/bindings 一致）
+	UserId    uint                     `json:"user_id"`     // 商城中心用户ID
+	IsNewUser bool                     `json:"is_new_user"` // 是否为新创建的用户
+	Token     string                   `json:"token"`       // session token（Authorization: Bearer）
+	User      *usermodel.User          `json:"user"`        // 用户信息（不含 secret_key）
+	Bindings  []*usermodel.UserBinding `json:"bindings"`    // 业务平台绑定列表（与 GET /user/bindings 一致）
 }
 
 // UnbindUserRequest 用户解绑请求
@@ -38,9 +40,11 @@ type GetUserByBizRequest struct {
 
 // LoginRequest 登录请求（电话号码/邮箱登录）
 type LoginRequest struct {
-	TelNo  string `json:"tel_no"` // 手机号
-	Email  string `json:"email"`  // 邮箱
-	Secret string `json:"secret"` // 用户密钥
+	TelNo     string `json:"tel_no"`     // 手机号
+	Email     string `json:"email"`      // 邮箱
+	Secret    string `json:"secret"`     // 用户密钥
+	LoginKind string `json:"login_kind"` // 空或 personal=个人；enterprise=企业（须传 company_id）
+	CompanyId uint64 `json:"company_id"` // 企业登录时必选：商城企业 ID
 }
 
 // LoginResponse 登录响应
@@ -77,8 +81,8 @@ type UserService interface {
 	// GetUserById 根据ID获取用户信息
 	GetUserById(ctx context.Context, id uint) (*usermodel.User, error)
 
-	// GetUserByIdentity 根据身份标识获取用户（优先手机号，其次邮箱）
-	GetUserByIdentity(ctx context.Context, telNo, email string) (*usermodel.User, error)
+	// GetUserByIdentity 根据身份标识 + company_id 获取用户（优先手机号，其次邮箱）
+	GetUserByIdentity(ctx context.Context, telNo, email string, companyId uint64) (*usermodel.User, error)
 
 	// GetUserByBiz 根据业务信息获取用户
 	GetUserByBiz(ctx context.Context, bizCode string, bizUserId uint64) (*usermodel.User, error)

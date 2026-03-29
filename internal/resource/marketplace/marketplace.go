@@ -1,7 +1,9 @@
 package marketplace
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"math"
 	"strconv"
 	"strings"
@@ -14,6 +16,9 @@ import (
 	"wdkr-marketplace-service/internal/common/utils/http_utils"
 	bizcoderepo "wdkr-marketplace-service/internal/domain/bizcode/repo"
 	"wdkr-marketplace-service/internal/domain/cart"
+	companyrepo "wdkr-marketplace-service/internal/domain/company/repo"
+	"wdkr-marketplace-service/internal/domain/companyecoin"
+	companyecoin_model "wdkr-marketplace-service/internal/domain/companyecoin/companyecoin_model"
 	"wdkr-marketplace-service/internal/domain/ecoin"
 	"wdkr-marketplace-service/internal/domain/order"
 	"wdkr-marketplace-service/internal/domain/sku"
@@ -23,12 +28,14 @@ import (
 
 // MarketplaceResource 商城接口资源（面向用户）
 type MarketplaceResource struct {
-	skuService   sku.SkuService
-	orderService order.OrderService
-	ecoinService ecoin.EcoinService
-	userService  user.UserService
-	cartService  cart.CartService
-	bizCodeRepo  bizcoderepo.BizCodeRepo
+	skuService          sku.SkuService
+	orderService        order.OrderService
+	ecoinService        ecoin.EcoinService
+	companyEcoinService companyecoin.CompanyEcoinService
+	userService         user.UserService
+	cartService         cart.CartService
+	bizCodeRepo         bizcoderepo.BizCodeRepo
+	companyRepo         companyrepo.CompanyRepo
 }
 
 // NewMarketplaceResource 创建商城资源实例
@@ -36,17 +43,21 @@ func NewMarketplaceResource(
 	skuService sku.SkuService,
 	orderService order.OrderService,
 	ecoinService ecoin.EcoinService,
+	companyEcoinService companyecoin.CompanyEcoinService,
 	userService user.UserService,
 	cartService cart.CartService,
 	bizCodeRepo bizcoderepo.BizCodeRepo,
+	companyRepo companyrepo.CompanyRepo,
 ) *MarketplaceResource {
 	return &MarketplaceResource{
-		skuService:   skuService,
-		orderService: orderService,
-		ecoinService: ecoinService,
-		userService:  userService,
-		cartService:  cartService,
-		bizCodeRepo:  bizCodeRepo,
+		skuService:          skuService,
+		orderService:        orderService,
+		ecoinService:        ecoinService,
+		companyEcoinService: companyEcoinService,
+		userService:         userService,
+		cartService:         cartService,
+		bizCodeRepo:         bizCodeRepo,
+		companyRepo:         companyRepo,
 	}
 }
 
@@ -306,6 +317,29 @@ func (r *MarketplaceResource) GetEcoinBalance(ctx *gin.Context) {
 		return
 	}
 
+	u, err := r.userService.GetUserById(ctx.Request.Context(), uint(req.UserId))
+	if err != nil || u == nil {
+		http_utils.WriteResponse(ctx, nil, errors.New("user not found"))
+		return
+	}
+	if u.CompanyId > 0 {
+		ce, err := r.companyEcoinService.GetCompanyEcoin(ctx.Request.Context(), u.CompanyId)
+		if err != nil {
+			http_utils.WriteResponse(ctx, nil, err)
+			return
+		}
+		http_utils.WriteResponse(ctx, gin.H{
+			"user_id":         u.Id,
+			"company_id":      u.CompanyId,
+			"available_stock": ce.AvailableStock,
+			"stock_groups":    ce.StockGroups,
+			"id":              ce.Id,
+			"ctime":           ce.Ctime,
+			"mtime":           ce.Mtime,
+		}, nil)
+		return
+	}
+
 	ecoinInfo, err := r.ecoinService.GetUserEcoin(ctx.Request.Context(), req.UserId)
 	if err != nil {
 		http_utils.WriteResponse(ctx, nil, err)
@@ -321,6 +355,26 @@ func (r *MarketplaceResource) GetEcoinStockGroups(ctx *gin.Context) {
 	var req GetEcoinBalanceRequest
 	if err := ctx.ShouldBindQuery(&req); err != nil {
 		http_utils.WriteResponse(ctx, nil, err)
+		return
+	}
+
+	u, err := r.userService.GetUserById(ctx.Request.Context(), uint(req.UserId))
+	if err != nil || u == nil {
+		http_utils.WriteResponse(ctx, nil, errors.New("user not found"))
+		return
+	}
+	if u.CompanyId > 0 {
+		ce, err := r.companyEcoinService.GetCompanyEcoin(ctx.Request.Context(), u.CompanyId)
+		if err != nil {
+			http_utils.WriteResponse(ctx, nil, err)
+			return
+		}
+		http_utils.WriteResponse(ctx, gin.H{
+			"total_stock": ce.AvailableStock,
+			"list":        ce.StockGroups,
+			"company_id":  u.CompanyId,
+			"user_id":     u.Id,
+		}, nil)
 		return
 	}
 
@@ -350,6 +404,30 @@ func (r *MarketplaceResource) GetEcoinTransactions(ctx *gin.Context) {
 		return
 	}
 
+	u, err := r.userService.GetUserById(ctx.Request.Context(), uint(req.UserId))
+	if err != nil || u == nil {
+		http_utils.WriteResponse(ctx, nil, errors.New("user not found"))
+		return
+	}
+	if u.CompanyId > 0 {
+		resp, err := r.companyEcoinService.GetTransactionList(ctx.Request.Context(), &companyecoin.TransactionListRequest{
+			CompanyId: u.CompanyId,
+			Offset:    req.Offset,
+			Limit:     req.Limit,
+		})
+		if err != nil {
+			http_utils.WriteResponse(ctx, nil, err)
+			return
+		}
+		if resp != nil {
+			for _, tx := range resp.List {
+				r.fillCompanyTxOperatorLabel(ctx.Request.Context(), tx)
+			}
+		}
+		http_utils.WriteResponse(ctx, resp, nil)
+		return
+	}
+
 	resp, err := r.ecoinService.GetEcoinTransactionList(ctx.Request.Context(), &ecoin.EcoinTransactionListRequest{
 		UserId: req.UserId,
 		Offset: req.Offset,
@@ -361,6 +439,30 @@ func (r *MarketplaceResource) GetEcoinTransactions(ctx *gin.Context) {
 	}
 
 	http_utils.WriteResponse(ctx, resp, nil)
+}
+
+func (r *MarketplaceResource) fillCompanyTxOperatorLabel(ctx context.Context, tx *companyecoin_model.CompanyEcoinTransaction) {
+	if tx == nil {
+		return
+	}
+	if tx.OperatorUserId == 0 {
+		tx.OperatorLabel = "系统"
+		return
+	}
+	op, err := r.userService.GetUserById(ctx, uint(tx.OperatorUserId))
+	if err != nil || op == nil {
+		tx.OperatorLabel = fmt.Sprintf("用户 #%d", tx.OperatorUserId)
+		return
+	}
+	if op.Email != "" {
+		tx.OperatorLabel = op.Email
+		return
+	}
+	if op.TelNo != "" {
+		tx.OperatorLabel = op.TelNo
+		return
+	}
+	tx.OperatorLabel = fmt.Sprintf("用户 #%d", op.Id)
 }
 
 // RechargeEcoinRequest 积分充值请求
@@ -472,9 +574,11 @@ func (r *MarketplaceResource) GetPaymentMethods(ctx *gin.Context) {
 
 // LoginRequest 登录请求（电话号码/邮箱登录）
 type LoginRequest struct {
-	TelNo  string `json:"tel_no"` // 手机号
-	Email  string `json:"email"`  // 邮箱
-	Secret string `json:"secret"` // 用户密钥
+	TelNo     string `json:"tel_no"`     // 手机号
+	Email     string `json:"email"`      // 邮箱
+	Secret    string `json:"secret"`     // 用户密钥
+	LoginKind string `json:"login_kind"` // personal | enterprise
+	CompanyId uint64 `json:"company_id"` // 企业登录必填
 }
 
 // Login 用户登录（电话号码/邮箱）
@@ -487,9 +591,11 @@ func (r *MarketplaceResource) Login(ctx *gin.Context) {
 	}
 
 	resp, err := r.userService.Login(ctx.Request.Context(), &user.LoginRequest{
-		TelNo:  req.TelNo,
-		Email:  req.Email,
-		Secret: req.Secret,
+		TelNo:     req.TelNo,
+		Email:     req.Email,
+		Secret:    req.Secret,
+		LoginKind: req.LoginKind,
+		CompanyId: req.CompanyId,
 	})
 	if err != nil {
 		http_utils.WriteResponse(ctx, nil, err)
@@ -501,11 +607,30 @@ func (r *MarketplaceResource) Login(ctx *gin.Context) {
 
 // BindUserRequest 用户绑定（与业务平台账号关联，成功后返回 session）
 type BindUserRequest struct {
-	BizCode   string `json:"biz_code" binding:"required"`    // 业务平台代码
-	BizUserId uint64 `json:"biz_user_id" binding:"required"` // 业务平台用户 ID
-	TelNo     string `json:"tel_no"`                         // 手机号
-	Email     string `json:"email"`                          // 邮箱
-	Password  string `json:"password" binding:"required"`    // 密码
+	BizCode     string `json:"biz_code" binding:"required"`    // 业务平台代码
+	BizUserId   uint64 `json:"biz_user_id" binding:"required"` // 业务平台用户 ID
+	TelNo       string `json:"tel_no"`                         // 手机号
+	Email       string `json:"email"`                          // 邮箱
+	Password    string `json:"password" binding:"required"`    // 密码
+	CompanyId   uint64 `json:"company_id"`                     // 企业：已有企业 ID
+	CompanyName string `json:"company_name"`                   // 企业：企业名称（可新建）
+}
+
+// ListCompanies 企业名称下拉（公开）
+// GET /marketplace/companies?q=&limit=
+func (r *MarketplaceResource) ListCompanies(ctx *gin.Context) {
+	q := strings.TrimSpace(ctx.Query("q"))
+	limit, _ := strconv.Atoi(ctx.DefaultQuery("limit", "50"))
+	list, err := r.companyRepo.SearchByName(ctx.Request.Context(), q, limit)
+	if err != nil {
+		http_utils.WriteResponse(ctx, nil, err)
+		return
+	}
+	out := make([]gin.H, 0, len(list))
+	for _, c := range list {
+		out = append(out, gin.H{"id": c.Id, "name": c.Name})
+	}
+	http_utils.WriteResponse(ctx, out, nil)
 }
 
 // ListBizCodes 业务平台编码枚举（供绑定页下拉；数据由 biz_code_enum_tab 维护）
@@ -519,8 +644,9 @@ func (r *MarketplaceResource) ListBizCodes(ctx *gin.Context) {
 	out := make([]gin.H, 0, len(list))
 	for _, row := range list {
 		out = append(out, gin.H{
-			"code": row.Code,
-			"name": row.Name,
+			"code":  row.Code,
+			"name":  row.Name,
+			"scope": row.Scope,
 		})
 	}
 	http_utils.WriteResponse(ctx, out, nil)
@@ -536,11 +662,13 @@ func (r *MarketplaceResource) BindUser(ctx *gin.Context) {
 	}
 
 	resp, err := r.userService.BindUser(ctx.Request.Context(), &user.BindUserRequest{
-		Password:  req.Password,
-		BizCode:   req.BizCode,
-		BizUserId: req.BizUserId,
-		TelNo:     req.TelNo,
-		Email:     req.Email,
+		Password:    req.Password,
+		BizCode:     req.BizCode,
+		BizUserId:   req.BizUserId,
+		TelNo:       req.TelNo,
+		Email:       req.Email,
+		CompanyId:   req.CompanyId,
+		CompanyName: req.CompanyName,
 	})
 	if err != nil {
 		http_utils.WriteResponse(ctx, nil, err)
@@ -871,6 +999,7 @@ func (r *MarketplaceResource) Router() registry.Registry {
 			// 用户登录接口
 			group.POST("/login", r.Login)
 			group.GET("/biz_codes", r.ListBizCodes)
+			group.GET("/companies", r.ListCompanies)
 			group.POST("/user/bind", r.BindUser)
 			group.GET("/user/bind/check", r.CheckBizBinding)
 			group.POST("/user/unbind", r.UnbindUser)

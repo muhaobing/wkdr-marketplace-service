@@ -8,7 +8,6 @@ import (
 
 	"github.com/muhaobing/std-go/go-common/database"
 
-	"wdkr-marketplace-service/internal/common/config"
 	"wdkr-marketplace-service/internal/domain/ecoin/ecoin_model"
 	"wdkr-marketplace-service/internal/domain/ecoin/repo"
 )
@@ -16,10 +15,6 @@ import (
 type ecoinServiceImpl struct {
 	ecoinRepo repo.EcoinRepo
 }
-
-const (
-	defaultEcoinExpireSeconds = 30 * 24 * 3600 // 默认30天
-)
 
 // NewEcoinService 创建积分服务实例
 func NewEcoinService(ecoinRepo repo.EcoinRepo) EcoinService {
@@ -416,15 +411,7 @@ func (s *ecoinServiceImpl) getOrInitUserEcoinForUpdate(ctx context.Context, user
 }
 
 func (s *ecoinServiceImpl) calcExpireTime(now uint32) uint32 {
-	expireSeconds := uint32(defaultEcoinExpireSeconds)
-	conf := config.GetConf()
-	if conf != nil && conf.EcoinExpireSeconds > 0 {
-		expireSeconds = conf.EcoinExpireSeconds
-	}
-	if expireSeconds == 0 {
-		return 0
-	}
-	return now + expireSeconds
+	return CalcEcoinExpireTimeFromUnix(now)
 }
 
 func (s *ecoinServiceImpl) ensureLegacyStockGroup(ctx context.Context, userEcoin *ecoin_model.UserEcoin, groups []*ecoin_model.UserEcoinStockGroup, now uint32) ([]*ecoin_model.UserEcoinStockGroup, error) {

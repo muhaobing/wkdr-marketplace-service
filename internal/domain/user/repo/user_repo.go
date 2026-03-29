@@ -3,6 +3,8 @@ package repo
 import (
 	"context"
 	"errors"
+	"strings"
+	"time"
 
 	"github.com/muhaobing/std-go/go-common/database"
 	"gorm.io/gorm"
@@ -30,13 +32,13 @@ func (r *userRepoImpl) GetUserById(ctx context.Context, id uint) (*usermodel.Use
 	return &user, nil
 }
 
-// GetUserByTelNo 根据手机号获取用户
-func (r *userRepoImpl) GetUserByTelNo(ctx context.Context, telNo string) (*usermodel.User, error) {
+// GetUserByTelNoAndCompany 根据手机号 + company_id 获取用户
+func (r *userRepoImpl) GetUserByTelNoAndCompany(ctx context.Context, telNo string, companyId uint64) (*usermodel.User, error) {
 	if telNo == "" {
 		return nil, nil
 	}
 	var user usermodel.User
-	err := database.FromContext(ctx).Where("tel_no = ?", telNo).First(&user).Error
+	err := database.FromContext(ctx).Where("tel_no = ? AND company_id = ?", telNo, companyId).First(&user).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
@@ -46,13 +48,13 @@ func (r *userRepoImpl) GetUserByTelNo(ctx context.Context, telNo string) (*userm
 	return &user, nil
 }
 
-// GetUserByEmail 根据邮箱获取用户
-func (r *userRepoImpl) GetUserByEmail(ctx context.Context, email string) (*usermodel.User, error) {
+// GetUserByEmailAndCompany 根据邮箱 + company_id 获取用户
+func (r *userRepoImpl) GetUserByEmailAndCompany(ctx context.Context, email string, companyId uint64) (*usermodel.User, error) {
 	if email == "" {
 		return nil, nil
 	}
 	var user usermodel.User
-	err := database.FromContext(ctx).Where("email = ?", email).First(&user).Error
+	err := database.FromContext(ctx).Where("email = ? AND company_id = ?", email, companyId).First(&user).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
@@ -62,9 +64,36 @@ func (r *userRepoImpl) GetUserByEmail(ctx context.Context, email string) (*userm
 	return &user, nil
 }
 
-// CreateUser 创建用户
+// nullableContactArg 空串写入 NULL，避免 uk_company_tel / uk_company_email 与空串冲突
+func nullableContactArg(s string) interface{} {
+	t := strings.TrimSpace(s)
+	if t == "" {
+		return nil
+	}
+	return t
+}
+
+// CreateUser 创建用户（tel_no / email 仅非空时写入，否则为 NULL）
 func (r *userRepoImpl) CreateUser(ctx context.Context, user *usermodel.User) error {
-	return database.FromContext(ctx).Create(user).Error
+	db := database.FromContext(ctx)
+	telArg := nullableContactArg(user.TelNo)
+	emailArg := nullableContactArg(user.Email)
+	now := uint32(time.Now().Unix())
+	var uid uint64
+	err := db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Exec(
+			`INSERT INTO `+usermodel.UserTabName+` (company_id, role, tel_no, email, ctime, mtime) VALUES (?, ?, ?, ?, ?, ?)`,
+			user.CompanyId, user.Role, telArg, emailArg, now, now,
+		).Error; err != nil {
+			return err
+		}
+		return tx.Raw("SELECT LAST_INSERT_ID()").Scan(&uid).Error
+	})
+	if err != nil {
+		return err
+	}
+	user.Id = uint(uid)
+	return nil
 }
 
 // UpdateUserSecretKey 更新用户密钥
@@ -74,13 +103,14 @@ func (r *userRepoImpl) UpdateUserSecretKey(ctx context.Context, id uint, secretK
 		Update("secret_key", secretKey).Error
 }
 
-// UpdateUserContact 更新手机号、邮箱
+// UpdateUserContact 更新手机号、邮箱（空串写入 NULL）
 func (r *userRepoImpl) UpdateUserContact(ctx context.Context, id uint, telNo, email string) error {
 	return database.FromContext(ctx).Model(&usermodel.User{}).
 		Where("id = ?", id).
 		Updates(map[string]interface{}{
-			"tel_no": telNo,
-			"email":  email,
+			"tel_no": nullableContactArg(telNo),
+			"email":  nullableContactArg(email),
+			"mtime":  uint32(time.Now().Unix()),
 		}).Error
 }
 

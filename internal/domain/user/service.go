@@ -13,24 +13,94 @@ import (
 
 	"wdkr-marketplace-service/internal/common/config"
 	"wdkr-marketplace-service/internal/common/utils/auth_utils"
+	bizcodemodel "wdkr-marketplace-service/internal/domain/bizcode/bizcode_model"
+	bizcoderepo "wdkr-marketplace-service/internal/domain/bizcode/repo"
+	companymodel "wdkr-marketplace-service/internal/domain/company/company_model"
+	companyrepo "wdkr-marketplace-service/internal/domain/company/repo"
+	"wdkr-marketplace-service/internal/domain/companyecoin"
 	"wdkr-marketplace-service/internal/domain/ecoin"
 	"wdkr-marketplace-service/internal/domain/user/repo"
 	usermodel "wdkr-marketplace-service/internal/domain/user/user_model"
 )
 
 type userServiceImpl struct {
-	userRepo    repo.UserRepo
-	bindingRepo repo.UserBindingRepo
-	ecoinSvc    ecoin.EcoinService
+	userRepo     repo.UserRepo
+	bindingRepo  repo.UserBindingRepo
+	ecoinSvc     ecoin.EcoinService
+	companyEcoin companyecoin.CompanyEcoinService
+	companyRepo  companyrepo.CompanyRepo
+	bizCodeRepo  bizcoderepo.BizCodeRepo
 }
 
 // NewUserService 创建用户服务实例
-func NewUserService(userRepo repo.UserRepo, bindingRepo repo.UserBindingRepo, ecoinSvc ecoin.EcoinService) UserService {
+func NewUserService(
+	userRepo repo.UserRepo,
+	bindingRepo repo.UserBindingRepo,
+	ecoinSvc ecoin.EcoinService,
+	companyEcoin companyecoin.CompanyEcoinService,
+	companyRepo companyrepo.CompanyRepo,
+	bizCodeRepo bizcoderepo.BizCodeRepo,
+) UserService {
 	return &userServiceImpl{
-		userRepo:    userRepo,
-		bindingRepo: bindingRepo,
-		ecoinSvc:    ecoinSvc,
+		userRepo:     userRepo,
+		bindingRepo:  bindingRepo,
+		ecoinSvc:     ecoinSvc,
+		companyEcoin: companyEcoin,
+		companyRepo:  companyRepo,
+		bizCodeRepo:  bizCodeRepo,
 	}
+}
+
+func (s *userServiceImpl) bizScopeForCode(ctx context.Context, code string) (uint8, error) {
+	row, err := s.bizCodeRepo.GetByCode(ctx, strings.TrimSpace(code))
+	if err != nil {
+		return 0, err
+	}
+	if row == nil {
+		return 0, errors.New("unknown biz_code")
+	}
+	return row.Scope, nil
+}
+
+func userMatchesBizScope(u *usermodel.User, scope uint8) bool {
+	if scope == bizcodemodel.ScopeEnterprise {
+		return u.CompanyId > 0
+	}
+	return u.CompanyId == 0
+}
+
+// resolveCompanyIdForEnterpriseBind 企业绑定：返回企业 ID（新建或已有）
+func (s *userServiceImpl) resolveCompanyIdForEnterpriseBind(ctx context.Context, companyId uint64, companyName string) (uint64, error) {
+	if companyId > 0 {
+		c, err := s.companyRepo.GetById(ctx, companyId)
+		if err != nil {
+			return 0, err
+		}
+		if c == nil {
+			return 0, errors.New("company not found")
+		}
+		return c.Id, nil
+	}
+	name := strings.TrimSpace(companyName)
+	if name == "" {
+		return 0, errors.New("company_id or company_name is required for enterprise binding")
+	}
+	exist, err := s.companyRepo.GetByName(ctx, name)
+	if err != nil {
+		return 0, err
+	}
+	if exist != nil {
+		return exist.Id, nil
+	}
+	c := &companymodel.Company{Name: name}
+	if err := s.companyRepo.Create(ctx, c); err != nil {
+		exist2, e2 := s.companyRepo.GetByName(ctx, name)
+		if e2 == nil && exist2 != nil {
+			return exist2.Id, nil
+		}
+		return 0, fmt.Errorf("failed to create company: %w", err)
+	}
+	return c.Id, nil
 }
 
 // BindUser 绑定用户（包含注册逻辑）；成功后签发 session，返回 token
@@ -41,11 +111,32 @@ func (s *userServiceImpl) BindUser(ctx context.Context, req *BindUserRequest) (*
 	if req.BizUserId == 0 {
 		return nil, errors.New("biz_user_id is required")
 	}
+	req.TelNo = strings.TrimSpace(req.TelNo)
+	req.Email = strings.TrimSpace(req.Email)
 	if req.TelNo == "" && req.Email == "" {
 		return nil, errors.New("tel_no or email is required")
 	}
 	if req.Password == "" {
 		return nil, errors.New("password is required")
+	}
+
+	scope, err := s.bizScopeForCode(ctx, req.BizCode)
+	if err != nil {
+		return nil, err
+	}
+
+	var targetCompanyId uint64
+	if scope == bizcodemodel.ScopeEnterprise {
+		var err error
+		targetCompanyId, err = s.resolveCompanyIdForEnterpriseBind(ctx, req.CompanyId, req.CompanyName)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		if req.CompanyId > 0 || strings.TrimSpace(req.CompanyName) != "" {
+			return nil, errors.New("personal biz_code must not specify company")
+		}
+		targetCompanyId = 0
 	}
 
 	existingBinding, err := s.bindingRepo.GetBindingByBiz(ctx, req.BizCode, req.BizUserId)
@@ -59,6 +150,9 @@ func (s *userServiceImpl) BindUser(ctx context.Context, req *BindUserRequest) (*
 		}
 		if user == nil {
 			return nil, errors.New("user not found")
+		}
+		if !userMatchesBizScope(user, scope) {
+			return nil, errors.New("biz_code type does not match account type")
 		}
 		if !user.VerifySecretKey(req.Password) {
 			return nil, errors.New("invalid password")
@@ -78,22 +172,31 @@ func (s *userServiceImpl) BindUser(ctx context.Context, req *BindUserRequest) (*
 
 	var response *BindUserResponse
 	err = database.Transaction(ctx, func(ctx context.Context) error {
-		user, err := s.findUserByIdentity(ctx, req.TelNo, req.Email)
+		user, err := s.findUserByIdentity(ctx, req.TelNo, req.Email, targetCompanyId)
 		if err != nil {
 			return fmt.Errorf("failed to find user by identity: %w", err)
 		}
 
 		isNewUser := false
 		if user == nil {
-			user, err = s.createUser(ctx, req)
+			user, err = s.createUser(ctx, req, targetCompanyId)
 			if err != nil {
 				return fmt.Errorf("failed to create user: %w", err)
 			}
 			isNewUser = true
-			if _, err = s.ecoinSvc.InitUserEcoin(ctx, uint64(user.Id)); err != nil {
-				return fmt.Errorf("failed to init user ecoin: %w", err)
+			if targetCompanyId == 0 {
+				if _, err = s.ecoinSvc.InitUserEcoin(ctx, uint64(user.Id)); err != nil {
+					return fmt.Errorf("failed to init user ecoin: %w", err)
+				}
+			} else {
+				if _, err = s.companyEcoin.InitCompanyEcoin(ctx, targetCompanyId); err != nil {
+					return fmt.Errorf("failed to init company ecoin: %w", err)
+				}
 			}
 		} else {
+			if !userMatchesBizScope(user, scope) {
+				return errors.New("biz_code type does not match existing account type")
+			}
 			if !user.VerifySecretKey(req.Password) {
 				return errors.New("invalid password")
 			}
@@ -139,7 +242,6 @@ func (s *userServiceImpl) BindUser(ctx context.Context, req *BindUserRequest) (*
 
 // UnbindUser 解绑用户
 func (s *userServiceImpl) UnbindUser(ctx context.Context, req *UnbindUserRequest) error {
-	// 参数校验
 	if req.UserId == 0 {
 		return errors.New("user_id is required")
 	}
@@ -147,7 +249,6 @@ func (s *userServiceImpl) UnbindUser(ctx context.Context, req *UnbindUserRequest
 		return errors.New("biz_code is required")
 	}
 
-	// 检查绑定是否存在
 	binding, err := s.bindingRepo.GetBindingByUserAndBiz(ctx, req.UserId, req.BizCode)
 	if err != nil {
 		return fmt.Errorf("failed to get binding: %w", err)
@@ -156,7 +257,6 @@ func (s *userServiceImpl) UnbindUser(ctx context.Context, req *UnbindUserRequest
 		return fmt.Errorf("user not bindded to biz_code %s", req.BizCode)
 	}
 
-	// 删除绑定记录
 	if err = s.bindingRepo.DeleteBinding(ctx, req.UserId, req.BizCode); err != nil {
 		return fmt.Errorf("failed to delete binding: %w", err)
 	}
@@ -182,13 +282,13 @@ func (s *userServiceImpl) GetUserById(ctx context.Context, id uint) (*usermodel.
 	return user, nil
 }
 
-// GetUserByIdentity 根据身份标识获取用户（优先手机号，其次邮箱）
-func (s *userServiceImpl) GetUserByIdentity(ctx context.Context, telNo, email string) (*usermodel.User, error) {
+// GetUserByIdentity 根据身份标识获取用户
+func (s *userServiceImpl) GetUserByIdentity(ctx context.Context, telNo, email string, companyId uint64) (*usermodel.User, error) {
 	if telNo == "" && email == "" {
 		return nil, errors.New("tel_no or email is required")
 	}
 
-	return s.findUserByIdentity(ctx, telNo, email)
+	return s.findUserByIdentity(ctx, telNo, email, companyId)
 }
 
 // GetUserByBiz 根据业务信息获取用户
@@ -234,7 +334,8 @@ func (s *userServiceImpl) VerifyUserSecret(ctx context.Context, userId uint, sec
 
 // Login 用户登录（电话号码/邮箱）
 func (s *userServiceImpl) Login(ctx context.Context, req *LoginRequest) (*LoginResponse, error) {
-	// 参数校验
+	req.TelNo = strings.TrimSpace(req.TelNo)
+	req.Email = strings.TrimSpace(req.Email)
 	if req.TelNo == "" && req.Email == "" {
 		return nil, errors.New("tel_no or email is required")
 	}
@@ -242,8 +343,24 @@ func (s *userServiceImpl) Login(ctx context.Context, req *LoginRequest) (*LoginR
 		return nil, errors.New("secret is required")
 	}
 
-	// 查找用户
-	user, err := s.findUserByIdentity(ctx, req.TelNo, req.Email)
+	kind := strings.TrimSpace(strings.ToLower(req.LoginKind))
+	if kind == "" {
+		kind = "personal"
+	}
+	var companyId uint64
+	switch kind {
+	case "personal":
+		companyId = 0
+	case "enterprise":
+		if req.CompanyId == 0 {
+			return nil, errors.New("company_id is required for enterprise login")
+		}
+		companyId = req.CompanyId
+	default:
+		return nil, errors.New("invalid login_kind")
+	}
+
+	user, err := s.findUserByIdentity(ctx, req.TelNo, req.Email, companyId)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find user: %w", err)
 	}
@@ -251,12 +368,10 @@ func (s *userServiceImpl) Login(ctx context.Context, req *LoginRequest) (*LoginR
 		return nil, errors.New("user not found")
 	}
 
-	// 验证密钥
 	if !user.VerifySecretKey(req.Secret) {
 		return nil, errors.New("invalid secret")
 	}
 
-	// 生成登录响应
 	return s.generateLoginResponse(ctx, user)
 }
 
@@ -296,31 +411,40 @@ func (s *userServiceImpl) ChangePassword(ctx context.Context, userId uint, req *
 	return nil
 }
 
+// enrichUserCompanyName 为企业用户填充 company_name（仅 JSON 展示，不入库）
+func (s *userServiceImpl) enrichUserCompanyName(ctx context.Context, u *usermodel.User) {
+	if u == nil || u.CompanyId == 0 {
+		return
+	}
+	c, err := s.companyRepo.GetById(ctx, u.CompanyId)
+	if err != nil || c == nil {
+		return
+	}
+	u.CompanyName = c.Name
+}
+
 // generateLoginResponse 生成登录响应（生成session、token并写入redis）
 func (s *userServiceImpl) generateLoginResponse(ctx context.Context, user *usermodel.User) (*LoginResponse, error) {
-	// 生成 session id: "session:$user_id:$login_timestamp"
 	loginTimestamp := time.Now().Unix()
 	sessionId := fmt.Sprintf("session:%d:%d", user.Id, loginTimestamp)
 
-	// 生成 session: user 序列化为 JSON
+	s.enrichUserCompanyName(ctx, user)
+
 	session, err := user.ToJSON()
 	if err != nil {
 		return nil, fmt.Errorf("failed to serialize user: %w", err)
 	}
 
-	// 获取配置
 	conf := config.GetConf()
 	if conf == nil {
 		return nil, errors.New("config not initialized")
 	}
 
-	// 生成 token
 	token, err := auth_utils.GenAuthToken(sessionId, conf.Auth.AesKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate token: %w", err)
 	}
 
-	// 将 session 写入 redis
 	expiration := time.Duration(conf.Auth.Expiration) * time.Second
 	redis := cache.FromContext(ctx)
 	if redis == nil {
@@ -360,6 +484,15 @@ func (s *userServiceImpl) UpdateProfile(ctx context.Context, userId uint, req *U
 		return nil, errors.New("session is required")
 	}
 
+	self, err := s.userRepo.GetUserById(ctx, userId)
+	if err != nil {
+		return nil, err
+	}
+	if self == nil {
+		return nil, errors.New("user not found")
+	}
+	companyId := self.CompanyId
+
 	telNo := strings.TrimSpace(req.TelNo)
 	email := strings.TrimSpace(req.Email)
 	if telNo == "" && email == "" {
@@ -373,7 +506,7 @@ func (s *userServiceImpl) UpdateProfile(ctx context.Context, userId uint, req *U
 	}
 
 	if telNo != "" {
-		other, err := s.userRepo.GetUserByTelNo(ctx, telNo)
+		other, err := s.userRepo.GetUserByTelNoAndCompany(ctx, telNo, companyId)
 		if err != nil {
 			return nil, fmt.Errorf("failed to check phone: %w", err)
 		}
@@ -382,7 +515,7 @@ func (s *userServiceImpl) UpdateProfile(ctx context.Context, userId uint, req *U
 		}
 	}
 	if email != "" {
-		other, err := s.userRepo.GetUserByEmail(ctx, email)
+		other, err := s.userRepo.GetUserByEmailAndCompany(ctx, email, companyId)
 		if err != nil {
 			return nil, fmt.Errorf("failed to check email: %w", err)
 		}
@@ -402,6 +535,8 @@ func (s *userServiceImpl) UpdateProfile(ctx context.Context, userId uint, req *U
 	if fresh == nil {
 		return nil, errors.New("user not found")
 	}
+
+	s.enrichUserCompanyName(ctx, fresh)
 
 	sessionJSON, err := fresh.ToJSON()
 	if err != nil {
@@ -435,11 +570,9 @@ func (s *userServiceImpl) UpdateProfile(ctx context.Context, userId uint, req *U
 	return fresh, nil
 }
 
-// findUserByIdentity 根据身份标识查找用户（优先手机号，其次邮箱）
-func (s *userServiceImpl) findUserByIdentity(ctx context.Context, telNo, email string) (*usermodel.User, error) {
-	// 优先通过手机号查找
+func (s *userServiceImpl) findUserByIdentity(ctx context.Context, telNo, email string, companyId uint64) (*usermodel.User, error) {
 	if telNo != "" {
-		user, err := s.userRepo.GetUserByTelNo(ctx, telNo)
+		user, err := s.userRepo.GetUserByTelNoAndCompany(ctx, telNo, companyId)
 		if err != nil {
 			return nil, err
 		}
@@ -448,9 +581,8 @@ func (s *userServiceImpl) findUserByIdentity(ctx context.Context, telNo, email s
 		}
 	}
 
-	// 其次通过邮箱查找
 	if email != "" {
-		user, err := s.userRepo.GetUserByEmail(ctx, email)
+		user, err := s.userRepo.GetUserByEmailAndCompany(ctx, email, companyId)
 		if err != nil {
 			return nil, err
 		}
@@ -462,20 +594,18 @@ func (s *userServiceImpl) findUserByIdentity(ctx context.Context, telNo, email s
 	return nil, nil
 }
 
-// createUser 创建新用户
-func (s *userServiceImpl) createUser(ctx context.Context, req *BindUserRequest) (*usermodel.User, error) {
+func (s *userServiceImpl) createUser(ctx context.Context, req *BindUserRequest, companyId uint64) (*usermodel.User, error) {
 	user := &usermodel.User{
-		TelNo: req.TelNo,
-		Email: req.Email,
-		Role:  usermodel.RoleUser, // 默认为普通用户
+		TelNo:     req.TelNo,
+		Email:     req.Email,
+		CompanyId: companyId,
+		Role:      usermodel.RoleUser,
 	}
 
-	// 先创建用户以获取ID
 	if err := s.userRepo.CreateUser(ctx, user); err != nil {
 		return nil, err
 	}
 
-	// 生成并更新密钥（基于 password + id）
 	secretKey := usermodel.GenerateSecretKey(req.Password, user.Id)
 	if err := s.userRepo.UpdateUserSecretKey(ctx, user.Id, secretKey); err != nil {
 		return nil, err

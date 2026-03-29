@@ -8,7 +8,7 @@
       <!-- 积分余额卡片 -->
       <div class="balance-card card">
         <div class="balance-info">
-          <div class="balance-label">当前积分余额</div>
+          <div class="balance-label">当前积分余额{{ ecoinEnterpriseSuffix }}</div>
           <div class="balance-value">
             <span class="balance-number">{{ balance.toFixed(2) }}</span>
             <span class="balance-unit">积分</span>
@@ -26,7 +26,7 @@
       <!-- 积分分组明细 -->
       <div class="stock-groups-section card">
         <div class="section-header">
-          <h2>积分明细</h2>
+          <h2>积分明细{{ ecoinEnterpriseSuffix }}</h2>
         </div>
 
         <div v-if="groupLoading" class="loading"></div>
@@ -62,7 +62,7 @@
       <!-- 积分流水 -->
       <div class="transactions-section card">
         <div class="section-header">
-          <h2>积分流水</h2>
+          <h2>积分流水{{ ecoinEnterpriseSuffix }}</h2>
         </div>
 
         <div v-if="loading" class="loading"></div>
@@ -83,6 +83,9 @@
           >
             <div class="tx-info">
               <div class="tx-desc">{{ tx.description || getSourceTypeText(tx.source_type) }}</div>
+              <div v-if="userStore.isEnterpriseAccount" class="tx-operator">
+                操作人：{{ formatTxOperator(tx) }}
+              </div>
               <div class="tx-time">{{ formatTime(tx.ctime) }}</div>
             </div>
             <div class="tx-amount" :class="tx.amount >= 0 ? 'positive' : 'negative'">
@@ -248,6 +251,14 @@ let pollTimer = null
 
 const balance = computed(() => userStore.balance)
 const totalPages = computed(() => Math.ceil(total.value / pageSize))
+const ecoinEnterpriseSuffix = computed(() => (userStore.isEnterpriseAccount ? '（企业）' : ''))
+
+function formatTxOperator(tx) {
+  if (tx.operator_label) return tx.operator_label
+  const oid = tx.operator_user_id
+  if (oid != null && Number(oid) > 0) return `用户 #${oid}`
+  return '系统'
+}
 
 const sourceTypeMap = {
   'order': '订单消费',
@@ -678,6 +689,13 @@ onBeforeUnmount(() => {
   font-weight: 500;
   color: var(--gray-800);
   margin-bottom: 4px;
+}
+
+.tx-operator {
+  font-size: 12px;
+  color: var(--gray-500);
+  margin-top: 4px;
+  font-weight: 500;
 }
 
 .tx-time {

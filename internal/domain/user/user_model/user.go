@@ -19,13 +19,15 @@ const (
 )
 
 type User struct {
-	Id        uint   `gorm:"column:id" json:"id"`
-	TelNo     string `gorm:"column:tel_no" json:"tel_no"`
-	Email     string `gorm:"column:email" json:"email"`
-	SecretKey string `gorm:"column:secret_key" json:"-"` // 密钥不对外暴露
-	Role      uint8  `gorm:"column:role" json:"role"`
-	Ctime     uint32 `gorm:"column:ctime;autoCreateTime" json:"ctime"`
-	Mtime     uint32 `gorm:"column:mtime;autoUpdateTime" json:"mtime"`
+	Id          uint   `gorm:"column:id" json:"id"`
+	TelNo       string `gorm:"column:tel_no" json:"tel_no"`
+	Email       string `gorm:"column:email" json:"email"`
+	CompanyId   uint64 `gorm:"column:company_id" json:"company_id"` // 0=个人，>0=企业
+	CompanyName string `gorm:"-" json:"company_name,omitempty"`     // 仅展示：由服务层按 company_id 填充
+	SecretKey   string `gorm:"column:secret_key" json:"-"`          // 密钥不对外暴露
+	Role        uint8  `gorm:"column:role" json:"role"`
+	Ctime       uint32 `gorm:"column:ctime;autoCreateTime" json:"ctime"`
+	Mtime       uint32 `gorm:"column:mtime;autoUpdateTime" json:"mtime"`
 }
 
 // GenerateSecretKey 根据secret和用户ID生成加密后的密钥

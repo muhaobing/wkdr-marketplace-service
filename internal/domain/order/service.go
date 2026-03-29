@@ -12,6 +12,7 @@ import (
 	"wdkr-marketplace-service/bootstrap"
 	"wdkr-marketplace-service/internal/common/config"
 	"wdkr-marketplace-service/internal/common/utils"
+	"wdkr-marketplace-service/internal/domain/companyecoin"
 	"wdkr-marketplace-service/internal/domain/ecoin"
 	ecoin_model "wdkr-marketplace-service/internal/domain/ecoin/ecoin_model"
 	ordermodel "wdkr-marketplace-service/internal/domain/order/order_model"
@@ -28,16 +29,18 @@ const (
 
 // orderServiceImpl 订单服务实现
 type orderServiceImpl struct {
-	orderRepo  repo.OrderRepo
-	skuService sku.SkuService
-	ecoinSvc   ecoin.EcoinService
-	paymentSvc payment.PaymentService
-	userSvc    UserServiceForOrder
+	orderRepo       repo.OrderRepo
+	skuService      sku.SkuService
+	ecoinSvc        ecoin.EcoinService
+	companyEcoinSvc companyecoin.CompanyEcoinService
+	paymentSvc      payment.PaymentService
+	userSvc         UserServiceForOrder
 }
 
 // UserServiceForOrder 订单服务所需的用户服务接口（避免直接依赖 user 包）
 type UserServiceForOrder interface {
 	GetBindingsByUserId(ctx context.Context, userId uint) ([]UserBinding, error)
+	GetUserCompanyId(ctx context.Context, userId uint) (uint64, error)
 }
 
 // UserBinding 用于履约时查找业务用户ID
@@ -51,16 +54,58 @@ func NewOrderService(
 	orderRepo repo.OrderRepo,
 	skuService sku.SkuService,
 	ecoinSvc ecoin.EcoinService,
+	companyEcoinSvc companyecoin.CompanyEcoinService,
 	paymentSvc payment.PaymentService,
 	userSvc UserServiceForOrder,
 ) OrderService {
 	return &orderServiceImpl{
-		orderRepo:  orderRepo,
-		skuService: skuService,
-		ecoinSvc:   ecoinSvc,
-		paymentSvc: paymentSvc,
-		userSvc:    userSvc,
+		orderRepo:       orderRepo,
+		skuService:      skuService,
+		ecoinSvc:        ecoinSvc,
+		companyEcoinSvc: companyEcoinSvc,
+		paymentSvc:      paymentSvc,
+		userSvc:         userSvc,
 	}
+}
+
+func (s *orderServiceImpl) deductEcoinForOrder(ctx context.Context, userId uint64, req *ecoin.DeductEcoinRequest) error {
+	cid, err := s.userSvc.GetUserCompanyId(ctx, uint(userId))
+	if err != nil {
+		return err
+	}
+	if cid == 0 {
+		_, err := s.ecoinSvc.DeductEcoin(ctx, req)
+		return err
+	}
+	_, err = s.companyEcoinSvc.DeductCompanyEcoin(ctx, &companyecoin.DeductCompanyEcoinRequest{
+		CompanyId:      cid,
+		OperatorUserId: userId,
+		Amount:         req.Amount,
+		SourceType:     req.SourceType,
+		SourceId:       req.SourceId,
+		Description:    req.Description,
+	})
+	return err
+}
+
+func (s *orderServiceImpl) addEcoinForOrder(ctx context.Context, userId uint64, req *ecoin.AddEcoinRequest) error {
+	cid, err := s.userSvc.GetUserCompanyId(ctx, uint(userId))
+	if err != nil {
+		return err
+	}
+	if cid == 0 {
+		_, err := s.ecoinSvc.AddEcoin(ctx, req)
+		return err
+	}
+	_, err = s.companyEcoinSvc.AddCompanyEcoin(ctx, &companyecoin.AddCompanyEcoinRequest{
+		CompanyId:      cid,
+		OperatorUserId: userId,
+		Amount:         req.Amount,
+		SourceType:     req.SourceType,
+		SourceId:       req.SourceId,
+		Description:    req.Description,
+	})
+	return err
 }
 
 // CreateOrder 创建订单
@@ -106,7 +151,7 @@ func (s *orderServiceImpl) CreateOrder(ctx context.Context, req *CreateOrderRequ
 			}
 
 			ecoinAmount := float64(order.PayAmount) / float64(config.GetConf().EcoinUnitPrice)
-			_, err := s.ecoinSvc.DeductEcoin(ctx, &ecoin.DeductEcoinRequest{
+			err := s.deductEcoinForOrder(ctx, req.UserId, &ecoin.DeductEcoinRequest{
 				UserId:      req.UserId,
 				Amount:      ecoinAmount,
 				SourceType:  "order",
@@ -379,7 +424,7 @@ func (s *orderServiceImpl) payWithEcoin(ctx context.Context, order *ordermodel.O
 
 	err = database.Transaction(ctx, func(ctx context.Context) error {
 		ecoinAmount := float64(order.PayAmount) / float64(config.GetConf().EcoinUnitPrice)
-		_, err := s.ecoinSvc.DeductEcoin(ctx, &ecoin.DeductEcoinRequest{
+		err := s.deductEcoinForOrder(ctx, order.UserId, &ecoin.DeductEcoinRequest{
 			UserId:      order.UserId,
 			Amount:      ecoinAmount,
 			SourceType:  "order",
@@ -569,7 +614,7 @@ func (s *orderServiceImpl) fulfillEcoinRecharge(ctx context.Context, order *orde
 		return nil
 	}
 
-	_, err := s.ecoinSvc.AddEcoin(ctx, &ecoin.AddEcoinRequest{
+	err := s.addEcoinForOrder(ctx, order.UserId, &ecoin.AddEcoinRequest{
 		UserId:      order.UserId,
 		Amount:      float64(item.Quantity),
 		SourceType:  "recharge",
@@ -639,7 +684,7 @@ func (s *orderServiceImpl) fulfillSkuItems(ctx context.Context, order *ordermode
 				fulfillMsg = "未配置积分发放数量"
 				allSuccess = false
 			} else {
-				_, addErr := s.ecoinSvc.AddEcoin(ctx, &ecoin.AddEcoinRequest{
+				addErr := s.addEcoinForOrder(ctx, order.UserId, &ecoin.AddEcoinRequest{
 					UserId:      order.UserId,
 					Amount:      grant,
 					SourceType:  ecoin_model.SourceTypeOrder,
@@ -751,7 +796,7 @@ func (s *orderServiceImpl) RefundOrder(ctx context.Context, req *RefundOrderRequ
 
 		if order.IsEcoinPay() {
 			// 积分支付退款：返还积分
-			_, err := s.ecoinSvc.AddEcoin(ctx, &ecoin.AddEcoinRequest{
+			err := s.addEcoinForOrder(ctx, order.UserId, &ecoin.AddEcoinRequest{
 				UserId:      order.UserId,
 				Amount:      float64(order.PayAmount),
 				SourceType:  "refund",

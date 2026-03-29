@@ -8,11 +8,15 @@ package resource
 
 import (
 	"context"
+	"errors"
 
 	"wdkr-marketplace-service/internal/cron"
 	bizcoderepo "wdkr-marketplace-service/internal/domain/bizcode/repo"
 	"wdkr-marketplace-service/internal/domain/cart"
 	cartrepo "wdkr-marketplace-service/internal/domain/cart/repo"
+	companyrepo "wdkr-marketplace-service/internal/domain/company/repo"
+	"wdkr-marketplace-service/internal/domain/companyecoin"
+	companyecoinrepo "wdkr-marketplace-service/internal/domain/companyecoin/repo"
 	"wdkr-marketplace-service/internal/domain/ecoin"
 	ecoinrepo "wdkr-marketplace-service/internal/domain/ecoin/repo"
 	"wdkr-marketplace-service/internal/domain/order"
@@ -50,6 +54,17 @@ func (a *userServiceAdapter) GetBindingsByUserId(ctx context.Context, userId uin
 	return result, nil
 }
 
+func (a *userServiceAdapter) GetUserCompanyId(ctx context.Context, userId uint) (uint64, error) {
+	u, err := a.userSvc.GetUserById(ctx, userId)
+	if err != nil {
+		return 0, err
+	}
+	if u == nil {
+		return 0, errors.New("user not found")
+	}
+	return u.CompanyId, nil
+}
+
 // InitializeResources 初始化所有 Resources
 func InitializeResources() *Resources {
 	// 初始化 Repos
@@ -61,6 +76,8 @@ func InitializeResources() *Resources {
 	userBindingRepo := userrepo.NewUserBindingRepo()
 	cartRepo := cartrepo.NewCartRepo()
 	bizCodeRepo := bizcoderepo.NewBizCodeRepo()
+	companyRepo := companyrepo.NewCompanyRepo()
+	companyEcoinRepo := companyecoinrepo.NewCompanyEcoinRepo()
 
 	// 初始化支付渠道
 	wechatPayConfig := payment.NewWechatPayConfig()
@@ -69,24 +86,25 @@ func InitializeResources() *Resources {
 
 	// 初始化 Services
 	ecoinService := ecoin.NewEcoinService(ecoinRepo)
+	companyEcoinService := companyecoin.NewCompanyEcoinService(companyEcoinRepo)
 	skuService := sku.NewSkuService(skuRepo)
 	paymentService := payment.ProvidePaymentService(paymentRepo, paymentChannels)
-	userService := user.NewUserService(userRepo, userBindingRepo, ecoinService)
+	userService := user.NewUserService(userRepo, userBindingRepo, ecoinService, companyEcoinService, companyRepo, bizCodeRepo)
 	userSvcAdapter := &userServiceAdapter{userSvc: userService}
-	orderService := order.NewOrderService(orderRepo, skuService, ecoinService, paymentService, userSvcAdapter)
+	orderService := order.NewOrderService(orderRepo, skuService, ecoinService, companyEcoinService, paymentService, userSvcAdapter)
 	cartService := cart.NewCartService(cartRepo, skuService, orderService)
 
 	// 初始化 Resources
 	healthyResource := healthy.NewHealthyResource()
-	marketplaceResource := marketplace.NewMarketplaceResource(skuService, orderService, ecoinService, userService, cartService, bizCodeRepo)
+	marketplaceResource := marketplace.NewMarketplaceResource(skuService, orderService, ecoinService, companyEcoinService, userService, cartService, bizCodeRepo, companyRepo)
 	opsResource := ops.NewOpsResource(skuService, orderService)
-	openAPIResource := openapi.NewOpenAPIResource(ecoinService, paymentService, orderService, userService)
+	openAPIResource := openapi.NewOpenAPIResource(ecoinService, companyEcoinService, paymentService, orderService, userService)
 	mockResource := mock.NewMockResource()
 
 	// 初始化定时任务
 	orderTimeoutTask := cron.NewOrderTimeoutTask(orderRepo, paymentService)
 	orderFulfillTask := cron.NewOrderFulfillTask(orderRepo, orderService)
-	ecoinExpireTask := cron.NewEcoinExpireTask(ecoinService)
+	ecoinExpireTask := cron.NewEcoinExpireTask(ecoinService, companyEcoinService)
 
 	// 聚合返回
 	r := NewResources(healthyResource, marketplaceResource, opsResource, openAPIResource, orderTimeoutTask, orderFulfillTask, ecoinExpireTask)

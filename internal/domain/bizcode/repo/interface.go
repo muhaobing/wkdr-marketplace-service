@@ -10,4 +10,6 @@ import (
 type BizCodeRepo interface {
 	// ListAll 按 id 排序
 	ListAll(ctx context.Context) ([]*bizcodemodel.BizCode, error)
+	// GetByCode 按 code 查询
+	GetByCode(ctx context.Context, code string) (*bizcodemodel.BizCode, error)
 }

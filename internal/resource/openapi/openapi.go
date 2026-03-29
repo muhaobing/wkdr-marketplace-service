@@ -14,6 +14,7 @@ import (
 	"wdkr-marketplace-service/internal/common/constant/err_code"
 	"wdkr-marketplace-service/internal/common/constant/sys_err"
 	"wdkr-marketplace-service/internal/common/utils/http_utils"
+	"wdkr-marketplace-service/internal/domain/companyecoin"
 	"wdkr-marketplace-service/internal/domain/ecoin"
 	"wdkr-marketplace-service/internal/domain/order"
 	"wdkr-marketplace-service/internal/domain/payment"
@@ -23,19 +24,21 @@ import (
 
 // OpenAPIResource OpenAPI接口资源（面向内部平台及外部支付回调）
 type OpenAPIResource struct {
-	ecoinService   ecoin.EcoinService
-	paymentService payment.PaymentService
-	orderService   order.OrderService
-	userService    user.UserService
+	ecoinService        ecoin.EcoinService
+	companyEcoinService companyecoin.CompanyEcoinService
+	paymentService      payment.PaymentService
+	orderService        order.OrderService
+	userService         user.UserService
 }
 
 // NewOpenAPIResource 创建OpenAPI资源实例
-func NewOpenAPIResource(ecoinService ecoin.EcoinService, paymentService payment.PaymentService, orderService order.OrderService, userService user.UserService) *OpenAPIResource {
+func NewOpenAPIResource(ecoinService ecoin.EcoinService, companyEcoinService companyecoin.CompanyEcoinService, paymentService payment.PaymentService, orderService order.OrderService, userService user.UserService) *OpenAPIResource {
 	return &OpenAPIResource{
-		ecoinService:   ecoinService,
-		paymentService: paymentService,
-		orderService:   orderService,
-		userService:    userService,
+		ecoinService:        ecoinService,
+		companyEcoinService: companyEcoinService,
+		paymentService:      paymentService,
+		orderService:        orderService,
+		userService:         userService,
 	}
 }
 
@@ -66,6 +69,17 @@ func writeOpenAPIError(ctx *gin.Context, err error) {
 	http_utils.WriteResponse(ctx, nil, err)
 }
 
+func (r *OpenAPIResource) userCompanyId(ctx context.Context, userId uint64) (uint64, error) {
+	u, err := r.userService.GetUserById(ctx, uint(userId))
+	if err != nil {
+		return 0, err
+	}
+	if u == nil {
+		return 0, errors.New("user not found")
+	}
+	return u.CompanyId, nil
+}
+
 // ==================== 积分接口 ====================
 
 // AddEcoinRequest 增加积分请求（按业务身份定位商城用户）
@@ -90,6 +104,28 @@ func (r *OpenAPIResource) AddEcoin(ctx *gin.Context) {
 	userId, err := r.fetchUserIDByBizBinding(ctx.Request.Context(), req.BizCode, req.BizUserId)
 	if err != nil {
 		writeOpenAPIError(ctx, err)
+		return
+	}
+
+	cid, err := r.userCompanyId(ctx.Request.Context(), userId)
+	if err != nil {
+		http_utils.WriteResponse(ctx, nil, err)
+		return
+	}
+	if cid > 0 {
+		tx, err := r.companyEcoinService.AddCompanyEcoin(ctx.Request.Context(), &companyecoin.AddCompanyEcoinRequest{
+			CompanyId:      cid,
+			OperatorUserId: userId,
+			Amount:         req.Amount,
+			SourceType:     req.SourceType,
+			SourceId:       req.SourceId,
+			Description:    req.Description,
+		})
+		if err != nil {
+			http_utils.WriteResponse(ctx, nil, err)
+			return
+		}
+		http_utils.WriteResponse(ctx, tx, nil)
 		return
 	}
 
@@ -133,6 +169,28 @@ func (r *OpenAPIResource) DeductEcoin(ctx *gin.Context) {
 		return
 	}
 
+	cid, err := r.userCompanyId(ctx.Request.Context(), userId)
+	if err != nil {
+		http_utils.WriteResponse(ctx, nil, err)
+		return
+	}
+	if cid > 0 {
+		tx, err := r.companyEcoinService.DeductCompanyEcoin(ctx.Request.Context(), &companyecoin.DeductCompanyEcoinRequest{
+			CompanyId:      cid,
+			OperatorUserId: userId,
+			Amount:         req.Amount,
+			SourceType:     req.SourceType,
+			SourceId:       req.SourceId,
+			Description:    req.Description,
+		})
+		if err != nil {
+			http_utils.WriteResponse(ctx, nil, err)
+			return
+		}
+		http_utils.WriteResponse(ctx, tx, nil)
+		return
+	}
+
 	transaction, err := r.ecoinService.DeductEcoin(ctx.Request.Context(), &ecoin.DeductEcoinRequest{
 		UserId:      userId,
 		Amount:      req.Amount,
@@ -169,6 +227,21 @@ func (r *OpenAPIResource) PostEcoinBalance(ctx *gin.Context) {
 		return
 	}
 
+	cid, err := r.userCompanyId(ctx.Request.Context(), userId)
+	if err != nil {
+		http_utils.WriteResponse(ctx, nil, err)
+		return
+	}
+	if cid > 0 {
+		info, err := r.companyEcoinService.GetCompanyEcoin(ctx.Request.Context(), cid)
+		if err != nil {
+			http_utils.WriteResponse(ctx, nil, err)
+			return
+		}
+		http_utils.WriteResponse(ctx, info, nil)
+		return
+	}
+
 	ecoinInfo, err := r.ecoinService.GetUserEcoin(ctx.Request.Context(), userId)
 	if err != nil {
 		http_utils.WriteResponse(ctx, nil, err)
@@ -188,6 +261,21 @@ func (r *OpenAPIResource) InitUserEcoin(ctx *gin.Context) {
 	var req InitRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
 		http_utils.WriteResponse(ctx, nil, err)
+		return
+	}
+
+	cid, err := r.userCompanyId(ctx.Request.Context(), req.UserId)
+	if err != nil {
+		http_utils.WriteResponse(ctx, nil, err)
+		return
+	}
+	if cid > 0 {
+		info, err := r.companyEcoinService.InitCompanyEcoin(ctx.Request.Context(), cid)
+		if err != nil {
+			http_utils.WriteResponse(ctx, nil, err)
+			return
+		}
+		http_utils.WriteResponse(ctx, info, nil)
 		return
 	}
 
@@ -220,6 +308,25 @@ func (r *OpenAPIResource) PostEcoinTransactions(ctx *gin.Context) {
 	userId, err := r.fetchUserIDByBizBinding(ctx.Request.Context(), req.BizCode, req.BizUserId)
 	if err != nil {
 		writeOpenAPIError(ctx, err)
+		return
+	}
+
+	cid, err := r.userCompanyId(ctx.Request.Context(), userId)
+	if err != nil {
+		http_utils.WriteResponse(ctx, nil, err)
+		return
+	}
+	if cid > 0 {
+		list, err := r.companyEcoinService.GetTransactionList(ctx.Request.Context(), &companyecoin.TransactionListRequest{
+			CompanyId: cid,
+			Offset:    req.Offset,
+			Limit:     req.Limit,
+		})
+		if err != nil {
+			http_utils.WriteResponse(ctx, nil, err)
+			return
+		}
+		http_utils.WriteResponse(ctx, list, nil)
 		return
 	}
 

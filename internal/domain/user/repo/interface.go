@@ -11,11 +11,11 @@ type UserRepo interface {
 	// GetUserById 根据ID获取用户
 	GetUserById(ctx context.Context, id uint) (*usermodel.User, error)
 
-	// GetUserByTelNo 根据手机号获取用户
-	GetUserByTelNo(ctx context.Context, telNo string) (*usermodel.User, error)
+	// GetUserByTelNoAndCompany 根据手机号 + company_id 获取用户（company_id=0 为个人）
+	GetUserByTelNoAndCompany(ctx context.Context, telNo string, companyId uint64) (*usermodel.User, error)
 
-	// GetUserByEmail 根据邮箱获取用户
-	GetUserByEmail(ctx context.Context, email string) (*usermodel.User, error)
+	// GetUserByEmailAndCompany 根据邮箱 + company_id 获取用户
+	GetUserByEmailAndCompany(ctx context.Context, email string, companyId uint64) (*usermodel.User, error)
 
 	// CreateUser 创建用户
 	CreateUser(ctx context.Context, user *usermodel.User) error

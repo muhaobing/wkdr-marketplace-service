@@ -136,6 +136,10 @@ export const metaApi = {
   /** 业务平台 biz_code 枚举，供绑定页下拉 */
   listBizCodes() {
     return api.get('/biz_codes')
+  },
+  /** 企业名称列表（绑定页下拉），q 可选 */
+  listCompanies(params = {}) {
+    return api.get('/companies', { params: { limit: 100, ...params } })
   }
 }
 

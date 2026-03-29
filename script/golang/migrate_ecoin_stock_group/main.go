@@ -9,6 +9,8 @@ import (
 	"gopkg.in/yaml.v3"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
+
+	"wdkr-marketplace-service/internal/domain/ecoin"
 )
 
 type confFile struct {
@@ -65,10 +67,7 @@ CREATE TABLE IF NOT EXISTS user_ecoin_stock_group_tab (
 	}
 
 	now := uint32(time.Now().Unix())
-	expire := uint32(0)
-	if conf.Config.EcoinExpireSeconds > 0 {
-		expire = now + conf.Config.EcoinExpireSeconds
-	}
+	expire := ecoin.CalcEcoinExpireTimeFromUnix(now)
 
 	backfillSQL := `
 INSERT INTO user_ecoin_stock_group_tab

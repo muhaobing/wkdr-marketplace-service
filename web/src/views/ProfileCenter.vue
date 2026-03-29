@@ -27,6 +27,10 @@
             <dt>用户 ID</dt>
             <dd>{{ user?.id ?? '—' }}</dd>
           </div>
+          <div v-if="userStore.isEnterpriseAccount" class="info-row">
+            <dt>所属企业</dt>
+            <dd>{{ companyDisplayName }}</dd>
+          </div>
           <div class="info-row">
             <dt>手机号</dt>
             <dd v-if="!accountEditing" class="field-text">{{ user?.tel_no || '未设置' }}</dd>
@@ -174,6 +178,14 @@ import PasswordInput from '../components/PasswordInput.vue'
 const userStore = useUserStore()
 
 const user = computed(() => userStore.user)
+
+const companyDisplayName = computed(() => {
+  const name = userStore.companyName
+  if (name) return name
+  const cid = user.value?.company_id
+  if (cid != null && Number(cid) > 0) return `企业 ID ${cid}`
+  return '—'
+})
 
 const bindings = ref([])
 const bindingsLoading = ref(false)

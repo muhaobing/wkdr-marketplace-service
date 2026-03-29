@@ -102,6 +102,67 @@
               />
             </div>
 
+            <!-- 企业类 biz_code（如 LawMind 企业用户）：所属企业（样式同绑定平台） -->
+            <div v-if="isEnterpriseBiz" class="form-group form-group--compact form-group--full-row">
+              <label class="form-label" :id="bindCompanyLabelId">所属企业 <span class="req">*</span></label>
+              <p class="form-hint-inline">请从列表选择已有企业；若无，请仅在下方填写企业名称</p>
+              <div
+                ref="bindCompanySelectRef"
+                class="custom-select"
+                :class="{
+                  'custom-select--open': bindCompanySelectOpen,
+                  'custom-select--disabled': companiesLoading
+                }"
+              >
+                <button
+                  type="button"
+                  class="custom-select__trigger form-input form-input--compact"
+                  :class="{
+                    'custom-select__trigger--placeholder':
+                      !bindForm.company_id && !companiesLoading
+                  }"
+                  :disabled="companiesLoading"
+                  :aria-expanded="bindCompanySelectOpen"
+                  aria-haspopup="listbox"
+                  :aria-labelledby="bindCompanyLabelId"
+                  @click.stop="toggleBindCompanySelect"
+                >
+                  <span class="custom-select__value">{{ bindCompanyTriggerLabel }}</span>
+                  <svg class="custom-select__chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <polyline points="6 9 12 15 18 9" />
+                  </svg>
+                </button>
+                <ul v-show="bindCompanySelectOpen && !companiesLoading" class="custom-select__menu" role="listbox">
+                  <li
+                    role="option"
+                    class="custom-select__item"
+                    :class="{ 'custom-select__item--active': bindForm.company_id === 0 }"
+                    @click.stop="selectBindCompany(0)"
+                  >
+                    不选择已有企业（在下方填写新企业名称）
+                  </li>
+                  <li
+                    v-for="c in companies"
+                    :key="c.id"
+                    role="option"
+                    class="custom-select__item"
+                    :class="{ 'custom-select__item--active': bindForm.company_id === c.id }"
+                    @click.stop="selectBindCompany(c.id)"
+                  >
+                    {{ c.name }}
+                  </li>
+                </ul>
+              </div>
+              <input
+                v-model="bindForm.company_name"
+                type="text"
+                class="form-input form-input--compact company-name-input"
+                placeholder="或输入新企业名称（列表中没有时）"
+                autocomplete="organization"
+                @input="onEnterpriseCompanyNameInput"
+              />
+            </div>
+
             <div class="form-group form-group--compact">
               <label class="form-label form-label--with-hint">
                 电话号码
@@ -192,45 +253,82 @@
           </button>
         </form>
 
-        <!-- 登录（原表单） -->
-        <form v-else @submit.prevent="handleLogin" class="login-form">
-          <div class="login-tabs">
+        <!-- 登录 -->
+        <form v-else @submit.prevent="handleLogin" class="login-form login-form--login">
+          <div class="login-tabs login-tabs--account">
             <button
               type="button"
-              :class="['tab', { active: loginType === 'email' }]"
-              @click="loginType = 'email'"
+              :class="['tab', { active: loginAccountKind === 'personal' }]"
+              @click="loginAccountKind = 'personal'"
             >
-              邮箱登录
+              个人账号
             </button>
             <button
               type="button"
-              :class="['tab', { active: loginType === 'phone' }]"
-              @click="loginType = 'phone'"
+              :class="['tab', { active: loginAccountKind === 'enterprise' }]"
+              @click="loginAccountKind = 'enterprise'"
             >
-              手机号登录
+              企业账号
             </button>
           </div>
 
-          <div v-if="loginType === 'email'" class="form-group">
-            <label class="form-label">邮箱地址</label>
-            <input
-              v-model="formData.email"
-              type="email"
-              class="form-input"
-              placeholder="请输入邮箱地址"
-              required
-            />
+          <div v-if="loginAccountKind === 'enterprise'" class="form-group">
+            <label class="form-label" :id="loginCompanyLabelId">所属企业 <span class="req">*</span></label>
+            <div
+              ref="loginCompanySelectRef"
+              class="custom-select"
+              :class="{
+                'custom-select--open': loginCompanySelectOpen,
+                'custom-select--disabled': companiesLoading
+              }"
+            >
+              <button
+                type="button"
+                class="custom-select__trigger form-input"
+                :class="{
+                  'custom-select__trigger--placeholder':
+                    !formData.company_id && !companiesLoading
+                }"
+                :disabled="companiesLoading"
+                :aria-expanded="loginCompanySelectOpen"
+                aria-haspopup="listbox"
+                :aria-labelledby="loginCompanyLabelId"
+                @click.stop="toggleLoginCompanySelect"
+              >
+                <span class="custom-select__value">{{ loginCompanyTriggerLabel }}</span>
+                <svg class="custom-select__chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
+              </button>
+              <ul v-show="loginCompanySelectOpen && !companiesLoading" class="custom-select__menu" role="listbox">
+                <li
+                  v-for="c in companies"
+                  :key="c.id"
+                  role="option"
+                  class="custom-select__item"
+                  :class="{ 'custom-select__item--active': formData.company_id === c.id }"
+                  @click.stop="selectLoginCompany(c.id)"
+                >
+                  {{ c.name }}
+                </li>
+              </ul>
+            </div>
+            <p v-if="!companiesLoading && !companies.length" class="form-hint-inline form-hint-inline--warn">
+              暂无企业列表，请确认已在商城完成企业绑定或联系管理员
+            </p>
           </div>
 
-          <div v-if="loginType === 'phone'" class="form-group">
-            <label class="form-label">手机号码</label>
+          <div class="form-group">
+            <label class="form-label">邮箱或手机号 <span class="req">*</span></label>
             <input
-              v-model="formData.tel_no"
-              type="tel"
+              v-model.trim="formData.loginAccount"
+              type="text"
               class="form-input"
-              placeholder="请输入手机号码"
-              required
+              placeholder="请输入邮箱或 11 位手机号"
+              autocomplete="username"
+              inputmode="email"
             />
+            <p class="form-hint-inline">须为有效邮箱，或 11 位纯数字中国大陆手机号</p>
           </div>
 
           <div class="form-group">
@@ -279,7 +377,13 @@
 
         <div v-if="!bindCheckPending" class="login-footer">
           <p class="tip">
-            {{ pageMode === 'bind' ? '绑定成功后自动登录商城' : '请使用您的账户密钥进行登录' }}
+            {{
+              pageMode === 'bind'
+                ? '绑定成功后自动登录商城'
+                : loginAccountKind === 'enterprise'
+                  ? '企业账号登录须选择所属企业，并使用与该企业关联的手机号或邮箱及密钥'
+                  : '请使用您的账户密钥进行登录'
+            }}
           </p>
         </div>
       </div>
@@ -308,11 +412,20 @@ function hasBothValidBindQuery() {
 }
 
 const bindPlatformLabelId = 'bind-platform-label'
+const bindCompanyLabelId = 'bind-company-label'
+const loginCompanyLabelId = 'login-company-label'
 const bindPlatformOpen = ref(false)
 const bindPlatformSelectRef = ref(null)
-/** { value: code, label: name }，来自 GET /marketplace/biz_codes */
+const bindCompanySelectOpen = ref(false)
+const bindCompanySelectRef = ref(null)
+const loginCompanySelectOpen = ref(false)
+const loginCompanySelectRef = ref(null)
+/** { value: code, label: name, scope: 0|1 }，来自 GET /marketplace/biz_codes */
 const bindPlatformOptions = ref([])
 const bindPlatformOptionsLoading = ref(true)
+
+const companies = ref([])
+const companiesLoading = ref(false)
 
 const bindForm = reactive({
   biz_code: '',
@@ -320,7 +433,17 @@ const bindForm = reactive({
   tel_no: '',
   email: '',
   password: '',
-  password2: ''
+  password2: '',
+  company_id: 0,
+  company_name: ''
+})
+
+/** 当前选中的 biz_code 是否为企业类（scope===1） */
+const isEnterpriseBiz = computed(() => {
+  const code = String(bindForm.biz_code || '').trim()
+  if (!code) return false
+  const o = bindPlatformOptions.value.find((x) => x.value === code)
+  return !!(o && Number(o.scope) === 1)
 })
 
 const bindPlatformDisplay = computed(() => {
@@ -336,13 +459,22 @@ const bindPlatformTriggerLabel = computed(() => {
   return bindPlatformDisplay.value
 })
 
+const bindCompanyTriggerLabel = computed(() => {
+  if (companiesLoading.value) return '加载企业列表…'
+  const id = Number(bindForm.company_id) || 0
+  if (id <= 0) return '请选择已有企业（可选）'
+  const c = companies.value.find((x) => Number(x.id) === id)
+  return c ? c.name : `企业 #${id}`
+})
+
 async function loadBizCodes() {
   bindPlatformOptionsLoading.value = true
   try {
     const list = await metaApi.listBizCodes()
     bindPlatformOptions.value = (list || []).map(row => ({
       value: row.code,
-      label: row.name
+      label: row.name,
+      scope: row.scope != null ? Number(row.scope) : 0
     }))
   } catch {
     bindPlatformOptions.value = []
@@ -351,27 +483,80 @@ async function loadBizCodes() {
   }
 }
 
+async function loadCompanies() {
+  companiesLoading.value = true
+  try {
+    const list = await metaApi.listCompanies()
+    companies.value = Array.isArray(list) ? list : []
+  } catch {
+    companies.value = []
+  } finally {
+    companiesLoading.value = false
+  }
+}
+
+function resetEnterpriseCompanyFields() {
+  bindForm.company_id = 0
+  bindForm.company_name = ''
+}
+
+/** 企业类：拉取企业列表；从企业切回个人时清空企业字段（避免 biz_codes 未加载时误清空 query 预填） */
+watch(isEnterpriseBiz, (enterprise, prev) => {
+  if (enterprise) {
+    loadCompanies()
+  } else if (prev === true) {
+    resetEnterpriseCompanyFields()
+  }
+})
+
+function toggleBindCompanySelect() {
+  if (companiesLoading.value) return
+  bindPlatformOpen.value = false
+  bindCompanySelectOpen.value = !bindCompanySelectOpen.value
+}
+
+function selectBindCompany(id) {
+  const n = Number(id) || 0
+  bindForm.company_id = n
+  if (n > 0) bindForm.company_name = ''
+  bindCompanySelectOpen.value = false
+}
+
+function onEnterpriseCompanyNameInput() {
+  const t = String(bindForm.company_name || '').trim()
+  if (t) bindForm.company_id = 0
+}
+
 function toggleBindPlatform() {
   if (bindPlatformFromQuery.value) return
   if (bindPlatformOptionsLoading.value) return
   if (!bindPlatformOptions.value.length) return
+  bindCompanySelectOpen.value = false
   bindPlatformOpen.value = !bindPlatformOpen.value
 }
 
 function selectBindPlatform(value) {
   if (bindPlatformFromQuery.value) return
   bindForm.biz_code = value
+  resetEnterpriseCompanyFields()
   bindPlatformOpen.value = false
 }
 
-function onBindDocClick(e) {
-  const el = bindPlatformSelectRef.value
-  if (!el || !bindPlatformOpen.value) return
-  if (!el.contains(e.target)) bindPlatformOpen.value = false
+function onDocClick(e) {
+  const t = e.target
+  const p = bindPlatformSelectRef.value
+  if (p && bindPlatformOpen.value && !p.contains(t)) bindPlatformOpen.value = false
+  const bc = bindCompanySelectRef.value
+  if (bc && bindCompanySelectOpen.value && !bc.contains(t)) bindCompanySelectOpen.value = false
+  const lc = loginCompanySelectRef.value
+  if (lc && loginCompanySelectOpen.value && !lc.contains(t)) loginCompanySelectOpen.value = false
 }
 
-function onBindDocKeydown(e) {
-  if (e.key === 'Escape') bindPlatformOpen.value = false
+function onDocKeydown(e) {
+  if (e.key !== 'Escape') return
+  bindPlatformOpen.value = false
+  bindCompanySelectOpen.value = false
+  loginCompanySelectOpen.value = false
 }
 
 const pageMode = ref('bind')
@@ -379,14 +564,57 @@ const bindCheckPending = ref(hasBothValidBindQuery())
 /** 绑定平台 / 用户 ID 是否来自 URL 预填（预填时禁止修改） */
 const bindPlatformFromQuery = ref(false)
 const bindUserIdFromQuery = ref(false)
-const loginType = ref('email')
+/** 登录：个人账号（默认）或企业账号（须选 company_id） */
+const loginAccountKind = ref('personal')
 const loading = ref(false)
 const errorMsg = ref('')
 
 const formData = reactive({
-  email: '',
-  tel_no: '',
-  secret: ''
+  loginAccount: '',
+  secret: '',
+  company_id: 0
+})
+
+/** 登录账号：常见邮箱形态，或 11 位纯数字手机号 */
+function isLoginEmailFormat(s) {
+  const t = String(s || '').trim()
+  if (!t) return false
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(t)
+}
+
+function isLoginPhoneDigits(s) {
+  const t = String(s || '').trim()
+  return /^\d{11}$/.test(t)
+}
+
+function parseLoginAccountForApi(raw) {
+  const t = String(raw || '').trim()
+  if (isLoginEmailFormat(t)) return { email: t, tel_no: '' }
+  if (isLoginPhoneDigits(t)) return { email: '', tel_no: t }
+  return null
+}
+
+const loginCompanyTriggerLabel = computed(() => {
+  if (companiesLoading.value) return '加载企业列表…'
+  const id = Number(formData.company_id) || 0
+  if (id <= 0) return '请选择所属企业'
+  const c = companies.value.find((x) => Number(x.id) === id)
+  return c ? c.name : `企业 #${id}`
+})
+
+function toggleLoginCompanySelect() {
+  if (companiesLoading.value) return
+  loginCompanySelectOpen.value = !loginCompanySelectOpen.value
+}
+
+function selectLoginCompany(id) {
+  formData.company_id = Number(id) || 0
+  loginCompanySelectOpen.value = false
+}
+
+watch(loginAccountKind, (k, prev) => {
+  if (k === 'enterprise') loadCompanies()
+  else if (prev === 'enterprise') formData.company_id = 0
 })
 
 function syncBindPrefillLocksFromRoute() {
@@ -406,6 +634,18 @@ async function applyQueryAndBindCheck() {
   }
   if (qUid !== undefined && qUid !== null && String(qUid) !== '') {
     bindForm.biz_user_id = String(qUid)
+  }
+  const qComp = route.query.company
+  const qCid = route.query.company_id
+  if (qComp !== undefined && qComp !== null && String(qComp).trim() !== '') {
+    bindForm.company_name = String(qComp).trim()
+  }
+  if (qCid !== undefined && qCid !== null && String(qCid).trim() !== '') {
+    const n = parseInt(String(qCid), 10)
+    if (Number.isFinite(n) && n > 0) {
+      bindForm.company_id = n
+      bindForm.company_name = ''
+    }
   }
   syncBindPrefillLocksFromRoute()
   if (bindPlatformFromQuery.value) {
@@ -433,8 +673,8 @@ async function applyQueryAndBindCheck() {
 }
 
 onMounted(() => {
-  document.addEventListener('click', onBindDocClick)
-  document.addEventListener('keydown', onBindDocKeydown)
+  document.addEventListener('click', onDocClick)
+  document.addEventListener('keydown', onDocKeydown)
   loadBizCodes()
   applyQueryAndBindCheck()
 })
@@ -447,8 +687,8 @@ watch(
 )
 
 onBeforeUnmount(() => {
-  document.removeEventListener('click', onBindDocClick)
-  document.removeEventListener('keydown', onBindDocKeydown)
+  document.removeEventListener('click', onDocClick)
+  document.removeEventListener('keydown', onDocKeydown)
 })
 
 function switchToLogin() {
@@ -493,6 +733,15 @@ async function handleBind() {
     return
   }
 
+  if (isEnterpriseBiz.value) {
+    const cid = Number(bindForm.company_id) || 0
+    const cn = String(bindForm.company_name || '').trim()
+    if (cid <= 0 && !cn) {
+      errorMsg.value = '请选择已有企业或输入新企业名称'
+      return
+    }
+  }
+
   loading.value = true
   try {
     const payload = {
@@ -502,6 +751,12 @@ async function handleBind() {
     }
     if (tel) payload.tel_no = tel
     if (email) payload.email = email
+    if (isEnterpriseBiz.value) {
+      const cid = Number(bindForm.company_id) || 0
+      const cn = String(bindForm.company_name || '').trim()
+      if (cid > 0) payload.company_id = cid
+      else if (cn) payload.company_name = cn
+    }
 
     await userStore.bindAccount(payload)
 
@@ -517,12 +772,21 @@ async function handleBind() {
 async function handleLogin() {
   errorMsg.value = ''
 
-  if (loginType.value === 'email' && !formData.email) {
-    errorMsg.value = '请输入邮箱地址'
+  if (loginAccountKind.value === 'enterprise') {
+    const cid = Number(formData.company_id) || 0
+    if (cid <= 0) {
+      errorMsg.value = '请选择所属企业'
+      return
+    }
+  }
+
+  const accountParsed = parseLoginAccountForApi(formData.loginAccount)
+  if (!String(formData.loginAccount || '').trim()) {
+    errorMsg.value = '请输入邮箱或手机号'
     return
   }
-  if (loginType.value === 'phone' && !formData.tel_no) {
-    errorMsg.value = '请输入手机号码'
+  if (!accountParsed) {
+    errorMsg.value = '格式不正确：请填写有效邮箱，或 11 位纯数字手机号'
     return
   }
   if (!formData.secret) {
@@ -537,10 +801,12 @@ async function handleLogin() {
       secret: formData.secret
     }
 
-    if (loginType.value === 'email') {
-      credentials.email = formData.email
-    } else {
-      credentials.tel_no = formData.tel_no
+    if (accountParsed.email) credentials.email = accountParsed.email
+    if (accountParsed.tel_no) credentials.tel_no = accountParsed.tel_no
+
+    if (loginAccountKind.value === 'enterprise') {
+      credentials.login_kind = 'enterprise'
+      credentials.company_id = Number(formData.company_id) || 0
     }
 
     await userStore.login(credentials)
@@ -652,6 +918,46 @@ async function handleLogin() {
   gap: 14px;
 }
 
+/* 登录页：收紧行距，避免表单过长 */
+.login-form--login {
+  gap: 10px;
+}
+
+.login-form--login .form-group {
+  gap: 4px;
+}
+
+.login-form--login .form-hint-inline {
+  margin: 2px 0 0;
+  line-height: 1.35;
+}
+
+.login-form--login .login-tabs .tab {
+  padding: 7px 12px;
+  font-size: 13px;
+}
+
+.login-form--login .form-input {
+  padding: 10px 14px;
+  border-radius: 8px;
+}
+
+.login-form--login :deep(.pi-input) {
+  padding: 10px 44px 10px 14px;
+  border-radius: 8px;
+}
+
+.login-form--login .error-message {
+  padding: 8px 12px;
+  font-size: 13px;
+}
+
+.login-form--login .login-btn {
+  margin-top: 2px;
+  min-height: 44px;
+  padding: 11px 20px;
+}
+
 .login-bind-check {
   display: flex;
   flex-direction: column;
@@ -680,6 +986,25 @@ async function handleLogin() {
   gap: 10px 14px;
   align-items: start;
   overflow: visible;
+}
+
+.form-group--full-row {
+  grid-column: 1 / -1;
+}
+
+.form-hint-inline {
+  margin: 0 0 6px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: #64748b;
+}
+
+.form-hint-inline--warn {
+  color: #b45309;
+}
+
+.company-name-input {
+  margin-top: 8px;
 }
 
 @media (max-width: 420px) {
