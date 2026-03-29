@@ -99,7 +99,7 @@ const quantity = ref(1)
 const ecoinUnitPrice = ref(0)
 const ordering = ref(false)
 
-const ecoinScopeQuery = computed(() =>
+const skuScopeQuery = computed(() =>
   userStore.isEnterpriseAccount ? 'enterprise' : 'personal'
 )
 
@@ -113,7 +113,7 @@ async function fetchProduct() {
   loading.value = true
   try {
     product.value = await skuApi.detail(route.params.id, {
-      ecoin_scope: ecoinScopeQuery.value
+      sku_scope: skuScopeQuery.value
     })
   } catch (error) {
     console.error('获取商品详情失败:', error)
@@ -173,7 +173,7 @@ watch(() => route.params.id, () => {
   fetchProduct()
 })
 
-watch(ecoinScopeQuery, () => {
+watch(skuScopeQuery, () => {
   fetchProduct()
 })
 

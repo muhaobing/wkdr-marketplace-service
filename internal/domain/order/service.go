@@ -265,14 +265,14 @@ func (s *orderServiceImpl) buildOrder(ctx context.Context, req *CreateOrderReque
 				return nil, nil, fmt.Errorf("sku %d is not available", skuItem.SkuId)
 			}
 
-			if skuInfo.EcoinScope != skumodel.EcoinScopePersonal && skuInfo.EcoinScope != skumodel.EcoinScopeEnterprise {
-				skuInfo.EcoinScope = skumodel.EcoinScopePersonal
+			if skuInfo.SkuScope > skumodel.SkuScopeEnterprise {
+				skuInfo.SkuScope = skumodel.SkuScopeUniversal
 			}
-			if skuInfo.IsEcoinGrantFulfill() && !skuInfo.MatchesUserEcoinAccount(companyId) {
-				if skuInfo.EcoinScope == skumodel.EcoinScopeEnterprise {
-					return nil, nil, errors.New("企业积分包仅限企业账号购买")
+			if !skuInfo.MatchesUserSkuScope(companyId) {
+				if skuInfo.SkuScope == skumodel.SkuScopeEnterprise {
+					return nil, nil, errors.New("本商品仅限企业账号购买")
 				}
-				return nil, nil, errors.New("个人积分包仅限个人账号购买")
+				return nil, nil, errors.New("本商品仅限个人账号购买")
 			}
 
 			if req.PayType == ordermodel.PayTypeEcoin && skuInfo.IsEcoinGrantFulfill() {

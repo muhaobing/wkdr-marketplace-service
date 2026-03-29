@@ -84,7 +84,7 @@ const cartStore = useCartStore()
 const userStore = useUserStore()
 
 /** 与后端 ListSkus 一致：企业账号只看企业积分包，个人只看个人包 */
-const ecoinScopeQuery = computed(() =>
+const skuScopeQuery = computed(() =>
   userStore.isEnterpriseAccount ? 'enterprise' : 'personal'
 )
 
@@ -115,7 +115,7 @@ async function fetchProducts() {
     const res = await skuApi.list({
       biz_code: 'marketplace',
       limit: 100,
-      ecoin_scope: ecoinScopeQuery.value
+      sku_scope: skuScopeQuery.value
     })
     products.value = res?.list || []
   } catch (error) {
@@ -142,7 +142,7 @@ function addToCart(product) {
   toast.success('已加入购物车')
 }
 
-watch(ecoinScopeQuery, () => {
+watch(skuScopeQuery, () => {
   fetchProducts()
 })
 

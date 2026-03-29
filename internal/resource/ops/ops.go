@@ -44,7 +44,7 @@ type CreateSkuRequest struct {
 	FulfillMode        uint8   `json:"fulfill_mode"`                // 履约模式：0-接口回调，1-积分发放
 	FulfillEcoinAmount float64 `json:"fulfill_ecoin_amount"`        // 积分发放：每件发放积分数
 	MultiSelect        uint8   `json:"multi_select"`                // 是否支持多选：0-不支持，1-支持
-	EcoinScope         uint8   `json:"ecoin_scope"`                 // 积分包：0=个人 1=企业，默认 0
+	SkuScope           uint8   `json:"sku_scope"`                   // 可见范围：0=通用 1=仅个人 2=仅企业，默认 0
 }
 
 // CreateSku 创建商品
@@ -67,7 +67,7 @@ func (r *OpsResource) CreateSku(ctx *gin.Context) {
 		FulfillMode:        req.FulfillMode,
 		FulfillEcoinAmount: req.FulfillEcoinAmount,
 		MultiSelect:        req.MultiSelect,
-		EcoinScope:         req.EcoinScope,
+		SkuScope:           req.SkuScope,
 	})
 	if err != nil {
 		http_utils.WriteResponse(ctx, nil, err)
@@ -88,7 +88,7 @@ type EditSkuRequest struct {
 	FulfillMode        uint8   `json:"fulfill_mode"`                // 履约模式：0-接口回调，1-积分发放
 	FulfillEcoinAmount float64 `json:"fulfill_ecoin_amount"`        // 积分发放：每件发放积分数
 	MultiSelect        uint8   `json:"multi_select"`                // 是否支持多选：0-不支持，1-支持
-	EcoinScope         uint8   `json:"ecoin_scope"`                 // 积分包：0=个人 1=企业
+	SkuScope           uint8   `json:"sku_scope"`                   // 可见范围：0=通用 1=仅个人 2=仅企业
 }
 
 // EditSku 编辑商品
@@ -110,7 +110,7 @@ func (r *OpsResource) EditSku(ctx *gin.Context) {
 		FulfillMode:        req.FulfillMode,
 		FulfillEcoinAmount: req.FulfillEcoinAmount,
 		MultiSelect:        req.MultiSelect,
-		EcoinScope:         req.EcoinScope,
+		SkuScope:           req.SkuScope,
 	})
 	if err != nil {
 		http_utils.WriteResponse(ctx, nil, err)
@@ -141,12 +141,12 @@ func (r *OpsResource) GetSkuDetail(ctx *gin.Context) {
 
 // ListSkusRequest 商品列表请求
 type ListSkusRequest struct {
-	BizCode    string `form:"biz_code"`    // 业务编码（可选）
-	SkuName    string `form:"sku_name"`    // 商品名称（模糊查询，可选）
-	Status     *uint8 `form:"status"`      // 上架状态过滤（可选）
-	EcoinScope string `form:"ecoin_scope"` // 空=全部；0=个人；1=企业
-	Offset     int    `form:"offset"`      // 偏移量
-	Limit      int    `form:"limit"`       // 每页数量
+	BizCode  string `form:"biz_code"`  // 业务编码（可选）
+	SkuName  string `form:"sku_name"`  // 商品名称（模糊查询，可选）
+	Status   *uint8 `form:"status"`    // 上架状态过滤（可选）
+	SkuScope string `form:"sku_scope"` // 空=全部；0=通用；1=仅个人；2=仅企业
+	Offset   int    `form:"offset"`    // 偏移量
+	Limit    int    `form:"limit"`     // 每页数量
 }
 
 // ListSkus 获取商品列表（支持多条件组合查询）
@@ -158,25 +158,28 @@ func (r *OpsResource) ListSkus(ctx *gin.Context) {
 		return
 	}
 
-	var ecoinScopePtr *uint8
-	if s := strings.TrimSpace(req.EcoinScope); s != "" {
+	var skuScopePtr *uint8
+	if s := strings.TrimSpace(req.SkuScope); s != "" {
 		switch s {
 		case "0":
-			v := skumodel.EcoinScopePersonal
-			ecoinScopePtr = &v
+			v := skumodel.SkuScopeUniversal
+			skuScopePtr = &v
 		case "1":
-			v := skumodel.EcoinScopeEnterprise
-			ecoinScopePtr = &v
+			v := skumodel.SkuScopePersonal
+			skuScopePtr = &v
+		case "2":
+			v := skumodel.SkuScopeEnterprise
+			skuScopePtr = &v
 		}
 	}
 
 	resp, err := r.skuService.ListSkus(ctx.Request.Context(), &sku.ListSkuRequest{
-		BizCode:    req.BizCode,
-		SkuName:    req.SkuName,
-		Status:     req.Status,
-		EcoinScope: ecoinScopePtr,
-		Offset:     req.Offset,
-		Limit:      req.Limit,
+		BizCode:  req.BizCode,
+		SkuName:  req.SkuName,
+		Status:   req.Status,
+		SkuScope: skuScopePtr,
+		Offset:   req.Offset,
+		Limit:    req.Limit,
 	})
 	if err != nil {
 		http_utils.WriteResponse(ctx, nil, err)

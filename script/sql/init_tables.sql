@@ -209,7 +209,7 @@ CREATE TABLE `sku_tab` (
     `fulfill_mode` TINYINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '履约模式: 0-接口回调, 1-积分发放',
     `fulfill_ecoin_amount` DECIMAL(16,2) NOT NULL DEFAULT 0.00 COMMENT '积分发放模式下每件发放的积分数',
     `multi_select` TINYINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '是否支持多选下单: 0-不支持, 1-支持',
-    `ecoin_scope` TINYINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '积分包: 0-个人 1-企业',
+    `sku_scope` TINYINT UNSIGNED NOT NULL DEFAULT 0 COMMENT 'SKU可见范围: 0-通用 1-仅个人 2-仅企业',
     `ctime` INT UNSIGNED NOT NULL DEFAULT 0 COMMENT '创建时间戳',
     `mtime` INT UNSIGNED NOT NULL DEFAULT 0 COMMENT '更新时间戳',
     PRIMARY KEY (`id`),

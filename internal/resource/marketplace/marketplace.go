@@ -65,11 +65,11 @@ func NewMarketplaceResource(
 
 // ListSkusRequest 商品列表请求
 type ListSkusRequest struct {
-	BizCode    string `form:"biz_code"`    // 业务域（可选）
-	SkuName    string `form:"sku_name"`    // 商品名称（模糊查询，可选）
-	Offset     int    `form:"offset"`      // 偏移量
-	Limit      int    `form:"limit"`       // 每页数量
-	EcoinScope string `form:"ecoin_scope"` // personal=个人积分包 enterprise=企业积分包，缺省 personal
+	BizCode  string `form:"biz_code"`  // 业务域（可选）
+	SkuName  string `form:"sku_name"`  // 商品名称（模糊查询，可选）
+	Offset   int    `form:"offset"`    // 偏移量
+	Limit    int    `form:"limit"`     // 每页数量
+	SkuScope string `form:"sku_scope"` // personal|enterprise：按访客过滤 sku_scope（全部商品），缺省 personal
 }
 
 // ListSkus 获取商品列表（仅上架商品，支持商品名模糊查询）
@@ -83,24 +83,16 @@ func (r *MarketplaceResource) ListSkus(ctx *gin.Context) {
 
 	// 只查询已上架的商品
 	onlineStatus := skumodel.SkuStatusOnline
-	scope := strings.TrimSpace(strings.ToLower(req.EcoinScope))
-	var scopeVal uint8
-	switch scope {
-	case "enterprise":
-		scopeVal = skumodel.EcoinScopeEnterprise
-	default:
-		scopeVal = skumodel.EcoinScopePersonal
-	}
-	scopePtr := &scopeVal
+	visitorEnterprise := strings.TrimSpace(strings.ToLower(req.SkuScope)) == "enterprise"
 
 	resp, err := r.skuService.ListSkus(ctx.Request.Context(), &sku.ListSkuRequest{
-		BizCode:                 req.BizCode,
-		SkuName:                 req.SkuName,
-		Status:                  &onlineStatus,
-		EcoinScope:              scopePtr,
-		RelaxedEcoinScopeFilter: true,
-		Offset:                  req.Offset,
-		Limit:                   req.Limit,
+		BizCode:                        req.BizCode,
+		SkuName:                        req.SkuName,
+		Status:                         &onlineStatus,
+		MarketplaceSkuScopeFilter:      true,
+		MarketplaceVisitorIsEnterprise: visitorEnterprise,
+		Offset:                         req.Offset,
+		Limit:                          req.Limit,
 	})
 	if err != nil {
 		http_utils.WriteResponse(ctx, nil, err)
@@ -132,16 +124,8 @@ func (r *MarketplaceResource) GetSkuDetail(ctx *gin.Context) {
 		return
 	}
 
-	// 积分包 SKU：按与列表一致的 ecoin_scope 过滤，避免直链看到不可购商品
-	scope := strings.TrimSpace(strings.ToLower(ctx.Query("ecoin_scope")))
-	var wantScope uint8
-	switch scope {
-	case "enterprise":
-		wantScope = skumodel.EcoinScopeEnterprise
-	default:
-		wantScope = skumodel.EcoinScopePersonal
-	}
-	if skuInfo.IsEcoinGrantFulfill() && skuInfo.EcoinScope != wantScope {
+	visitorEnterprise := strings.TrimSpace(strings.ToLower(ctx.Query("sku_scope"))) == "enterprise"
+	if !skumodel.SkuVisibleToMarketplaceVisitor(skuInfo.SkuScope, visitorEnterprise) {
 		http_utils.WriteResponse(ctx, nil, nil)
 		return
 	}

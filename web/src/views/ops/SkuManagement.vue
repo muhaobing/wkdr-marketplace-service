@@ -42,10 +42,10 @@
           />
         </div>
         <div class="filter-item">
-          <label>积分包</label>
+          <label>可见范围</label>
           <OpsSelect
-            v-model="filters.ecoin_scope"
-            :options="ecoinScopeFilterOptions"
+            v-model="filters.sku_scope"
+            :options="skuScopeFilterOptions"
             variant="filter"
           />
         </div>
@@ -77,7 +77,7 @@
             <th>业务域</th>
             <th>价格</th>
             <th>多选</th>
-            <th>积分包</th>
+            <th>可见范围</th>
             <th>履约</th>
             <th>状态</th>
             <th>创建时间</th>
@@ -106,9 +106,7 @@
               </span>
             </td>
             <td>
-              <span :class="Number(sku.ecoin_scope) === 1 ? 'badge-info' : 'badge-default'">
-                {{ Number(sku.ecoin_scope) === 1 ? '企业' : '个人' }}
-              </span>
+              <span :class="skuScopeRowBadgeClass(sku.sku_scope)">{{ skuScopeLabel(sku.sku_scope) }}</span>
             </td>
             <td>
               <span v-if="Number(sku.fulfill_mode ?? 0) === 1" class="badge-info">积分 {{ sku.fulfill_ecoin_amount ?? 0 }}/件</span>
@@ -314,14 +312,14 @@
             >
           </div>
 
-          <div v-if="fulfillModeNum === 1" class="form-group">
-            <label>积分包归属 <span class="required">*</span></label>
+          <div class="form-group">
+            <label>SKU 可见范围 <span class="required">*</span></label>
             <OpsSelect
-              v-model="formData.ecoin_scope"
-              :options="ecoinScopeFormOptions"
+              v-model="formData.sku_scope"
+              :options="skuScopeFormOptions"
               variant="form"
             />
-            <p class="form-hint">个人账号仅可购个人包；企业账号仅可购企业包</p>
+            <p class="form-hint">0 通用；1 仅个人账号；2 仅企业账号。商城列表与下单对全部商品生效。</p>
           </div>
         </div>
         
@@ -353,16 +351,32 @@ const fulfillModeOptions = [
   { value: 1, label: '积分发放' }
 ]
 
-const ecoinScopeFilterOptions = [
+const skuScopeFilterOptions = [
   { value: '', label: '全部' },
-  { value: '0', label: '个人' },
-  { value: '1', label: '企业' }
+  { value: '0', label: '通用' },
+  { value: '1', label: '仅个人' },
+  { value: '2', label: '仅企业' }
 ]
 
-const ecoinScopeFormOptions = [
-  { value: 0, label: '个人积分包' },
-  { value: 1, label: '企业积分包' }
+const skuScopeFormOptions = [
+  { value: 0, label: '通用（个人与企业）' },
+  { value: 1, label: '仅个人账号' },
+  { value: 2, label: '仅企业账号' }
 ]
+
+function skuScopeLabel(v) {
+  const n = Number(v)
+  if (n === 1) return '仅个人'
+  if (n === 2) return '仅企业'
+  return '通用'
+}
+
+function skuScopeRowBadgeClass(v) {
+  const n = Number(v)
+  if (n === 1) return 'badge-info'
+  if (n === 2) return 'badge-success'
+  return 'badge-default'
+}
 import { toast, confirm } from '../../utils/toast'
 
 // 列表数据
@@ -377,7 +391,7 @@ const filters = reactive({
   sku_name: '',
   biz_code: '',
   status: '',
-  ecoin_scope: ''
+  sku_scope: ''
 })
 
 // 弹窗相关
@@ -397,7 +411,7 @@ const formData = reactive({
   delivery_method: '',
   fulfill_ecoin_amount: null,
   multi_select: 0,
-  ecoin_scope: 0
+  sku_scope: 0
 })
 
 const MAX_IMAGE_WIDTH = 800
@@ -482,7 +496,7 @@ async function fetchSkuList() {
     if (filters.sku_name) params.sku_name = filters.sku_name
     if (filters.biz_code) params.biz_code = filters.biz_code
     if (filters.status !== '') params.status = parseInt(filters.status)
-    if (filters.ecoin_scope !== '') params.ecoin_scope = filters.ecoin_scope
+    if (filters.sku_scope !== '') params.sku_scope = filters.sku_scope
 
     const res = await opsSkuApi.list(params)
     skuList.value = res?.list || []
@@ -508,7 +522,7 @@ function handleReset() {
   filters.sku_name = ''
   filters.biz_code = ''
   filters.status = ''
-  filters.ecoin_scope = ''
+  filters.sku_scope = ''
   currentPage.value = 1
   fetchSkuList()
 }
@@ -541,7 +555,8 @@ function openEditModal(sku) {
   formData.delivery_method = sku.delivery_method || ''
   formData.fulfill_ecoin_amount = sku.fulfill_ecoin_amount ?? null
   formData.multi_select = sku.multi_select || 0
-  formData.ecoin_scope = Number(sku.ecoin_scope) === 1 ? 1 : 0
+  const s = Number(sku.sku_scope)
+  formData.sku_scope = s >= 0 && s <= 2 ? s : 0
   showModal.value = true
 }
 
@@ -563,7 +578,7 @@ function resetFormData() {
   formData.delivery_method = ''
   formData.fulfill_ecoin_amount = null
   formData.multi_select = 0
-  formData.ecoin_scope = 0
+  formData.sku_scope = 0
 }
 
 // 提交表单
@@ -596,7 +611,8 @@ async function handleSubmit() {
 
   submitting.value = true
   try {
-    const ecoinScopeVal = mode === 1 ? (Number(formData.ecoin_scope) === 1 ? 1 : 0) : 0
+    const rawScope = Number(formData.sku_scope)
+    const skuScopeVal = rawScope >= 0 && rawScope <= 2 ? rawScope : 0
 
     const data = {
       sku_code: formData.sku_code,
@@ -609,7 +625,7 @@ async function handleSubmit() {
       delivery_method: mode === 0 ? String(formData.delivery_method || '').trim() : '',
       fulfill_ecoin_amount: mode === 1 ? Number(formData.fulfill_ecoin_amount) : 0,
       multi_select: formData.multi_select,
-      ecoin_scope: ecoinScopeVal
+      sku_scope: skuScopeVal
     }
 
     if (isEditing.value) {

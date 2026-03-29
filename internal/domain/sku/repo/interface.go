@@ -8,14 +8,16 @@ import (
 
 // SkuListFilter 商品列表查询条件
 type SkuListFilter struct {
-	BizCode    string // 业务编码（可选）
-	SkuName    string // 商品名称（模糊查询，可选）
-	Status     *uint8 // 上架状态（可选）
-	EcoinScope *uint8 // 积分包类型：0 个人 1 企业（nil 表示不按此项过滤）
-	// RelaxedEcoinScopeFilter 为 true 时：仅对「积分发放」类 SKU 按 ecoin_scope 过滤，其余 SKU 始终展示（商城 C 端）；为 false 时按列精确匹配（运营后台）
-	RelaxedEcoinScopeFilter bool
-	Offset                  int // 偏移量
-	Limit                   int // 每页数量
+	BizCode  string // 业务编码（可选）
+	SkuName  string // 商品名称（模糊查询，可选）
+	Status   *uint8 // 上架状态（可选）
+	SkuScope *uint8 // 运营精确筛选：sku_scope 0/1/2（nil 不按此项过滤）
+	// MarketplaceSkuScopeFilter 为 true 时：按访客过滤 sku_scope（个人访客 0+1，企业访客 0+2），对所有商品生效（商城 C 端）
+	MarketplaceSkuScopeFilter bool
+	// MarketplaceVisitorIsEnterprise 与 MarketplaceSkuScopeFilter 联用：true=企业访客
+	MarketplaceVisitorIsEnterprise bool
+	Offset                         int // 偏移量
+	Limit                          int // 每页数量
 }
 
 // SkuRepo SKU仓储接口

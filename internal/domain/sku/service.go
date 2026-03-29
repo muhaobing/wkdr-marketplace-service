@@ -64,9 +64,9 @@ func (s *skuServiceImpl) CreateSku(ctx context.Context, req *CreateSkuRequest) (
 		return nil, err
 	}
 
-	scope := req.EcoinScope
-	if scope != skumodel.EcoinScopePersonal && scope != skumodel.EcoinScopeEnterprise {
-		scope = skumodel.EcoinScopePersonal
+	scope := req.SkuScope
+	if scope > skumodel.SkuScopeEnterprise {
+		scope = skumodel.SkuScopeUniversal
 	}
 
 	// 创建商品
@@ -82,7 +82,7 @@ func (s *skuServiceImpl) CreateSku(ctx context.Context, req *CreateSkuRequest) (
 		FulfillMode:        req.FulfillMode,
 		FulfillEcoinAmount: req.FulfillEcoinAmount,
 		MultiSelect:        req.MultiSelect,
-		EcoinScope:         scope,
+		SkuScope:           scope,
 	}
 
 	if err := s.skuRepo.CreateSku(ctx, sku); err != nil {
@@ -170,8 +170,8 @@ func (s *skuServiceImpl) EditSku(ctx context.Context, req *EditSkuRequest) (*sku
 	sku.FulfillMode = req.FulfillMode
 	sku.FulfillEcoinAmount = req.FulfillEcoinAmount
 	sku.MultiSelect = req.MultiSelect
-	if req.EcoinScope == skumodel.EcoinScopePersonal || req.EcoinScope == skumodel.EcoinScopeEnterprise {
-		sku.EcoinScope = req.EcoinScope
+	if req.SkuScope <= skumodel.SkuScopeEnterprise {
+		sku.SkuScope = req.SkuScope
 	}
 
 	if err := s.skuRepo.UpdateSku(ctx, sku); err != nil {
@@ -257,13 +257,14 @@ func (s *skuServiceImpl) ListSkus(ctx context.Context, req *ListSkuRequest) (*Li
 
 	// 构建查询条件
 	filter := &repo.SkuListFilter{
-		BizCode:                 req.BizCode,
-		SkuName:                 req.SkuName,
-		Status:                  req.Status,
-		EcoinScope:              req.EcoinScope,
-		RelaxedEcoinScopeFilter: req.RelaxedEcoinScopeFilter,
-		Offset:                  req.Offset,
-		Limit:                   req.Limit,
+		BizCode:                        req.BizCode,
+		SkuName:                        req.SkuName,
+		Status:                         req.Status,
+		SkuScope:                       req.SkuScope,
+		MarketplaceSkuScopeFilter:      req.MarketplaceSkuScopeFilter,
+		MarketplaceVisitorIsEnterprise: req.MarketplaceVisitorIsEnterprise,
+		Offset:                         req.Offset,
+		Limit:                          req.Limit,
 	}
 
 	// 获取商品列表

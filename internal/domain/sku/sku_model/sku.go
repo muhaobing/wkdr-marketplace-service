@@ -15,10 +15,12 @@ const (
 	// FulfillModeEcoinGrant 履约模式：积分发放
 	FulfillModeEcoinGrant uint8 = 1
 
-	// EcoinScopePersonal 个人积分包（仅个人账号可购买）
-	EcoinScopePersonal uint8 = 0
-	// EcoinScopeEnterprise 企业积分包（仅企业账号可购买）
-	EcoinScopeEnterprise uint8 = 1
+	// SkuScopeUniversal 通用 SKU（个人、企业账号均可见可购，company_id 任意）
+	SkuScopeUniversal uint8 = 0
+	// SkuScopePersonal 仅个人账号（company_id=0）
+	SkuScopePersonal uint8 = 1
+	// SkuScopeEnterprise 仅企业账号（company_id>0）
+	SkuScopeEnterprise uint8 = 2
 )
 
 type Sku struct {
@@ -34,7 +36,7 @@ type Sku struct {
 	FulfillMode        uint8   `gorm:"column:fulfill_mode" json:"fulfill_mode"`                 // FulfillMode 履约模式：0-接口回调，1-积分发放
 	FulfillEcoinAmount float64 `gorm:"column:fulfill_ecoin_amount" json:"fulfill_ecoin_amount"` // FulfillEcoinAmount 积分发放模式下每件商品发放的积分数（×下单数量）
 	MultiSelect        uint8   `gorm:"column:multi_select" json:"multi_select"`                 // MultiSelect 是否支持多选下单。0-不支持，1-支持
-	EcoinScope         uint8   `gorm:"column:ecoin_scope" json:"ecoin_scope"`                   // 积分包归属：0-个人 1-企业
+	SkuScope           uint8   `gorm:"column:sku_scope" json:"sku_scope"`                       // 可见范围：0-通用 1-仅个人 2-仅企业
 	Ctime              uint32  `gorm:"column:ctime;autoCreateTime" json:"ctime"`
 	Mtime              uint32  `gorm:"column:mtime;autoUpdateTime" json:"mtime"`
 }
@@ -67,13 +69,33 @@ func (s *Sku) IsOffline() bool {
 	return s.SkuStatus == SkuStatusOffline
 }
 
-// MatchesUserEcoinAccount 当前 SKU 是否允许该商城用户购买（company_id=0 为个人）
-func (s *Sku) MatchesUserEcoinAccount(companyId uint64) bool {
+// MatchesUserSkuScope 当前 SKU 是否允许该商城用户购买（company_id=0 为个人）
+func (s *Sku) MatchesUserSkuScope(companyId uint64) bool {
 	if s == nil {
 		return false
 	}
-	if s.EcoinScope == EcoinScopeEnterprise {
+	switch s.SkuScope {
+	case SkuScopeUniversal:
+		return true
+	case SkuScopePersonal:
+		return companyId == 0
+	case SkuScopeEnterprise:
 		return companyId > 0
+	default:
+		return true
 	}
-	return companyId == 0
+}
+
+// SkuVisibleToMarketplaceVisitor 商品是否对当前访客（个人/企业）展示，与列表 sku_scope 筛选一致
+func SkuVisibleToMarketplaceVisitor(skuScope uint8, visitorIsEnterprise bool) bool {
+	switch skuScope {
+	case SkuScopeUniversal:
+		return true
+	case SkuScopePersonal:
+		return !visitorIsEnterprise
+	case SkuScopeEnterprise:
+		return visitorIsEnterprise
+	default:
+		return true
+	}
 }

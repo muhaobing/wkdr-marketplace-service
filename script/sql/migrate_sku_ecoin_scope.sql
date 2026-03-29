@@ -1,5 +1,5 @@
--- 积分商品归属：0=个人积分包 1=企业积分包；已有数据默认 0（个人）
+-- 新库：直接增加 sku_scope（若曾用旧脚本建过 ecoin_scope，请改跑 migrate_rename_ecoin_scope_to_sku_scope.sql）
 ALTER TABLE `sku_tab`
-  ADD COLUMN `ecoin_scope` TINYINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '积分包：0=个人 1=企业' AFTER `multi_select`;
+  ADD COLUMN `sku_scope` TINYINT UNSIGNED NOT NULL DEFAULT 0 COMMENT 'SKU可见范围：0=通用 1=仅个人 2=仅企业' AFTER `multi_select`;
 
-UPDATE `sku_tab` SET `ecoin_scope` = 0 WHERE `ecoin_scope` > 1;
+UPDATE `sku_tab` SET `sku_scope` = 0 WHERE `sku_scope` > 2;
