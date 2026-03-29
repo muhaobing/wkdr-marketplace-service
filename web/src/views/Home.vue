@@ -83,11 +83,6 @@ const router = useRouter()
 const cartStore = useCartStore()
 const userStore = useUserStore()
 
-/** 与后端 ListSkus 一致：企业账号只看企业积分包，个人只看个人包 */
-const skuScopeQuery = computed(() =>
-  userStore.isEnterpriseAccount ? 'enterprise' : 'personal'
-)
-
 const products = ref([])
 const loading = ref(false)
 const searchQuery = ref('')
@@ -114,8 +109,7 @@ async function fetchProducts() {
   try {
     const res = await skuApi.list({
       biz_code: 'marketplace',
-      limit: 100,
-      sku_scope: skuScopeQuery.value
+      limit: 100
     })
     products.value = res?.list || []
   } catch (error) {
@@ -142,9 +136,11 @@ function addToCart(product) {
   toast.success('已加入购物车')
 }
 
-watch(skuScopeQuery, () => {
-  fetchProducts()
-})
+// 登录/切换企业或个人后 session 变化，需重拉列表（后端按 company_id 筛 sku_scope）
+watch(
+  () => userStore.isEnterpriseAccount,
+  () => fetchProducts()
+)
 
 onMounted(async () => {
   fetchProducts()

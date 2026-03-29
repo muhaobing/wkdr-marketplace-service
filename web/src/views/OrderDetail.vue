@@ -278,11 +278,10 @@ async function filterOutEcoinForGrantSkus(methods) {
   const list = Array.isArray(methods) ? [...methods] : []
   const items = order.value?.items
   if (!items?.length) return list
-  const scope = userStore.isEnterpriseAccount ? 'enterprise' : 'personal'
   const ids = [...new Set(items.map(i => i.sku_id).filter(id => id > 0))]
   for (const id of ids) {
     try {
-      const sku = await skuApi.detail(id, { sku_scope: scope })
+      const sku = await skuApi.detail(id)
       if (isEcoinGrantSku(sku)) {
         return list.filter(m => m.channel !== 'ecoin')
       }

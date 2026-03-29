@@ -107,11 +107,12 @@ func (r *skuRepoImpl) buildSkuListQuery(ctx context.Context, filter *SkuListFilt
 	}
 
 	if filter.MarketplaceSkuScopeFilter {
-		var inScopes []uint8
+		// 必须用 []uint64/[]int 等，勿用 []uint8：与 []byte 同型，GORM 会按二进制绑定导致 SQL 语法错误
+		var inScopes []uint64
 		if filter.MarketplaceVisitorIsEnterprise {
-			inScopes = []uint8{skumodel.SkuScopeUniversal, skumodel.SkuScopeEnterprise}
+			inScopes = []uint64{uint64(skumodel.SkuScopeUniversal), uint64(skumodel.SkuScopeEnterprise)}
 		} else {
-			inScopes = []uint8{skumodel.SkuScopeUniversal, skumodel.SkuScopePersonal}
+			inScopes = []uint64{uint64(skumodel.SkuScopeUniversal), uint64(skumodel.SkuScopePersonal)}
 		}
 		query = query.Where("sku_scope IN ?", inScopes)
 	} else if filter.SkuScope != nil {

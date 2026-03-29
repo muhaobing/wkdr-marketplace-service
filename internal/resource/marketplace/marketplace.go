@@ -65,15 +65,15 @@ func NewMarketplaceResource(
 
 // ListSkusRequest 商品列表请求
 type ListSkusRequest struct {
-	BizCode  string `form:"biz_code"`  // 业务域（可选）
-	SkuName  string `form:"sku_name"`  // 商品名称（模糊查询，可选）
-	Offset   int    `form:"offset"`    // 偏移量
-	Limit    int    `form:"limit"`     // 每页数量
-	SkuScope string `form:"sku_scope"` // personal|enterprise：按访客过滤 sku_scope（全部商品），缺省 personal
+	BizCode string `form:"biz_code"` // 业务域（可选）
+	SkuName string `form:"sku_name"` // 商品名称（模糊查询，可选）
+	Offset  int    `form:"offset"`   // 偏移量
+	Limit   int    `form:"limit"`    // 每页数量
 }
 
 // ListSkus 获取商品列表（仅上架商品，支持商品名模糊查询）
 // GET /marketplace/skus
+// sku_scope 筛选由服务端根据 session 中用户 company_id（0=个人访客，>0=企业访客）决定，不接受前端传参。
 func (r *MarketplaceResource) ListSkus(ctx *gin.Context) {
 	var req ListSkusRequest
 	if err := ctx.ShouldBindQuery(&req); err != nil {
@@ -81,9 +81,15 @@ func (r *MarketplaceResource) ListSkus(ctx *gin.Context) {
 		return
 	}
 
+	u, err := auth_utils.UserFromGinContext(ctx)
+	if err != nil {
+		http_utils.WriteResponse(ctx, nil, err)
+		return
+	}
+	visitorEnterprise := u.CompanyId > 0
+
 	// 只查询已上架的商品
 	onlineStatus := skumodel.SkuStatusOnline
-	visitorEnterprise := strings.TrimSpace(strings.ToLower(req.SkuScope)) == "enterprise"
 
 	resp, err := r.skuService.ListSkus(ctx.Request.Context(), &sku.ListSkuRequest{
 		BizCode:                        req.BizCode,
@@ -104,6 +110,7 @@ func (r *MarketplaceResource) ListSkus(ctx *gin.Context) {
 
 // GetSkuDetail 获取商品详情
 // GET /marketplace/skus/:id
+// 是否可见由服务端根据 session 中 company_id 与 sku_scope 判定，不接受 sku_scope 查询参数。
 func (r *MarketplaceResource) GetSkuDetail(ctx *gin.Context) {
 	idStr := ctx.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 64)
@@ -124,7 +131,12 @@ func (r *MarketplaceResource) GetSkuDetail(ctx *gin.Context) {
 		return
 	}
 
-	visitorEnterprise := strings.TrimSpace(strings.ToLower(ctx.Query("sku_scope"))) == "enterprise"
+	u, err := auth_utils.UserFromGinContext(ctx)
+	if err != nil {
+		http_utils.WriteResponse(ctx, nil, err)
+		return
+	}
+	visitorEnterprise := u.CompanyId > 0
 	if !skumodel.SkuVisibleToMarketplaceVisitor(skuInfo.SkuScope, visitorEnterprise) {
 		http_utils.WriteResponse(ctx, nil, nil)
 		return

@@ -80,7 +80,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { skuApi, orderApi, ecoinApi } from '../api'
 import { useCartStore } from '../stores/cart'
@@ -99,10 +99,6 @@ const quantity = ref(1)
 const ecoinUnitPrice = ref(0)
 const ordering = ref(false)
 
-const skuScopeQuery = computed(() =>
-  userStore.isEnterpriseAccount ? 'enterprise' : 'personal'
-)
-
 function toEcoin(cost) {
   if (!ecoinUnitPrice.value || ecoinUnitPrice.value <= 0) return '--'
   return (cost / ecoinUnitPrice.value).toFixed(2)
@@ -112,9 +108,7 @@ function toEcoin(cost) {
 async function fetchProduct() {
   loading.value = true
   try {
-    product.value = await skuApi.detail(route.params.id, {
-      sku_scope: skuScopeQuery.value
-    })
+    product.value = await skuApi.detail(route.params.id)
   } catch (error) {
     console.error('获取商品详情失败:', error)
     // Mock 数据
@@ -173,9 +167,10 @@ watch(() => route.params.id, () => {
   fetchProduct()
 })
 
-watch(skuScopeQuery, () => {
-  fetchProduct()
-})
+watch(
+  () => userStore.isEnterpriseAccount,
+  () => fetchProduct()
+)
 
 onMounted(async () => {
   fetchProduct()

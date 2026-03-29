@@ -148,7 +148,7 @@ export const skuApi = {
   list(params) {
     return api.get('/skus', { params })
   },
-  // 获取商品详情（sku_scope: personal | enterprise 访客类型，与列表一致；全部商品按 sku_scope 校验）
+  // 详情可见性由服务端按 session 与 sku_scope 判定；params 一般无需传
   detail(id, params = {}) {
     return api.get(`/skus/${id}`, { params })
   }
