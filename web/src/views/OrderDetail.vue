@@ -35,7 +35,7 @@
               <line x1="9" y1="9" x2="15" y2="15"/>
             </svg>
           </div>
-          <div class="status-info">
+          <div class="status-text">
             <h2>{{ getStatusText(order.status) }}</h2>
             <p v-if="order.status === 0" class="countdown-text">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="countdown-icon">
@@ -501,27 +501,28 @@ onBeforeUnmount(() => {
   height: 28px;
 }
 
-.status-warning {
+/* 状态色只加在左侧图标上，勿与文案区 class 混用，否则整段标题会铺满浅色底 */
+.status-icon.status-warning {
   background: linear-gradient(135deg, #fef3c7, #fde68a);
   color: #b45309;
 }
 
-.status-info {
+.status-icon.status-info {
   background: linear-gradient(135deg, #dbeafe, #bfdbfe);
   color: #1d4ed8;
 }
 
-.status-success {
+.status-icon.status-success {
   background: linear-gradient(135deg, #d1fae5, #a7f3d0);
   color: #047857;
 }
 
-.status-danger {
+.status-icon.status-danger {
   background: linear-gradient(135deg, #fee2e2, #fecaca);
   color: #b91c1c;
 }
 
-.status-info h2 {
+.status-text h2 {
   font-size: 20px;
   font-weight: 700;
   color: var(--gray-800);
@@ -529,7 +530,7 @@ onBeforeUnmount(() => {
   letter-spacing: -0.01em;
 }
 
-.status-info p {
+.status-text p {
   font-size: 14px;
   color: var(--gray-500);
 }
