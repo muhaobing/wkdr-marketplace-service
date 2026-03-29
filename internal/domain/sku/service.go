@@ -64,6 +64,11 @@ func (s *skuServiceImpl) CreateSku(ctx context.Context, req *CreateSkuRequest) (
 		return nil, err
 	}
 
+	scope := req.EcoinScope
+	if scope != skumodel.EcoinScopePersonal && scope != skumodel.EcoinScopeEnterprise {
+		scope = skumodel.EcoinScopePersonal
+	}
+
 	// 创建商品
 	sku := &skumodel.Sku{
 		BizCode:            req.BizCode,
@@ -77,6 +82,7 @@ func (s *skuServiceImpl) CreateSku(ctx context.Context, req *CreateSkuRequest) (
 		FulfillMode:        req.FulfillMode,
 		FulfillEcoinAmount: req.FulfillEcoinAmount,
 		MultiSelect:        req.MultiSelect,
+		EcoinScope:         scope,
 	}
 
 	if err := s.skuRepo.CreateSku(ctx, sku); err != nil {
@@ -164,6 +170,9 @@ func (s *skuServiceImpl) EditSku(ctx context.Context, req *EditSkuRequest) (*sku
 	sku.FulfillMode = req.FulfillMode
 	sku.FulfillEcoinAmount = req.FulfillEcoinAmount
 	sku.MultiSelect = req.MultiSelect
+	if req.EcoinScope == skumodel.EcoinScopePersonal || req.EcoinScope == skumodel.EcoinScopeEnterprise {
+		sku.EcoinScope = req.EcoinScope
+	}
 
 	if err := s.skuRepo.UpdateSku(ctx, sku); err != nil {
 		return nil, fmt.Errorf("failed to update sku: %w", err)
@@ -248,11 +257,13 @@ func (s *skuServiceImpl) ListSkus(ctx context.Context, req *ListSkuRequest) (*Li
 
 	// 构建查询条件
 	filter := &repo.SkuListFilter{
-		BizCode: req.BizCode,
-		SkuName: req.SkuName,
-		Status:  req.Status,
-		Offset:  req.Offset,
-		Limit:   req.Limit,
+		BizCode:                 req.BizCode,
+		SkuName:                 req.SkuName,
+		Status:                  req.Status,
+		EcoinScope:              req.EcoinScope,
+		RelaxedEcoinScopeFilter: req.RelaxedEcoinScopeFilter,
+		Offset:                  req.Offset,
+		Limit:                   req.Limit,
 	}
 
 	// 获取商品列表

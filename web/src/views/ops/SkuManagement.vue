@@ -41,6 +41,14 @@
             variant="filter"
           />
         </div>
+        <div class="filter-item">
+          <label>积分包</label>
+          <OpsSelect
+            v-model="filters.ecoin_scope"
+            :options="ecoinScopeFilterOptions"
+            variant="filter"
+          />
+        </div>
         <div class="filter-actions">
           <button class="btn btn-primary" @click="handleSearch">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -69,6 +77,7 @@
             <th>业务域</th>
             <th>价格</th>
             <th>多选</th>
+            <th>积分包</th>
             <th>履约</th>
             <th>状态</th>
             <th>创建时间</th>
@@ -77,7 +86,7 @@
         </thead>
         <tbody>
           <tr v-if="skuList.length === 0">
-            <td colspan="10" class="empty-row">暂无数据</td>
+            <td colspan="11" class="empty-row">暂无数据</td>
           </tr>
           <tr v-for="sku in skuList" :key="sku.id">
             <td>{{ sku.id }}</td>
@@ -94,6 +103,11 @@
             <td>
               <span :class="sku.multi_select === 1 ? 'badge-success' : 'badge-default'">
                 {{ sku.multi_select === 1 ? '支持' : '不支持' }}
+              </span>
+            </td>
+            <td>
+              <span :class="Number(sku.ecoin_scope) === 1 ? 'badge-info' : 'badge-default'">
+                {{ Number(sku.ecoin_scope) === 1 ? '企业' : '个人' }}
               </span>
             </td>
             <td>
@@ -299,6 +313,16 @@
               step="0.01"
             >
           </div>
+
+          <div v-if="fulfillModeNum === 1" class="form-group">
+            <label>积分包归属 <span class="required">*</span></label>
+            <OpsSelect
+              v-model="formData.ecoin_scope"
+              :options="ecoinScopeFormOptions"
+              variant="form"
+            />
+            <p class="form-hint">个人账号仅可购个人包；企业账号仅可购企业包</p>
+          </div>
         </div>
         
         <div class="modal-footer">
@@ -328,6 +352,17 @@ const fulfillModeOptions = [
   { value: 0, label: '接口回调' },
   { value: 1, label: '积分发放' }
 ]
+
+const ecoinScopeFilterOptions = [
+  { value: '', label: '全部' },
+  { value: '0', label: '个人' },
+  { value: '1', label: '企业' }
+]
+
+const ecoinScopeFormOptions = [
+  { value: 0, label: '个人积分包' },
+  { value: 1, label: '企业积分包' }
+]
 import { toast, confirm } from '../../utils/toast'
 
 // 列表数据
@@ -341,7 +376,8 @@ const currentPage = ref(1)
 const filters = reactive({
   sku_name: '',
   biz_code: '',
-  status: ''
+  status: '',
+  ecoin_scope: ''
 })
 
 // 弹窗相关
@@ -360,7 +396,8 @@ const formData = reactive({
   fulfill_mode: 0,
   delivery_method: '',
   fulfill_ecoin_amount: null,
-  multi_select: 0
+  multi_select: 0,
+  ecoin_scope: 0
 })
 
 const MAX_IMAGE_WIDTH = 800
@@ -445,6 +482,7 @@ async function fetchSkuList() {
     if (filters.sku_name) params.sku_name = filters.sku_name
     if (filters.biz_code) params.biz_code = filters.biz_code
     if (filters.status !== '') params.status = parseInt(filters.status)
+    if (filters.ecoin_scope !== '') params.ecoin_scope = filters.ecoin_scope
 
     const res = await opsSkuApi.list(params)
     skuList.value = res?.list || []
@@ -470,6 +508,7 @@ function handleReset() {
   filters.sku_name = ''
   filters.biz_code = ''
   filters.status = ''
+  filters.ecoin_scope = ''
   currentPage.value = 1
   fetchSkuList()
 }
@@ -502,6 +541,7 @@ function openEditModal(sku) {
   formData.delivery_method = sku.delivery_method || ''
   formData.fulfill_ecoin_amount = sku.fulfill_ecoin_amount ?? null
   formData.multi_select = sku.multi_select || 0
+  formData.ecoin_scope = Number(sku.ecoin_scope) === 1 ? 1 : 0
   showModal.value = true
 }
 
@@ -523,6 +563,7 @@ function resetFormData() {
   formData.delivery_method = ''
   formData.fulfill_ecoin_amount = null
   formData.multi_select = 0
+  formData.ecoin_scope = 0
 }
 
 // 提交表单
@@ -555,6 +596,8 @@ async function handleSubmit() {
 
   submitting.value = true
   try {
+    const ecoinScopeVal = mode === 1 ? (Number(formData.ecoin_scope) === 1 ? 1 : 0) : 0
+
     const data = {
       sku_code: formData.sku_code,
       sku_name: formData.sku_name,
@@ -565,7 +608,8 @@ async function handleSubmit() {
       fulfill_mode: mode,
       delivery_method: mode === 0 ? String(formData.delivery_method || '').trim() : '',
       fulfill_ecoin_amount: mode === 1 ? Number(formData.fulfill_ecoin_amount) : 0,
-      multi_select: formData.multi_select
+      multi_select: formData.multi_select,
+      ecoin_scope: ecoinScopeVal
     }
 
     if (isEditing.value) {

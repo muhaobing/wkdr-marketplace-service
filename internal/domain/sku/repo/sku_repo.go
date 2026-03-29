@@ -74,6 +74,7 @@ func (r *skuRepoImpl) UpdateSku(ctx context.Context, sku *skumodel.Sku) error {
 			"fulfill_mode":         sku.FulfillMode,
 			"fulfill_ecoin_amount": sku.FulfillEcoinAmount,
 			"multi_select":         sku.MultiSelect,
+			"ecoin_scope":          sku.EcoinScope,
 		}).Error
 }
 
@@ -103,6 +104,17 @@ func (r *skuRepoImpl) buildSkuListQuery(ctx context.Context, filter *SkuListFilt
 
 	if filter.Status != nil {
 		query = query.Where("sku_status = ?", *filter.Status)
+	}
+
+	if filter.EcoinScope != nil {
+		if filter.RelaxedEcoinScopeFilter {
+			// 与 sku_model.Sku.IsEcoinGrantFulfill() 对齐：仅积分发放类 SKU 受 ecoin_scope 限制
+			grant := "(fulfill_mode = ? OR (fulfill_ecoin_amount > 0 AND TRIM(IFNULL(delivery_method,'')) = ''))"
+			query = query.Where("("+grant+" AND ecoin_scope = ?) OR (NOT ("+grant+"))",
+				skumodel.FulfillModeEcoinGrant, *filter.EcoinScope, skumodel.FulfillModeEcoinGrant)
+		} else {
+			query = query.Where("ecoin_scope = ?", *filter.EcoinScope)
+		}
 	}
 
 	return query

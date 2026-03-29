@@ -20,6 +20,7 @@ import (
 	"wdkr-marketplace-service/internal/domain/payment"
 	"wdkr-marketplace-service/internal/domain/payment/payment_model"
 	"wdkr-marketplace-service/internal/domain/sku"
+	skumodel "wdkr-marketplace-service/internal/domain/sku/sku_model"
 )
 
 const (
@@ -239,6 +240,11 @@ func (s *orderServiceImpl) buildOrder(ctx context.Context, req *CreateOrderReque
 		}
 		orderItems = append(orderItems, orderItem)
 	} else {
+		companyId, err := s.userSvc.GetUserCompanyId(ctx, uint(req.UserId))
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to resolve user company: %w", err)
+		}
+
 		// 处理 SKU 单品
 		for _, skuItem := range req.SkuItems {
 			if skuItem.SkuId == 0 {
@@ -257,6 +263,16 @@ func (s *orderServiceImpl) buildOrder(ctx context.Context, req *CreateOrderReque
 			// 验证SKU状态
 			if !skuInfo.IsOnline() {
 				return nil, nil, fmt.Errorf("sku %d is not available", skuItem.SkuId)
+			}
+
+			if skuInfo.EcoinScope != skumodel.EcoinScopePersonal && skuInfo.EcoinScope != skumodel.EcoinScopeEnterprise {
+				skuInfo.EcoinScope = skumodel.EcoinScopePersonal
+			}
+			if skuInfo.IsEcoinGrantFulfill() && !skuInfo.MatchesUserEcoinAccount(companyId) {
+				if skuInfo.EcoinScope == skumodel.EcoinScopeEnterprise {
+					return nil, nil, errors.New("企业积分包仅限企业账号购买")
+				}
+				return nil, nil, errors.New("个人积分包仅限个人账号购买")
 			}
 
 			if req.PayType == ordermodel.PayTypeEcoin && skuInfo.IsEcoinGrantFulfill() {

@@ -18,6 +18,7 @@ type CreateSkuRequest struct {
 	FulfillMode        uint8   `json:"fulfill_mode"`         // 履约模式：0-接口回调，1-积分发放
 	FulfillEcoinAmount float64 `json:"fulfill_ecoin_amount"` // 积分发放模式下每件发放的积分数
 	MultiSelect        uint8   `json:"multi_select"`         // 是否支持多选下单：0-不支持，1-支持
+	EcoinScope         uint8   `json:"ecoin_scope"`          // 积分包：0=个人 1=企业，默认 0
 }
 
 // EditSkuRequest 编辑商品请求
@@ -31,15 +32,18 @@ type EditSkuRequest struct {
 	FulfillMode        uint8   `json:"fulfill_mode"`         // 履约模式：0-接口回调，1-积分发放
 	FulfillEcoinAmount float64 `json:"fulfill_ecoin_amount"` // 积分发放模式下每件发放的积分数
 	MultiSelect        uint8   `json:"multi_select"`         // 是否支持多选下单：0-不支持，1-支持
+	EcoinScope         uint8   `json:"ecoin_scope"`          // 积分包：0=个人 1=企业
 }
 
 // ListSkuRequest 商品列表请求
 type ListSkuRequest struct {
-	BizCode string `json:"biz_code"` // 业务编码（可选）
-	SkuName string `json:"sku_name"` // 商品名称（模糊查询，可选）
-	Status  *uint8 `json:"status"`   // 上架状态过滤（可选）
-	Offset  int    `json:"offset"`   // 偏移量
-	Limit   int    `json:"limit"`    // 每页数量
+	BizCode                 string `json:"biz_code"`                   // 业务编码（可选）
+	SkuName                 string `json:"sku_name"`                   // 商品名称（模糊查询，可选）
+	Status                  *uint8 `json:"status"`                     // 上架状态过滤（可选）
+	EcoinScope              *uint8 `json:"ecoin_scope"`                // 积分包类型过滤（可选）
+	RelaxedEcoinScopeFilter bool   `json:"relaxed_ecoin_scope_filter"` // 商城列表：true=仅积分包 SKU 受 ecoin_scope 约束
+	Offset                  int    `json:"offset"`                     // 偏移量
+	Limit                   int    `json:"limit"`                      // 每页数量
 }
 
 // ListSkuResponse 商品列表响应

@@ -71,15 +71,22 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { skuApi, ecoinApi } from '../api'
 import { useCartStore } from '../stores/cart'
+import { useUserStore } from '../stores/user'
 import { toast } from '../utils/toast'
 import { isEcoinGrantSku } from '../utils/sku'
 
 const router = useRouter()
 const cartStore = useCartStore()
+const userStore = useUserStore()
+
+/** 与后端 ListSkus 一致：企业账号只看企业积分包，个人只看个人包 */
+const ecoinScopeQuery = computed(() =>
+  userStore.isEnterpriseAccount ? 'enterprise' : 'personal'
+)
 
 const products = ref([])
 const loading = ref(false)
@@ -105,7 +112,11 @@ const filteredProducts = computed(() => {
 async function fetchProducts() {
   loading.value = true
   try {
-    const res = await skuApi.list({ biz_code: 'marketplace', limit: 100 })
+    const res = await skuApi.list({
+      biz_code: 'marketplace',
+      limit: 100,
+      ecoin_scope: ecoinScopeQuery.value
+    })
     products.value = res?.list || []
   } catch (error) {
     console.error('获取商品列表失败:', error)
@@ -130,6 +141,10 @@ function addToCart(product) {
   cartStore.addItem(product)
   toast.success('已加入购物车')
 }
+
+watch(ecoinScopeQuery, () => {
+  fetchProducts()
+})
 
 onMounted(async () => {
   fetchProducts()
