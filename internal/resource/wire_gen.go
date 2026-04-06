@@ -19,6 +19,8 @@ import (
 	companyecoinrepo "wdkr-marketplace-service/internal/domain/companyecoin/repo"
 	"wdkr-marketplace-service/internal/domain/ecoin"
 	ecoinrepo "wdkr-marketplace-service/internal/domain/ecoin/repo"
+	"wdkr-marketplace-service/internal/domain/ecoinbill"
+	ecoinbillrepo "wdkr-marketplace-service/internal/domain/ecoinbill/repo"
 	"wdkr-marketplace-service/internal/domain/order"
 	orderrepo "wdkr-marketplace-service/internal/domain/order/repo"
 	"wdkr-marketplace-service/internal/domain/payment"
@@ -78,6 +80,7 @@ func InitializeResources() *Resources {
 	bizCodeRepo := bizcoderepo.NewBizCodeRepo()
 	companyRepo := companyrepo.NewCompanyRepo()
 	companyEcoinRepo := companyecoinrepo.NewCompanyEcoinRepo()
+	pointsBillRepo := ecoinbillrepo.NewEcoinBillRepo()
 
 	// 初始化支付渠道
 	wechatPayConfig := payment.NewWechatPayConfig()
@@ -93,21 +96,23 @@ func InitializeResources() *Resources {
 	userSvcAdapter := &userServiceAdapter{userSvc: userService}
 	orderService := order.NewOrderService(orderRepo, skuService, ecoinService, companyEcoinService, paymentService, userSvcAdapter)
 	cartService := cart.NewCartService(cartRepo, skuService, orderService)
+	pointsBillService := ecoinbill.NewEcoinBillService(pointsBillRepo, ecoinService, companyEcoinService)
 
 	// 初始化 Resources
 	healthyResource := healthy.NewHealthyResource()
 	marketplaceResource := marketplace.NewMarketplaceResource(skuService, orderService, ecoinService, companyEcoinService, userService, cartService, bizCodeRepo, companyRepo)
 	opsResource := ops.NewOpsResource(skuService, orderService)
-	openAPIResource := openapi.NewOpenAPIResource(ecoinService, companyEcoinService, paymentService, orderService, userService)
+	openAPIResource := openapi.NewOpenAPIResource(ecoinService, companyEcoinService, paymentService, orderService, userService, pointsBillService)
 	mockResource := mock.NewMockResource()
 
 	// 初始化定时任务
 	orderTimeoutTask := cron.NewOrderTimeoutTask(orderRepo, paymentService)
 	orderFulfillTask := cron.NewOrderFulfillTask(orderRepo, orderService)
 	ecoinExpireTask := cron.NewEcoinExpireTask(ecoinService, companyEcoinService)
+	pointsBillAutoCancelTask := cron.NewEcoinBillAutoCancelTask(pointsBillService)
 
 	// 聚合返回
-	r := NewResources(healthyResource, marketplaceResource, opsResource, openAPIResource, orderTimeoutTask, orderFulfillTask, ecoinExpireTask)
+	r := NewResources(healthyResource, marketplaceResource, opsResource, openAPIResource, orderTimeoutTask, orderFulfillTask, ecoinExpireTask, pointsBillAutoCancelTask)
 	r.Mock = mockResource
 	return r
 }

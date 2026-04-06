@@ -102,67 +102,79 @@ func (s *ecoinServiceImpl) AddEcoin(ctx context.Context, req *AddEcoinRequest) (
 
 func (s *ecoinServiceImpl) addEcoinOnce(ctx context.Context, req *AddEcoinRequest) (*ecoin_model.EcoinTransaction, error) {
 	var transaction *ecoin_model.EcoinTransaction
-	now := uint32(time.Now().Unix())
 	err := database.Transaction(ctx, func(ctx context.Context) error {
-		userEcoin, err := s.getOrInitUserEcoinForUpdate(ctx, req.UserId)
-		if err != nil {
-			return err
-		}
-		groups, err := s.ecoinRepo.GetStockGroupsByUserIdForUpdate(ctx, req.UserId)
-		if err != nil {
-			return fmt.Errorf("failed to get stock groups: %w", err)
-		}
-		groups, err = s.ensureLegacyStockGroup(ctx, userEcoin, groups, now)
-		if err != nil {
-			return err
-		}
-		_, err = s.expireGroupsForUser(ctx, userEcoin, groups, now, "auto_expire_add")
-		if err != nil {
-			return err
-		}
-
-		// 计算新的积分余额
-		newStock := userEcoin.AvailableStock + req.Amount
-
-		// 入账分组
-		group := &ecoin_model.UserEcoinStockGroup{
-			UserId:         req.UserId,
-			TotalStock:     req.Amount,
-			RemainingStock: req.Amount,
-			ExpireTime:     s.calcExpireTime(now),
-			SourceType:     req.SourceType,
-			SourceId:       req.SourceId,
-		}
-		if err = s.ecoinRepo.CreateUserEcoinStockGroup(ctx, group); err != nil {
-			return fmt.Errorf("failed to create stock group: %w", err)
-		}
-
-		// 创建积分流水记录
-		transaction = &ecoin_model.EcoinTransaction{
-			UserId:      req.UserId,
-			Amount:      req.Amount,
-			BeforeStock: userEcoin.AvailableStock,
-			AfterStock:  newStock,
-			TxType:      ecoin_model.TransactionTypeAdd,
-			SourceType:  req.SourceType,
-			SourceId:    req.SourceId,
-			Description: req.Description,
-			Status:      ecoin_model.TransactionStatusCompleted,
-		}
-		if err = s.ecoinRepo.AddEcoinTransaction(ctx, transaction); err != nil {
-			return fmt.Errorf("failed to add ecoin transaction: %w", err)
-		}
-
-		// 更新用户积分余额
-		if err = s.ecoinRepo.UpdateUserEcoinStock(ctx, req.UserId, newStock); err != nil {
-			return fmt.Errorf("failed to update user ecoin stock: %w", err)
-		}
-		return nil
+		var err error
+		transaction, err = s.AddEcoinInTx(ctx, req)
+		return err
 	})
 	if err != nil {
 		return nil, err
 	}
+	return transaction, nil
+}
 
+// AddEcoinInTx 在已有事务内入账（供积分账单退款等与账单同事务调用）
+func (s *ecoinServiceImpl) AddEcoinInTx(ctx context.Context, req *AddEcoinRequest) (*ecoin_model.EcoinTransaction, error) {
+	if req.UserId == 0 {
+		return nil, errors.New("user id is required")
+	}
+	if req.Amount <= 0 {
+		return nil, errors.New("amount must be positive")
+	}
+	if req.SourceType == "" {
+		return nil, errors.New("source type is required")
+	}
+	var transaction *ecoin_model.EcoinTransaction
+	now := uint32(time.Now().Unix())
+	userEcoin, err := s.getOrInitUserEcoinForUpdate(ctx, req.UserId)
+	if err != nil {
+		return nil, err
+	}
+	groups, err := s.ecoinRepo.GetStockGroupsByUserIdForUpdate(ctx, req.UserId)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get stock groups: %w", err)
+	}
+	groups, err = s.ensureLegacyStockGroup(ctx, userEcoin, groups, now)
+	if err != nil {
+		return nil, err
+	}
+	_, err = s.expireGroupsForUser(ctx, userEcoin, groups, now, "auto_expire_add")
+	if err != nil {
+		return nil, err
+	}
+
+	newStock := userEcoin.AvailableStock + req.Amount
+
+	group := &ecoin_model.UserEcoinStockGroup{
+		UserId:         req.UserId,
+		TotalStock:     req.Amount,
+		RemainingStock: req.Amount,
+		ExpireTime:     s.calcExpireTime(now),
+		SourceType:     req.SourceType,
+		SourceId:       req.SourceId,
+	}
+	if err = s.ecoinRepo.CreateUserEcoinStockGroup(ctx, group); err != nil {
+		return nil, fmt.Errorf("failed to create stock group: %w", err)
+	}
+
+	transaction = &ecoin_model.EcoinTransaction{
+		UserId:      req.UserId,
+		Amount:      req.Amount,
+		BeforeStock: userEcoin.AvailableStock,
+		AfterStock:  newStock,
+		TxType:      ecoin_model.TransactionTypeAdd,
+		SourceType:  req.SourceType,
+		SourceId:    req.SourceId,
+		Description: req.Description,
+		Status:      ecoin_model.TransactionStatusCompleted,
+	}
+	if err = s.ecoinRepo.AddEcoinTransaction(ctx, transaction); err != nil {
+		return nil, fmt.Errorf("failed to add ecoin transaction: %w", err)
+	}
+
+	if err = s.ecoinRepo.UpdateUserEcoinStock(ctx, req.UserId, newStock); err != nil {
+		return nil, fmt.Errorf("failed to update user ecoin stock: %w", err)
+	}
 	return transaction, nil
 }
 
@@ -201,89 +213,101 @@ func (s *ecoinServiceImpl) DeductEcoin(ctx context.Context, req *DeductEcoinRequ
 
 func (s *ecoinServiceImpl) deductEcoinOnce(ctx context.Context, req *DeductEcoinRequest) (*ecoin_model.EcoinTransaction, error) {
 	var transaction *ecoin_model.EcoinTransaction
-	now := uint32(time.Now().Unix())
 	err := database.Transaction(ctx, func(ctx context.Context) error {
-		userEcoin, err := s.getOrInitUserEcoinForUpdate(ctx, req.UserId)
-		if err != nil {
-			return err
-		}
-		groups, err := s.ecoinRepo.GetStockGroupsByUserIdForUpdate(ctx, req.UserId)
-		if err != nil {
-			return fmt.Errorf("failed to get stock groups: %w", err)
-		}
-		groups, err = s.ensureLegacyStockGroup(ctx, userEcoin, groups, now)
-		if err != nil {
-			return err
-		}
-		_, err = s.expireGroupsForUser(ctx, userEcoin, groups, now, "auto_expire_deduct")
-		if err != nil {
-			return err
-		}
-
-		availableGroups, err := s.ecoinRepo.GetAvailableStockGroupsForUpdate(ctx, req.UserId, now)
-		if err != nil {
-			return fmt.Errorf("failed to get available stock groups: %w", err)
-		}
-		availableStock := 0.0
-		for _, g := range availableGroups {
-			availableStock += g.RemainingStock
-		}
-		if availableStock < req.Amount {
-			return sys_err.ErrInsufficientEcoin
-		}
-
-		// 按最早过期优先扣减
-		need := req.Amount
-		for _, g := range availableGroups {
-			if need <= 0 {
-				break
-			}
-			use := g.RemainingStock
-			if use > need {
-				use = need
-			}
-			newRemaining := g.RemainingStock - use
-			if newRemaining <= 0 {
-				if err = s.ecoinRepo.DeleteUserEcoinStockGroup(ctx, g.Id); err != nil {
-					return fmt.Errorf("failed to delete stock group %d: %w", g.Id, err)
-				}
-			} else {
-				if err = s.ecoinRepo.UpdateUserEcoinStockGroupRemaining(ctx, g.Id, newRemaining); err != nil {
-					return fmt.Errorf("failed to update stock group %d: %w", g.Id, err)
-				}
-			}
-			need -= use
-		}
-
-		// 计算新的积分余额
-		newStock := userEcoin.AvailableStock - req.Amount
-
-		// 创建积分流水记录
-		transaction = &ecoin_model.EcoinTransaction{
-			UserId:      req.UserId,
-			Amount:      -req.Amount, // 扣除积分，使用负数
-			BeforeStock: userEcoin.AvailableStock,
-			AfterStock:  newStock,
-			TxType:      ecoin_model.TransactionTypeDeduct,
-			SourceType:  req.SourceType,
-			SourceId:    req.SourceId,
-			Description: req.Description,
-			Status:      ecoin_model.TransactionStatusCompleted,
-		}
-		if err = s.ecoinRepo.AddEcoinTransaction(ctx, transaction); err != nil {
-			return fmt.Errorf("failed to add ecoin transaction: %w", err)
-		}
-
-		// 更新用户积分余额
-		if err = s.ecoinRepo.UpdateUserEcoinStock(ctx, req.UserId, newStock); err != nil {
-			return fmt.Errorf("failed to update user ecoin stock: %w", err)
-		}
-		return nil
+		var err error
+		transaction, err = s.DeductEcoinInTx(ctx, req)
+		return err
 	})
 	if err != nil {
 		return nil, err
 	}
+	return transaction, nil
+}
 
+// DeductEcoinInTx 在已有事务内扣款（供积分账单预扣等与账单同事务调用）
+func (s *ecoinServiceImpl) DeductEcoinInTx(ctx context.Context, req *DeductEcoinRequest) (*ecoin_model.EcoinTransaction, error) {
+	if req.UserId == 0 {
+		return nil, errors.New("user id is required")
+	}
+	if req.Amount <= 0 {
+		return nil, errors.New("amount must be positive")
+	}
+	if req.SourceType == "" {
+		return nil, errors.New("source type is required")
+	}
+	var transaction *ecoin_model.EcoinTransaction
+	now := uint32(time.Now().Unix())
+	userEcoin, err := s.getOrInitUserEcoinForUpdate(ctx, req.UserId)
+	if err != nil {
+		return nil, err
+	}
+	groups, err := s.ecoinRepo.GetStockGroupsByUserIdForUpdate(ctx, req.UserId)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get stock groups: %w", err)
+	}
+	groups, err = s.ensureLegacyStockGroup(ctx, userEcoin, groups, now)
+	if err != nil {
+		return nil, err
+	}
+	_, err = s.expireGroupsForUser(ctx, userEcoin, groups, now, "auto_expire_deduct")
+	if err != nil {
+		return nil, err
+	}
+
+	availableGroups, err := s.ecoinRepo.GetAvailableStockGroupsForUpdate(ctx, req.UserId, now)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get available stock groups: %w", err)
+	}
+	availableStock := 0.0
+	for _, g := range availableGroups {
+		availableStock += g.RemainingStock
+	}
+	if availableStock < req.Amount {
+		return nil, sys_err.ErrInsufficientEcoin
+	}
+
+	need := req.Amount
+	for _, g := range availableGroups {
+		if need <= 0 {
+			break
+		}
+		use := g.RemainingStock
+		if use > need {
+			use = need
+		}
+		newRemaining := g.RemainingStock - use
+		if newRemaining <= 0 {
+			if err = s.ecoinRepo.DeleteUserEcoinStockGroup(ctx, g.Id); err != nil {
+				return nil, fmt.Errorf("failed to delete stock group %d: %w", g.Id, err)
+			}
+		} else {
+			if err = s.ecoinRepo.UpdateUserEcoinStockGroupRemaining(ctx, g.Id, newRemaining); err != nil {
+				return nil, fmt.Errorf("failed to update stock group %d: %w", g.Id, err)
+			}
+		}
+		need -= use
+	}
+
+	newStock := userEcoin.AvailableStock - req.Amount
+
+	transaction = &ecoin_model.EcoinTransaction{
+		UserId:      req.UserId,
+		Amount:      -req.Amount,
+		BeforeStock: userEcoin.AvailableStock,
+		AfterStock:  newStock,
+		TxType:      ecoin_model.TransactionTypeDeduct,
+		SourceType:  req.SourceType,
+		SourceId:    req.SourceId,
+		Description: req.Description,
+		Status:      ecoin_model.TransactionStatusCompleted,
+	}
+	if err = s.ecoinRepo.AddEcoinTransaction(ctx, transaction); err != nil {
+		return nil, fmt.Errorf("failed to add ecoin transaction: %w", err)
+	}
+
+	if err = s.ecoinRepo.UpdateUserEcoinStock(ctx, req.UserId, newStock); err != nil {
+		return nil, fmt.Errorf("failed to update user ecoin stock: %w", err)
+	}
 	return transaction, nil
 }
 

@@ -12,8 +12,11 @@ import (
 	cartrepo "wdkr-marketplace-service/internal/domain/cart/repo"
 	companyrepo "wdkr-marketplace-service/internal/domain/company/repo"
 	"wdkr-marketplace-service/internal/domain/companyecoin"
+	companyecoinrepo "wdkr-marketplace-service/internal/domain/companyecoin/repo"
 	"wdkr-marketplace-service/internal/domain/ecoin"
 	ecoinrepo "wdkr-marketplace-service/internal/domain/ecoin/repo"
+	"wdkr-marketplace-service/internal/domain/ecoinbill"
+	ecoinbillrepo "wdkr-marketplace-service/internal/domain/eco
 	"wdkr-marketplace-service/internal/domain/order"
 	orderrepo "wdkr-marketplace-service/internal/domain/order/repo"
 	"wdkr-marketplace-service/internal/domain/payment"
@@ -40,6 +43,7 @@ var RepoSet = wire.NewSet(
 	bizcoderepo.NewBizCodeRepo,
 	companyrepo.NewCompanyRepo,
 	companyecoinrepo.NewCompanyEcoinRepo,
+	ecoinbillrepo.NewEcoinBillRepo,
 )
 
 // PaymentSet 提供支付相关实例（支付渠道 + 支付服务）
@@ -58,6 +62,7 @@ var ServiceSet = wire.NewSet(
 	order.NewOrderService,
 	user.NewUserService,
 	cart.NewCartService,
+	ecoinbill.NewEcoinBillService,
 )
 
 // ResourceSet 提供所有 Resource 实例
@@ -78,6 +83,7 @@ func InitializeResources() *Resources {
 		cron.NewOrderTimeoutTask,
 		cron.NewOrderFulfillTask,
 		cron.NewEcoinExpireTask,
+		cron.NewEcoinBillAutoCancelTask,
 		NewResources,
 	)
 	return nil

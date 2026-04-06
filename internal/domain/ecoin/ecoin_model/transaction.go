@@ -14,6 +14,10 @@ const (
 	SourceTypeRecharge = "recharge" // 充值到账
 	SourceTypeExpire   = "expire"   // 过期失效
 
+	// 积分账单（OpenAPI 预扣 / 退款）
+	SourceTypeEcoinBillPreDeduct = "ecoin_bill_pre_deduct" // 预扣
+	SourceTypeEcoinBillRefund    = "ecoin_bill_refund"     // 取消账单退回
+
 	// 交易状态
 	TransactionStatusPending   = 0 // 处理中
 	TransactionStatusCompleted = 1 // 已完成

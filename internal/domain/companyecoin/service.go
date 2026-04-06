@@ -113,54 +113,71 @@ func (s *companyEcoinServiceImpl) AddCompanyEcoin(ctx context.Context, req *AddC
 
 func (s *companyEcoinServiceImpl) addCompanyEcoinOnce(ctx context.Context, req *AddCompanyEcoinRequest) (*companyecoin_model.CompanyEcoinTransaction, error) {
 	var tx *companyecoin_model.CompanyEcoinTransaction
-	now := uint32(time.Now().Unix())
 	err := database.Transaction(ctx, func(ctx context.Context) error {
-		ce, err := s.getOrInitForUpdate(ctx, req.CompanyId)
-		if err != nil {
-			return err
-		}
-		groups, err := s.repo.GetStockGroupsByCompanyIdForUpdate(ctx, req.CompanyId)
-		if err != nil {
-			return err
-		}
-		groups, err = s.ensureLegacyStockGroup(ctx, ce, groups, now)
-		if err != nil {
-			return err
-		}
-		_, err = s.expireGroups(ctx, ce, groups, now, "auto_expire_add")
-		if err != nil {
-			return err
-		}
-		newStock := ce.AvailableStock + req.Amount
-		g := &companyecoin_model.CompanyEcoinStockGroup{
-			CompanyId:      req.CompanyId,
-			TotalStock:     req.Amount,
-			RemainingStock: req.Amount,
-			ExpireTime:     ecoin.CalcEcoinExpireTimeFromUnix(now),
-			SourceType:     req.SourceType,
-			SourceId:       req.SourceId,
-		}
-		if err := s.repo.CreateStockGroup(ctx, g); err != nil {
-			return err
-		}
-		tx = &companyecoin_model.CompanyEcoinTransaction{
-			CompanyId:      req.CompanyId,
-			OperatorUserId: req.OperatorUserId,
-			Amount:         req.Amount,
-			BeforeStock:    ce.AvailableStock,
-			AfterStock:     newStock,
-			TxType:         ecoin_model.TransactionTypeAdd,
-			SourceType:     req.SourceType,
-			SourceId:       req.SourceId,
-			Description:    req.Description,
-			Status:         ecoin_model.TransactionStatusCompleted,
-		}
-		if err := s.repo.AddTransaction(ctx, tx); err != nil {
-			return err
-		}
-		return s.repo.UpdateCompanyEcoinStock(ctx, req.CompanyId, newStock)
+		var err error
+		tx, err = s.AddCompanyEcoinInTx(ctx, req)
+		return err
 	})
 	if err != nil {
+		return nil, err
+	}
+	return tx, nil
+}
+
+// AddCompanyEcoinInTx 在已有事务内企业入账
+func (s *companyEcoinServiceImpl) AddCompanyEcoinInTx(ctx context.Context, req *AddCompanyEcoinRequest) (*companyecoin_model.CompanyEcoinTransaction, error) {
+	if req.CompanyId == 0 || req.OperatorUserId == 0 {
+		return nil, errors.New("company_id and operator_user_id are required")
+	}
+	if req.Amount <= 0 || req.SourceType == "" {
+		return nil, errors.New("invalid add request")
+	}
+	var tx *companyecoin_model.CompanyEcoinTransaction
+	now := uint32(time.Now().Unix())
+	ce, err := s.getOrInitForUpdate(ctx, req.CompanyId)
+	if err != nil {
+		return nil, err
+	}
+	groups, err := s.repo.GetStockGroupsByCompanyIdForUpdate(ctx, req.CompanyId)
+	if err != nil {
+		return nil, err
+	}
+	groups, err = s.ensureLegacyStockGroup(ctx, ce, groups, now)
+	if err != nil {
+		return nil, err
+	}
+	_, err = s.expireGroups(ctx, ce, groups, now, "auto_expire_add")
+	if err != nil {
+		return nil, err
+	}
+	newStock := ce.AvailableStock + req.Amount
+	g := &companyecoin_model.CompanyEcoinStockGroup{
+		CompanyId:      req.CompanyId,
+		TotalStock:     req.Amount,
+		RemainingStock: req.Amount,
+		ExpireTime:     ecoin.CalcEcoinExpireTimeFromUnix(now),
+		SourceType:     req.SourceType,
+		SourceId:       req.SourceId,
+	}
+	if err := s.repo.CreateStockGroup(ctx, g); err != nil {
+		return nil, err
+	}
+	tx = &companyecoin_model.CompanyEcoinTransaction{
+		CompanyId:      req.CompanyId,
+		OperatorUserId: req.OperatorUserId,
+		Amount:         req.Amount,
+		BeforeStock:    ce.AvailableStock,
+		AfterStock:     newStock,
+		TxType:         ecoin_model.TransactionTypeAdd,
+		SourceType:     req.SourceType,
+		SourceId:       req.SourceId,
+		Description:    req.Description,
+		Status:         ecoin_model.TransactionStatusCompleted,
+	}
+	if err := s.repo.AddTransaction(ctx, tx); err != nil {
+		return nil, err
+	}
+	if err := s.repo.UpdateCompanyEcoinStock(ctx, req.CompanyId, newStock); err != nil {
 		return nil, err
 	}
 	return tx, nil
@@ -197,75 +214,92 @@ func (s *companyEcoinServiceImpl) DeductCompanyEcoin(ctx context.Context, req *D
 
 func (s *companyEcoinServiceImpl) deductCompanyEcoinOnce(ctx context.Context, req *DeductCompanyEcoinRequest) (*companyecoin_model.CompanyEcoinTransaction, error) {
 	var tx *companyecoin_model.CompanyEcoinTransaction
-	now := uint32(time.Now().Unix())
 	err := database.Transaction(ctx, func(ctx context.Context) error {
-		ce, err := s.getOrInitForUpdate(ctx, req.CompanyId)
-		if err != nil {
-			return err
-		}
-		groups, err := s.repo.GetStockGroupsByCompanyIdForUpdate(ctx, req.CompanyId)
-		if err != nil {
-			return err
-		}
-		groups, err = s.ensureLegacyStockGroup(ctx, ce, groups, now)
-		if err != nil {
-			return err
-		}
-		_, err = s.expireGroups(ctx, ce, groups, now, "auto_expire_deduct")
-		if err != nil {
-			return err
-		}
-		availGroups, err := s.repo.GetAvailableStockGroupsForUpdate(ctx, req.CompanyId, now)
-		if err != nil {
-			return err
-		}
-		var sum float64
-		for _, g := range availGroups {
-			sum += g.RemainingStock
-		}
-		if sum < req.Amount {
-			return sys_err.ErrInsufficientEcoin
-		}
-		need := req.Amount
-		for _, g := range availGroups {
-			if need <= 0 {
-				break
-			}
-			use := g.RemainingStock
-			if use > need {
-				use = need
-			}
-			nr := g.RemainingStock - use
-			if nr <= 0 {
-				if err := s.repo.DeleteStockGroup(ctx, g.Id); err != nil {
-					return err
-				}
-			} else {
-				if err := s.repo.UpdateStockGroupRemaining(ctx, g.Id, nr); err != nil {
-					return err
-				}
-			}
-			need -= use
-		}
-		newStock := ce.AvailableStock - req.Amount
-		tx = &companyecoin_model.CompanyEcoinTransaction{
-			CompanyId:      req.CompanyId,
-			OperatorUserId: req.OperatorUserId,
-			Amount:         -req.Amount,
-			BeforeStock:    ce.AvailableStock,
-			AfterStock:     newStock,
-			TxType:         ecoin_model.TransactionTypeDeduct,
-			SourceType:     req.SourceType,
-			SourceId:       req.SourceId,
-			Description:    req.Description,
-			Status:         ecoin_model.TransactionStatusCompleted,
-		}
-		if err := s.repo.AddTransaction(ctx, tx); err != nil {
-			return err
-		}
-		return s.repo.UpdateCompanyEcoinStock(ctx, req.CompanyId, newStock)
+		var err error
+		tx, err = s.DeductCompanyEcoinInTx(ctx, req)
+		return err
 	})
 	if err != nil {
+		return nil, err
+	}
+	return tx, nil
+}
+
+// DeductCompanyEcoinInTx 在已有事务内企业扣款
+func (s *companyEcoinServiceImpl) DeductCompanyEcoinInTx(ctx context.Context, req *DeductCompanyEcoinRequest) (*companyecoin_model.CompanyEcoinTransaction, error) {
+	if req.CompanyId == 0 || req.OperatorUserId == 0 {
+		return nil, errors.New("company_id and operator_user_id are required")
+	}
+	if req.Amount <= 0 || req.SourceType == "" {
+		return nil, errors.New("invalid deduct request")
+	}
+	var tx *companyecoin_model.CompanyEcoinTransaction
+	now := uint32(time.Now().Unix())
+	ce, err := s.getOrInitForUpdate(ctx, req.CompanyId)
+	if err != nil {
+		return nil, err
+	}
+	groups, err := s.repo.GetStockGroupsByCompanyIdForUpdate(ctx, req.CompanyId)
+	if err != nil {
+		return nil, err
+	}
+	groups, err = s.ensureLegacyStockGroup(ctx, ce, groups, now)
+	if err != nil {
+		return nil, err
+	}
+	_, err = s.expireGroups(ctx, ce, groups, now, "auto_expire_deduct")
+	if err != nil {
+		return nil, err
+	}
+	availGroups, err := s.repo.GetAvailableStockGroupsForUpdate(ctx, req.CompanyId, now)
+	if err != nil {
+		return nil, err
+	}
+	var sum float64
+	for _, g := range availGroups {
+		sum += g.RemainingStock
+	}
+	if sum < req.Amount {
+		return nil, sys_err.ErrInsufficientEcoin
+	}
+	need := req.Amount
+	for _, g := range availGroups {
+		if need <= 0 {
+			break
+		}
+		use := g.RemainingStock
+		if use > need {
+			use = need
+		}
+		nr := g.RemainingStock - use
+		if nr <= 0 {
+			if err := s.repo.DeleteStockGroup(ctx, g.Id); err != nil {
+				return nil, err
+			}
+		} else {
+			if err := s.repo.UpdateStockGroupRemaining(ctx, g.Id, nr); err != nil {
+				return nil, err
+			}
+		}
+		need -= use
+	}
+	newStock := ce.AvailableStock - req.Amount
+	tx = &companyecoin_model.CompanyEcoinTransaction{
+		CompanyId:      req.CompanyId,
+		OperatorUserId: req.OperatorUserId,
+		Amount:         -req.Amount,
+		BeforeStock:    ce.AvailableStock,
+		AfterStock:     newStock,
+		TxType:         ecoin_model.TransactionTypeDeduct,
+		SourceType:     req.SourceType,
+		SourceId:       req.SourceId,
+		Description:    req.Description,
+		Status:         ecoin_model.TransactionStatusCompleted,
+	}
+	if err := s.repo.AddTransaction(ctx, tx); err != nil {
+		return nil, err
+	}
+	if err := s.repo.UpdateCompanyEcoinStock(ctx, req.CompanyId, newStock); err != nil {
 		return nil, err
 	}
 	return tx, nil

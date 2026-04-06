@@ -73,4 +73,10 @@ type EcoinService interface {
 
 	// ExpireEcoinStock 过期积分处理（定时任务调用）
 	ExpireEcoinStock(ctx context.Context, now uint32, limit int) (int, error)
+
+	// DeductEcoinInTx 在已有数据库事务内扣除积分（不再开启新事务；无 Redis 幂等）
+	DeductEcoinInTx(ctx context.Context, req *DeductEcoinRequest) (*ecoin_model.EcoinTransaction, error)
+
+	// AddEcoinInTx 在已有数据库事务内增加积分（不再开启新事务；无 Redis 幂等）
+	AddEcoinInTx(ctx context.Context, req *AddEcoinRequest) (*ecoin_model.EcoinTransaction, error)
 }

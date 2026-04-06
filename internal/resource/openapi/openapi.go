@@ -16,6 +16,7 @@ import (
 	"wdkr-marketplace-service/internal/common/utils/http_utils"
 	"wdkr-marketplace-service/internal/domain/companyecoin"
 	"wdkr-marketplace-service/internal/domain/ecoin"
+	"wdkr-marketplace-service/internal/domain/ecoinbill"
 	"wdkr-marketplace-service/internal/domain/order"
 	"wdkr-marketplace-service/internal/domain/payment"
 	"wdkr-marketplace-service/internal/domain/payment/payment_model"
@@ -29,16 +30,18 @@ type OpenAPIResource struct {
 	paymentService      payment.PaymentService
 	orderService        order.OrderService
 	userService         user.UserService
+	pointsBillService   ecoinbill.EcoinBillService
 }
 
 // NewOpenAPIResource 创建OpenAPI资源实例
-func NewOpenAPIResource(ecoinService ecoin.EcoinService, companyEcoinService companyecoin.CompanyEcoinService, paymentService payment.PaymentService, orderService order.OrderService, userService user.UserService) *OpenAPIResource {
+func NewOpenAPIResource(ecoinService ecoin.EcoinService, companyEcoinService companyecoin.CompanyEcoinService, paymentService payment.PaymentService, orderService order.OrderService, userService user.UserService, pointsBillService ecoinbill.EcoinBillService) *OpenAPIResource {
 	return &OpenAPIResource{
 		ecoinService:        ecoinService,
 		companyEcoinService: companyEcoinService,
 		paymentService:      paymentService,
 		orderService:        orderService,
 		userService:         userService,
+		pointsBillService:   pointsBillService,
 	}
 }
 
@@ -68,6 +71,10 @@ func writeOpenAPIError(ctx *gin.Context, err error) {
 	}
 	if errors.Is(err, sys_err.ErrInsufficientEcoin) {
 		http_utils.WriteResponseWithRetcode(ctx, err_code.EcoinInsufficientBalance, err.Error())
+		return
+	}
+	if errors.Is(err, sys_err.ErrEcoinBillNotFound) || errors.Is(err, sys_err.ErrEcoinBillInvalidState) {
+		http_utils.WriteResponse(ctx, nil, err)
 		return
 	}
 	http_utils.WriteResponse(ctx, nil, err)
@@ -255,18 +262,18 @@ func (r *OpenAPIResource) PostEcoinBalance(ctx *gin.Context) {
 	http_utils.WriteResponse(ctx, ecoinInfo, nil)
 }
 
-// EcoinPaymentCheckRequest 预检积分是否足够支付（biz_code + biz_user_id + cost）
-type EcoinPaymentCheckRequest struct {
+// EcoinBillCreateRequest 预扣积分（生成积分账单并扣减可用余额）
+type EcoinBillCreateRequest struct {
 	BizCode   string  `json:"biz_code" binding:"required"`    // 业务平台代码
 	BizUserId uint64  `json:"biz_user_id" binding:"required"` // 业务平台用户 ID
-	Cost      float64 `json:"cost" binding:"required,gt=0"`   // 所需积分
+	Cost      float64 `json:"cost" binding:"required,gt=0"`   // 预扣积分数量
 }
 
-// PostEcoinPaymentCheck 校验绑定是否存在及可用积分是否 ≥ cost（JWT 鉴权，业务参数在 JSON）
-// POST /openapi/ecoin/payment_check
-// retcode：0 成功；UserBindingNotFound(-100404) 未绑定；EcoinInsufficientBalance(-100402) 余额不足；其他为 -1
-func (r *OpenAPIResource) PostEcoinPaymentCheck(ctx *gin.Context) {
-	var req EcoinPaymentCheckRequest
+// PostEcoinBillCreate 预扣积分并创建积分账单（JWT 鉴权）
+// POST /openapi/ecoin/bill/create
+// retcode：0 成功返回 bill_id；UserBindingNotFound(-100404) 未绑定；EcoinInsufficientBalance(-100402) 余额不足；15 分钟内未确认则自动取消并退款
+func (r *OpenAPIResource) PostEcoinBillCreate(ctx *gin.Context) {
+	var req EcoinBillCreateRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
 		http_utils.WriteResponse(ctx, nil, err)
 		return
@@ -284,36 +291,75 @@ func (r *OpenAPIResource) PostEcoinPaymentCheck(ctx *gin.Context) {
 		return
 	}
 
-	var avail float64
-	if cid > 0 {
-		ce, err := r.companyEcoinService.GetCompanyEcoin(ctx.Request.Context(), cid)
-		if err != nil {
-			http_utils.WriteResponse(ctx, nil, err)
-			return
-		}
-		if ce != nil {
-			avail = ce.AvailableStock
-		}
-	} else {
-		ue, err := r.ecoinService.GetUserEcoin(ctx.Request.Context(), userId)
-		if err != nil {
-			http_utils.WriteResponse(ctx, nil, err)
-			return
-		}
-		if ue != nil {
-			avail = ue.AvailableStock
-		}
-	}
-
-	if avail < req.Cost {
-		http_utils.WriteResponseWithRetcode(ctx, err_code.EcoinInsufficientBalance, sys_err.ErrInsufficientEcoin.Error())
+	bill, err := r.pointsBillService.PreDeduct(ctx.Request.Context(), userId, cid, req.Cost)
+	if err != nil {
+		writeOpenAPIError(ctx, err)
 		return
 	}
 
 	http_utils.WriteResponse(ctx, gin.H{
-		"available_stock": avail,
-		"cost":            req.Cost,
+		"bill_id":            bill.BillId,
+		"amount":             bill.Amount,
+		"expires_in_seconds": 900,
+		"status":             "incomplete",
 	}, nil)
+}
+
+// EcoinBillMutateRequest 确认/取消账单（biz 身份 + bill_id）
+type EcoinBillMutateRequest struct {
+	BizCode   string `json:"biz_code" binding:"required"`
+	BizUserId uint64 `json:"biz_user_id" binding:"required"`
+	BillId    string `json:"bill_id" binding:"required"`
+}
+
+// PostEcoinBillConfirm 确认积分账单（扣款生效，状态 completed）
+// POST /openapi/ecoin/bill/confirm
+func (r *OpenAPIResource) PostEcoinBillConfirm(ctx *gin.Context) {
+	var req EcoinBillMutateRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		http_utils.WriteResponse(ctx, nil, err)
+		return
+	}
+	userId, err := r.fetchUserIDByBizBinding(ctx.Request.Context(), req.BizCode, req.BizUserId)
+	if err != nil {
+		writeOpenAPIError(ctx, err)
+		return
+	}
+	cid, err := r.userCompanyId(ctx.Request.Context(), userId)
+	if err != nil {
+		http_utils.WriteResponse(ctx, nil, err)
+		return
+	}
+	if err := r.pointsBillService.ConfirmBill(ctx.Request.Context(), req.BillId, userId, cid); err != nil {
+		writeOpenAPIError(ctx, err)
+		return
+	}
+	http_utils.WriteResponse(ctx, gin.H{"bill_id": req.BillId, "status": "completed"}, nil)
+}
+
+// PostEcoinBillCancel 取消积分账单并退回积分（单事务）
+// POST /openapi/ecoin/bill/cancel
+func (r *OpenAPIResource) PostEcoinBillCancel(ctx *gin.Context) {
+	var req EcoinBillMutateRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		http_utils.WriteResponse(ctx, nil, err)
+		return
+	}
+	userId, err := r.fetchUserIDByBizBinding(ctx.Request.Context(), req.BizCode, req.BizUserId)
+	if err != nil {
+		writeOpenAPIError(ctx, err)
+		return
+	}
+	cid, err := r.userCompanyId(ctx.Request.Context(), userId)
+	if err != nil {
+		http_utils.WriteResponse(ctx, nil, err)
+		return
+	}
+	if err := r.pointsBillService.CancelBill(ctx.Request.Context(), req.BillId, userId, cid); err != nil {
+		writeOpenAPIError(ctx, err)
+		return
+	}
+	http_utils.WriteResponse(ctx, gin.H{"bill_id": req.BillId, "status": "cancelled"}, nil)
 }
 
 // InitUserEcoin 初始化用户积分账户
@@ -532,7 +578,9 @@ func (r *OpenAPIResource) Router() registry.Registry {
 			group.POST("/ecoin/deduct", r.DeductEcoin)
 			group.POST("/ecoin/init", r.InitUserEcoin)
 			group.POST("/ecoin/balance", r.PostEcoinBalance)
-			group.POST("/ecoin/payment_check", r.PostEcoinPaymentCheck)
+			group.POST("/ecoin/bill/create", r.PostEcoinBillCreate)
+			group.POST("/ecoin/bill/confirm", r.PostEcoinBillConfirm)
+			group.POST("/ecoin/bill/cancel", r.PostEcoinBillCancel)
 			group.POST("/ecoin/transactions", r.PostEcoinTransactions)
 
 			// 支付回调接口
