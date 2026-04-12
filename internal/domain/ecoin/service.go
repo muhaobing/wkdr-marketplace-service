@@ -362,19 +362,19 @@ func (s *ecoinServiceImpl) GetEcoinTransaction(ctx context.Context, id uint64) (
 }
 
 // InitUserEcoin 初始化用户积分账户
-func (s *ecoinServiceImpl) InitUserEcoin(ctx context.Context, userId uint64) (*ecoin_model.UserEcoin, error) {
+func (s *ecoinServiceImpl) InitUserEcoin(ctx context.Context, userId uint64) (*ecoin_model.UserEcoin, bool, error) {
 	if userId == 0 {
-		return nil, errors.New("user id is required")
+		return nil, false, errors.New("user id is required")
 	}
 
 	// 检查是否已存在
 	existingEcoin, err := s.ecoinRepo.GetUserEcoin(ctx, userId)
 	if err != nil {
-		return nil, fmt.Errorf("failed to check existing user ecoin: %w", err)
+		return nil, false, fmt.Errorf("failed to check existing user ecoin: %w", err)
 	}
 
 	if existingEcoin != nil {
-		return existingEcoin, nil
+		return existingEcoin, false, nil
 	}
 
 	// 创建新的用户积分记录
@@ -384,10 +384,10 @@ func (s *ecoinServiceImpl) InitUserEcoin(ctx context.Context, userId uint64) (*e
 	}
 
 	if err := s.ecoinRepo.CreateUserEcoin(ctx, userEcoin); err != nil {
-		return nil, fmt.Errorf("failed to create user ecoin: %w", err)
+		return nil, false, fmt.Errorf("failed to create user ecoin: %w", err)
 	}
 
-	return userEcoin, nil
+	return userEcoin, true, nil
 }
 
 // GetEcoinStockGroupList 获取积分库存分组

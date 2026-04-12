@@ -40,7 +40,7 @@ type TransactionListResponse struct {
 
 // CompanyEcoinService 企业积分（按 company_id 串行 FOR UPDATE）
 type CompanyEcoinService interface {
-	InitCompanyEcoin(ctx context.Context, companyId uint64) (*companyecoin_model.CompanyEcoin, error)
+	InitCompanyEcoin(ctx context.Context, companyId uint64) (*companyecoin_model.CompanyEcoin, bool, error)
 	GetCompanyEcoin(ctx context.Context, companyId uint64) (*companyecoin_model.CompanyEcoin, error)
 	AddCompanyEcoin(ctx context.Context, req *AddCompanyEcoinRequest) (*companyecoin_model.CompanyEcoinTransaction, error)
 	DeductCompanyEcoin(ctx context.Context, req *DeductCompanyEcoinRequest) (*companyecoin_model.CompanyEcoinTransaction, error)

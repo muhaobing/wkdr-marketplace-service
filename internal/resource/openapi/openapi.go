@@ -381,7 +381,7 @@ func (r *OpenAPIResource) InitUserEcoin(ctx *gin.Context) {
 		return
 	}
 	if cid > 0 {
-		info, err := r.companyEcoinService.InitCompanyEcoin(ctx.Request.Context(), cid)
+		info, _, err := r.companyEcoinService.InitCompanyEcoin(ctx.Request.Context(), cid)
 		if err != nil {
 			http_utils.WriteResponse(ctx, nil, err)
 			return
@@ -390,7 +390,7 @@ func (r *OpenAPIResource) InitUserEcoin(ctx *gin.Context) {
 		return
 	}
 
-	ecoinInfo, err := r.ecoinService.InitUserEcoin(ctx.Request.Context(), req.UserId)
+	ecoinInfo, _, err := r.ecoinService.InitUserEcoin(ctx.Request.Context(), req.UserId)
 	if err != nil {
 		http_utils.WriteResponse(ctx, nil, err)
 		return

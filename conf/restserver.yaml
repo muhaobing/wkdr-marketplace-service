@@ -39,7 +39,7 @@ config:
     expiration_seconds: 300
     clients:
       - account: "lawmind"
-        secret: "ChangeMeOpenAPIJwtSecret"
+        secret: "dxyxv1TrPentq-v-ly4Mewkk2owmG2cspKXN5rkGOi87fxzxtiDHuAvsyr7QwRZ8"
     paths:
       - "/openapi/ecoin"
   # 微信支付配置

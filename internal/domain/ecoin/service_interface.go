@@ -66,7 +66,7 @@ type EcoinService interface {
 	GetEcoinTransaction(ctx context.Context, id uint64) (*ecoin_model.EcoinTransaction, error)
 
 	// InitUserEcoin 初始化用户积分账户
-	InitUserEcoin(ctx context.Context, userId uint64) (*ecoin_model.UserEcoin, error)
+	InitUserEcoin(ctx context.Context, userId uint64) (*ecoin_model.UserEcoin, bool, error)
 
 	// GetEcoinStockGroupList 获取积分库存分组
 	GetEcoinStockGroupList(ctx context.Context, req *EcoinStockGroupListRequest) (*EcoinStockGroupListResponse, error)

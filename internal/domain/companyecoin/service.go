@@ -27,22 +27,22 @@ func NewCompanyEcoinService(r repo.CompanyEcoinRepo) CompanyEcoinService {
 	return &companyEcoinServiceImpl{repo: r}
 }
 
-func (s *companyEcoinServiceImpl) InitCompanyEcoin(ctx context.Context, companyId uint64) (*companyecoin_model.CompanyEcoin, error) {
+func (s *companyEcoinServiceImpl) InitCompanyEcoin(ctx context.Context, companyId uint64) (*companyecoin_model.CompanyEcoin, bool, error) {
 	if companyId == 0 {
-		return nil, errors.New("company_id is required")
+		return nil, false, errors.New("company_id is required")
 	}
 	existing, err := s.repo.GetCompanyEcoin(ctx, companyId)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	if existing != nil {
-		return existing, nil
+		return existing, false, nil
 	}
 	row := &companyecoin_model.CompanyEcoin{CompanyId: companyId, AvailableStock: 0}
 	if err := s.repo.CreateCompanyEcoin(ctx, row); err != nil {
-		return nil, err
+		return nil, false, err
 	}
-	return row, nil
+	return row, true, nil
 }
 
 func (s *companyEcoinServiceImpl) GetCompanyEcoin(ctx context.Context, companyId uint64) (*companyecoin_model.CompanyEcoin, error) {

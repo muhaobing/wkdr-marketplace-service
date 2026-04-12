@@ -185,12 +185,39 @@ func (s *userServiceImpl) BindUser(ctx context.Context, req *BindUserRequest) (*
 			}
 			isNewUser = true
 			if targetCompanyId == 0 {
-				if _, err = s.ecoinSvc.InitUserEcoin(ctx, uint64(user.Id)); err != nil {
+				var isNewEcoin bool
+				if _, isNewEcoin, err = s.ecoinSvc.InitUserEcoin(ctx, uint64(user.Id)); err != nil {
 					return fmt.Errorf("failed to init user ecoin: %w", err)
 				}
+				if isNewEcoin {
+					_, err = s.ecoinSvc.AddEcoinInTx(ctx, &ecoin.AddEcoinRequest{
+						UserId:      uint64(user.Id),
+						Amount:      800,
+						SourceType:  "REGISTER_GIFT",
+						SourceId:    fmt.Sprintf("REG_%d", user.Id),
+						Description: "新用户注册赠送积分",
+					})
+					if err != nil {
+						return fmt.Errorf("failed to add register gift ecoin: %w", err)
+					}
+				}
 			} else {
-				if _, err = s.companyEcoin.InitCompanyEcoin(ctx, targetCompanyId); err != nil {
+				var isNewEcoin bool
+				if _, isNewEcoin, err = s.companyEcoin.InitCompanyEcoin(ctx, targetCompanyId); err != nil {
 					return fmt.Errorf("failed to init company ecoin: %w", err)
+				}
+				if isNewEcoin {
+					_, err = s.companyEcoin.AddCompanyEcoinInTx(ctx, &companyecoin.AddCompanyEcoinRequest{
+						CompanyId:      targetCompanyId,
+						OperatorUserId: uint64(user.Id),
+						Amount:         800,
+						SourceType:     "REGISTER_GIFT",
+						SourceId:       fmt.Sprintf("REG_COMP_%d", targetCompanyId),
+						Description:    "企业首次注册赠送积分",
+					})
+					if err != nil {
+						return fmt.Errorf("failed to add company register gift ecoin: %w", err)
+					}
 				}
 			}
 		} else {
