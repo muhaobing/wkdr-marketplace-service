@@ -192,7 +192,7 @@ func (s *userServiceImpl) BindUser(ctx context.Context, req *BindUserRequest) (*
 				if isNewEcoin {
 					_, err = s.ecoinSvc.AddEcoinInTx(ctx, &ecoin.AddEcoinRequest{
 						UserId:      uint64(user.Id),
-						Amount:      800,
+						Amount:      1000,
 						SourceType:  "REGISTER_GIFT",
 						SourceId:    fmt.Sprintf("REG_%d", user.Id),
 						Description: "新用户注册赠送积分",
@@ -210,7 +210,7 @@ func (s *userServiceImpl) BindUser(ctx context.Context, req *BindUserRequest) (*
 					_, err = s.companyEcoin.AddCompanyEcoinInTx(ctx, &companyecoin.AddCompanyEcoinRequest{
 						CompanyId:      targetCompanyId,
 						OperatorUserId: uint64(user.Id),
-						Amount:         800,
+						Amount:         10000,
 						SourceType:     "REGISTER_GIFT",
 						SourceId:       fmt.Sprintf("REG_COMP_%d", targetCompanyId),
 						Description:    "企业首次注册赠送积分",

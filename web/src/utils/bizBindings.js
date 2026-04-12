@@ -10,9 +10,7 @@ export function parseBizQueryFromRoute(query) {
   const code = query.biz_code != null ? String(query.biz_code).trim() : ''
   const uidRaw = query.biz_user_id != null ? String(query.biz_user_id).trim() : ''
   if (!code || !uidRaw) return null
-  const uid = parseInt(uidRaw, 10)
-  if (!Number.isFinite(uid) || uid < 1) return null
-  return { biz_code: code, biz_user_id: uid }
+  return { biz_code: code, biz_user_id: uidRaw }
 }
 
 /**
@@ -20,8 +18,8 @@ export function parseBizQueryFromRoute(query) {
  */
 export function bindingListContains(bindings, bizCode, bizUserId) {
   if (!Array.isArray(bindings)) return false
-  const uid = Number(bizUserId)
+  const uidStr = String(bizUserId).trim()
   return bindings.some(
-    (b) => String(b.biz_code).trim() === String(bizCode).trim() && Number(b.biz_user_id) === uid
+    (b) => String(b.biz_code).trim() === String(bizCode).trim() && String(b.biz_user_id).trim() === uidStr
   )
 }

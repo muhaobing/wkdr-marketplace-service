@@ -407,8 +407,7 @@ function hasBothValidBindQuery() {
   const qUid = route.query.biz_user_id
   if (qCode === undefined || qCode === null || String(qCode).trim() === '') return false
   if (qUid === undefined || qUid === null || String(qUid).trim() === '') return false
-  const n = parseInt(String(qUid), 10)
-  return Number.isFinite(n) && n >= 1
+  return /^\d+$/.test(String(qUid).trim())
 }
 
 const bindPlatformLabelId = 'bind-platform-label'
@@ -661,9 +660,8 @@ async function applyQueryAndBindCheck() {
   bindCheckPending.value = true
   const code = String(bindForm.biz_code || '').trim()
   const idStr = String(bindForm.biz_user_id || '').trim()
-  const bizUserId = parseInt(idStr, 10)
   try {
-    const data = await authApi.checkBinding({ biz_code: code, biz_user_id: bizUserId })
+    const data = await authApi.checkBinding({ biz_code: code, biz_user_id: idStr })
     pageMode.value = data.bound ? 'login' : 'bind'
   } catch {
     pageMode.value = 'bind'
@@ -727,11 +725,6 @@ async function handleBind() {
     errorMsg.value = '请填写绑定用户 ID'
     return
   }
-  const bizUserId = parseInt(idStr, 10)
-  if (!Number.isFinite(bizUserId) || bizUserId < 1) {
-    errorMsg.value = '绑定用户 ID 须为正整数'
-    return
-  }
 
   if (isEnterpriseBiz.value) {
     const cid = Number(bindForm.company_id) || 0
@@ -746,7 +739,7 @@ async function handleBind() {
   try {
     const payload = {
       biz_code: bizCode,
-      biz_user_id: bizUserId,
+      biz_user_id: idStr,
       password: bindForm.password
     }
     if (tel) payload.tel_no = tel

@@ -641,7 +641,7 @@ func (r *MarketplaceResource) Login(ctx *gin.Context) {
 // BindUserRequest 用户绑定（与业务平台账号关联，成功后返回 session）
 type BindUserRequest struct {
 	BizCode     string `json:"biz_code" binding:"required"`    // 业务平台代码
-	BizUserId   uint64 `json:"biz_user_id" binding:"required"` // 业务平台用户 ID
+	BizUserId   uint64 `json:"biz_user_id,string" binding:"required"` // 业务平台用户 ID
 	TelNo       string `json:"tel_no"`                         // 手机号
 	Email       string `json:"email"`                          // 邮箱
 	Password    string `json:"password" binding:"required"`    // 密码
