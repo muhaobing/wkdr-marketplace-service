@@ -124,9 +124,9 @@ export const authApi = {
   updateProfile(data) {
     return api.post('/user/profile', data)
   },
-  /** 解除与某业务平台的绑定（需 Authorization） */
-  unbindBiz(bizCode) {
-    return api.post('/user/unbind', { biz_code: bizCode })
+  /** 解除与某业务平台账号的绑定（需 Authorization） */
+  unbindBiz(bizCode, bizUserId) {
+    return api.post('/user/unbind', { biz_code: bizCode, biz_user_id: String(bizUserId) })
   }
 }
 

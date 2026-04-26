@@ -12,12 +12,13 @@ const DefaultJWTExpirationSeconds uint32 = 300
 
 // Conf 应用配置
 type Conf struct {
-	Auth                       AuthConfig      `yaml:"auth"`       // 用户 session（AES+Redis）鉴权
-	JWT                        JWTConfig       `yaml:"jwt"`        // OpenAPI 等系统间 JWT 鉴权（与 auth 独立）
-	WechatPay                  WechatPayConfig `yaml:"wechat_pay"` // 微信支付配置
-	EcoinUnitPrice             float32         `yaml:"ecoin_unit_price"`
-	EcoinExpireSeconds         uint32          `yaml:"ecoin_expire_seconds"`          // 已废弃：保留键名兼容旧配置；积分过期由域服务按自然月计算，不再读取该秒数
-	EcoinIdempotencyTTLSeconds uint32          `yaml:"ecoin_idempotency_ttl_seconds"` // 积分加减幂等 Redis 键 TTL（秒），0 表示默认 12 小时
+	Auth                       AuthConfig        `yaml:"auth"`         // 用户 session（AES+Redis）鉴权
+	JWT                        JWTConfig         `yaml:"jwt"`          // OpenAPI 等系统间 JWT 鉴权（与 auth 独立）
+	CallbackJWT                CallbackJWTConfig `yaml:"callback_jwt"` // SKU 履约回调 JWT（按 biz_code 配置 secret）
+	WechatPay                  WechatPayConfig   `yaml:"wechat_pay"`   // 微信支付配置
+	EcoinUnitPrice             float32           `yaml:"ecoin_unit_price"`
+	EcoinExpireSeconds         uint32            `yaml:"ecoin_expire_seconds"`          // 已废弃：保留键名兼容旧配置；积分过期由域服务按自然月计算，不再读取该秒数
+	EcoinIdempotencyTTLSeconds uint32            `yaml:"ecoin_idempotency_ttl_seconds"` // 积分加减幂等 Redis 键 TTL（秒），0 表示默认 12 小时
 }
 
 // AuthConfig 前台/运营端 session 鉴权
@@ -38,6 +39,18 @@ type JWTConfig struct {
 // JWTClient 单个 JWT 调用方凭据
 type JWTClient struct {
 	Account string `yaml:"account"`
+	Secret  string `yaml:"secret"`
+}
+
+// CallbackJWTConfig SKU 履约回调 JWT：每个 biz_code 一组 secret
+type CallbackJWTConfig struct {
+	Clients           []CallbackJWTClient `yaml:"clients"`
+	ExpirationSeconds uint32              `yaml:"expiration_seconds"` // 0 表示默认 300 秒
+}
+
+// CallbackJWTClient 单个业务线回调凭据
+type CallbackJWTClient struct {
+	BizCode string `yaml:"biz_code"`
 	Secret  string `yaml:"secret"`
 }
 
@@ -76,6 +89,33 @@ func (j *JWTConfig) HasJWTClients() bool {
 		}
 	}
 	return false
+}
+
+// SecretForBizCode 按 biz_code 查找履约回调 JWT 密钥
+func (j *CallbackJWTConfig) SecretForBizCode(bizCode string) (string, bool) {
+	bizCode = strings.TrimSpace(bizCode)
+	if bizCode == "" {
+		return "", false
+	}
+	for _, c := range j.Clients {
+		if strings.TrimSpace(c.BizCode) != bizCode {
+			continue
+		}
+		sec := strings.TrimSpace(c.Secret)
+		if sec == "" {
+			return "", false
+		}
+		return c.Secret, true
+	}
+	return "", false
+}
+
+// EffectiveExpirationSeconds 返回回调 JWT 最大存活秒数
+func (j *CallbackJWTConfig) EffectiveExpirationSeconds() uint32 {
+	if j.ExpirationSeconds == 0 {
+		return DefaultJWTExpirationSeconds
+	}
+	return j.ExpirationSeconds
 }
 
 // WechatPayConfig 微信支付配置

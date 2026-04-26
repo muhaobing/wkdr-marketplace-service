@@ -56,8 +56,7 @@ CREATE TABLE `biz_code_enum_tab` (
 
 INSERT INTO `biz_code_enum_tab` (`code`, `name`, `scope`, `ctime`, `mtime`) VALUES
 ('LawMind_ToC', 'LawMind C端用户', 0, 0, 0),
-('LawMind_Enterprise', 'LawMind 企业用户', 1, 0, 0),
-('LawMind_Admin', 'LawMind 运营人员', 0, 0, 0);
+('LawMind_Enterprise', 'LawMind 企业用户', 1, 0, 0);
 
 -- -----------------------------------------------------------
 -- 1.1 用户绑定表 (user_binding_tab)

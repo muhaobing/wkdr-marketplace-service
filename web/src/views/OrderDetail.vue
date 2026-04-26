@@ -120,8 +120,7 @@
             </div>
             <div class="summary-row total">
               <span>实付金额</span>
-              <span v-if="order.pay_type === 'ecoin' && order.ecoin_amount" class="ecoin-total">{{ order.ecoin_amount.toFixed(2) }} 积分</span>
-              <span v-else>¥{{ (order.pay_amount || 0).toFixed(2) }}</span>
+              <span>¥{{ (order.pay_amount || 0).toFixed(2) }}</span>
             </div>
           </div>
         </div>
@@ -293,15 +292,19 @@ async function filterOutEcoinForGrantSkus(methods) {
 }
 
 async function fetchPaymentMethods() {
+  const hideEcoinPaymentEntry = methods =>
+    (Array.isArray(methods) ? methods : []).filter(m => m.channel !== 'ecoin')
   try {
     const raw = await paymentApi.methods()
-    paymentMethods.value = await filterOutEcoinForGrantSkus(raw)
+    const filtered = await filterOutEcoinForGrantSkus(raw)
+    paymentMethods.value = hideEcoinPaymentEntry(filtered)
   } catch (error) {
     const fallback = [
       { channel: 'ecoin', name: '积分支付', pay_method: 'ecoin' },
       { channel: 'wechat', name: '微信扫码支付', pay_method: 'native' }
     ]
-    paymentMethods.value = await filterOutEcoinForGrantSkus(fallback)
+    const filtered = await filterOutEcoinForGrantSkus(fallback)
+    paymentMethods.value = hideEcoinPaymentEntry(filtered)
   }
 }
 
@@ -699,13 +702,6 @@ onBeforeUnmount(() => {
 .summary-row.total span:last-child {
   color: #b91c1c;
   font-size: 22px;
-  letter-spacing: -0.02em;
-}
-
-.summary-row.total span.ecoin-total {
-  color: #f59e0b;
-  font-size: 22px;
-  font-weight: 700;
   letter-spacing: -0.02em;
 }
 

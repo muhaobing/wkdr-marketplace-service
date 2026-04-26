@@ -12,6 +12,8 @@ import (
 
 	jsoniter "github.com/json-iterator/go"
 
+	"wdkr-marketplace-service/internal/common/config"
+	"wdkr-marketplace-service/internal/common/utils/callback_jwt"
 	"wdkr-marketplace-service/internal/domain/sku/repo"
 	skumodel "wdkr-marketplace-service/internal/domain/sku/sku_model"
 )
@@ -347,7 +349,7 @@ func (s *skuServiceImpl) FulfillSku(ctx context.Context, req *FulfillSkuRequest)
 	}
 
 	// 调用履约回调接口
-	fulfillResponse, err := s.callDeliveryMethod(ctx, sku.DeliveryMethod, sku.SkuCode, req.BizUserId)
+	fulfillResponse, err := s.callDeliveryMethod(ctx, sku.DeliveryMethod, sku.BizCode, sku.SkuCode, req.BizUserId)
 	if err != nil {
 		return &FulfillSkuResponse{
 			Success: false,
@@ -371,7 +373,16 @@ type deliveryCallbackResponse struct {
 }
 
 // callDeliveryMethod 调用履约回调接口
-func (s *skuServiceImpl) callDeliveryMethod(ctx context.Context, url, skuCode, bizUserId string) (*FulfillSkuResponse, error) {
+func (s *skuServiceImpl) callDeliveryMethod(ctx context.Context, url, bizCode, skuCode, bizUserId string) (*FulfillSkuResponse, error) {
+	conf := config.GetConf()
+	if conf == nil {
+		return nil, errors.New("config not initialized")
+	}
+	secret, ok := conf.CallbackJWT.SecretForBizCode(bizCode)
+	if !ok {
+		return nil, fmt.Errorf("callback jwt secret not configured for biz_code: %s", bizCode)
+	}
+
 	// 构建请求体
 	reqBody := deliveryCallbackRequest{
 		SkuCode:   skuCode,
@@ -383,8 +394,22 @@ func (s *skuServiceImpl) callDeliveryMethod(ctx context.Context, url, skuCode, b
 		return nil, fmt.Errorf("failed to marshal request body: %w", err)
 	}
 
+	jwtToken, err := callback_jwt.BuildToken(
+		bizCode,
+		secret,
+		conf.CallbackJWT.EffectiveExpirationSeconds(),
+		reqBytes,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("build callback jwt failed: %w", err)
+	}
+	wrapperBytes, err := jsoniter.Marshal(map[string]string{"jwt": jwtToken})
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal jwt wrapper body: %w", err)
+	}
+
 	// 创建HTTP请求
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(reqBytes))
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(wrapperBytes))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create http request: %w", err)
 	}

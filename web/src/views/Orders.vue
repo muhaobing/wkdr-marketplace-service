@@ -61,8 +61,7 @@
           <div class="order-footer">
             <div class="order-total">
               共 {{ getTotalQuantity(order) }} 件商品，合计: 
-              <strong v-if="order.pay_type === 'ecoin' && order.ecoin_amount" class="ecoin-total">{{ order.ecoin_amount.toFixed(2) }} 积分</strong>
-              <strong v-else>¥{{ (order.pay_amount || 0).toFixed(2) }}</strong>
+              <strong>¥{{ (order.pay_amount || 0).toFixed(2) }}</strong>
             </div>
             <div class="order-actions" @click.stop>
               <button 
@@ -430,10 +429,6 @@ onBeforeUnmount(() => {
   color: #b91c1c;
   font-weight: 700;
   letter-spacing: -0.02em;
-}
-
-.order-total strong.ecoin-total {
-  color: #f59e0b;
 }
 
 .order-actions {

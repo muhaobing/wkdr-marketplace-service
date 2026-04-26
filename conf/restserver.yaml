@@ -42,6 +42,13 @@ config:
         secret: "dxyxv1TrPentq-v-ly4Mewkk2owmG2cspKXN5rkGOi87fxzxtiDHuAvsyr7QwRZ8"
     paths:
       - "/openapi/ecoin"
+  callback_jwt:
+    expiration_seconds: 300
+    clients:
+      - biz_code: "LawMind_ToC"
+        secret: "dxyxv1TrPentq-v-ly4Mewkk2owmG2cspKXN5rkGOi87fxzxtiDHuAvsyr7QwRZ8"
+      - biz_code: "LawMind_Enterprise"
+        secret: "dxyxv1TrPentq-v-ly4Mewkk2owmG2cspKXN5rkGOi87fxzxtiDHuAvsyr7QwRZ8"
   # 微信支付配置
   wechat_pay:
     app_id: "wxa73175af23fa8262"

@@ -60,7 +60,6 @@
             <div class="product-footer">
               <div class="product-price">
                 <span class="price-rmb">¥{{ product.cost.toFixed(2) }}</span>
-                <span v-if="!isEcoinGrantSku(product)" class="price-ecoin">{{ toEcoin(product.cost) }} 积分</span>
               </div>
             </div>
           </div>
@@ -73,11 +72,10 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { skuApi, ecoinApi } from '../api'
+import { skuApi } from '../api'
 import { useCartStore } from '../stores/cart'
 import { useUserStore } from '../stores/user'
 import { toast } from '../utils/toast'
-import { isEcoinGrantSku } from '../utils/sku'
 
 const router = useRouter()
 const cartStore = useCartStore()
@@ -86,12 +84,6 @@ const userStore = useUserStore()
 const products = ref([])
 const loading = ref(false)
 const searchQuery = ref('')
-const ecoinUnitPrice = ref(0)
-
-function toEcoin(cost) {
-  if (!ecoinUnitPrice.value || ecoinUnitPrice.value <= 0) return '--'
-  return (cost / ecoinUnitPrice.value).toFixed(2)
-}
 
 const filteredProducts = computed(() => {
   if (!searchQuery.value.trim()) {
@@ -143,10 +135,6 @@ watch(
 
 onMounted(async () => {
   fetchProducts()
-  try {
-    const cfg = await ecoinApi.getRechargeConfig()
-    ecoinUnitPrice.value = cfg.unit_price || 0
-  } catch (e) { /* ignore */ }
 })
 </script>
 
@@ -331,12 +319,6 @@ onMounted(async () => {
   font-weight: 700;
   color: #b91c1c;
   letter-spacing: -0.02em;
-}
-
-.price-ecoin {
-  font-size: 12px;
-  font-weight: 600;
-  color: #f59e0b;
 }
 
 @media (max-width: 640px) {

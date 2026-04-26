@@ -28,8 +28,9 @@ type BindUserResponse struct {
 
 // UnbindUserRequest 用户解绑请求
 type UnbindUserRequest struct {
-	UserId  uint   `json:"user_id"`  // 商城中心用户ID
-	BizCode string `json:"biz_code"` // 业务平台代码
+	UserId    uint   `json:"user_id"`    // 商城中心用户ID（从 session 解析）
+	BizCode   string `json:"biz_code"`   // 业务平台代码
+	BizUserId uint64 `json:"biz_user_id"` // 业务平台用户ID
 }
 
 // GetUserByBizRequest 根据业务信息获取用户请求

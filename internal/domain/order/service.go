@@ -669,20 +669,23 @@ func (s *orderServiceImpl) buildBizUserIdMap(ctx context.Context, userId uint64)
 }
 
 // fulfillSkuItems 普通商品履约
-func (s *orderServiceImpl) fulfillSkuItems(ctx context.Context, order *ordermodel.Order, items []*ordermodel.OrderItem, bizUserIdMap map[string]string, overrideBizUserId string) error {
-	pendingItems := make([]*ordermodel.OrderItem, 0)
+// 重试策略：自动履约会处理 pending + failed 明细，便于定时任务对失败项持续重试。
+func (s *orderServiceImpl) fulfillSkuItems(ctx context.Context, order *ordermodel.Order, items []*ordermodel.OrderItem, bizUserIdMap map[string]string, _ string) error {
+	retryItems := make([]*ordermodel.OrderItem, 0)
 	for _, item := range items {
-		if item.IsFulfillPending() {
-			pendingItems = append(pendingItems, item)
+		if item.IsFulfillPending() || item.IsFulfillFailed() {
+			retryItems = append(retryItems, item)
 		}
 	}
-	if len(pendingItems) == 0 {
-		fulfillTime := uint32(time.Now().Unix())
-		return s.orderRepo.UpdateOrderToFulfilled(ctx, order.OrderNo, fulfillTime)
+	if len(retryItems) == 0 {
+		if allOrderItemsFulfilledSuccessfully(items) {
+			fulfillTime := uint32(time.Now().Unix())
+			return s.orderRepo.UpdateOrderToFulfilled(ctx, order.OrderNo, fulfillTime)
+		}
+		return nil
 	}
 
-	allSuccess := true
-	for _, item := range pendingItems {
+	for _, item := range retryItems {
 		skuInfo, err := s.skuService.GetSkuById(ctx, item.SkuId)
 
 		fulfillTime := uint32(time.Now().Unix())
@@ -692,13 +695,11 @@ func (s *orderServiceImpl) fulfillSkuItems(ctx context.Context, order *ordermode
 		if err != nil {
 			fulfillStatus = ordermodel.FulfillStatusFailed
 			fulfillMsg = fmt.Sprintf("get sku failed: %v", err)
-			allSuccess = false
 		} else if skuInfo.IsEcoinGrantFulfill() {
 			grant := skuInfo.FulfillEcoinAmount * float64(item.Quantity)
 			if grant <= 0 {
 				fulfillStatus = ordermodel.FulfillStatusFailed
 				fulfillMsg = "未配置积分发放数量"
-				allSuccess = false
 			} else {
 				addErr := s.addEcoinForOrder(ctx, order.UserId, &ecoin.AddEcoinRequest{
 					UserId:      order.UserId,
@@ -710,7 +711,6 @@ func (s *orderServiceImpl) fulfillSkuItems(ctx context.Context, order *ordermode
 				if addErr != nil {
 					fulfillStatus = ordermodel.FulfillStatusFailed
 					fulfillMsg = addErr.Error()
-					allSuccess = false
 				} else {
 					fulfillStatus = ordermodel.FulfillStatusSuccess
 					fulfillMsg = "积分发放成功"
@@ -719,41 +719,40 @@ func (s *orderServiceImpl) fulfillSkuItems(ctx context.Context, order *ordermode
 		} else if skuInfo.DeliveryMethod == "" {
 			fulfillStatus = ordermodel.FulfillStatusFailed
 			fulfillMsg = "未配置履约回调接口"
-			allSuccess = false
 		} else {
-			bizUserId := overrideBizUserId
+			bizUserId := bizUserIdMap[skuInfo.BizCode]
 			if bizUserId == "" {
-				bizUserId = bizUserIdMap[skuInfo.BizCode]
-			}
-			if bizUserId == "" {
-				bizUserId = fmt.Sprintf("%d", order.UserId)
-			}
-
-			resp, ferr := s.skuService.FulfillSku(ctx, &sku.FulfillSkuRequest{
-				SkuId:     item.SkuId,
-				BizUserId: bizUserId,
-			})
-
-			if ferr != nil {
 				fulfillStatus = ordermodel.FulfillStatusFailed
-				fulfillMsg = fmt.Sprintf("fulfill error: %v", ferr)
-				allSuccess = false
-			} else if !resp.Success {
-				fulfillStatus = ordermodel.FulfillStatusFailed
-				fulfillMsg = resp.Message
-				allSuccess = false
+				fulfillMsg = fmt.Sprintf("biz user binding not found for biz_code: %s", skuInfo.BizCode)
 			} else {
-				fulfillStatus = ordermodel.FulfillStatusSuccess
-				fulfillMsg = resp.Message
+				resp, ferr := s.skuService.FulfillSku(ctx, &sku.FulfillSkuRequest{
+					SkuId:     item.SkuId,
+					BizUserId: bizUserId,
+				})
+
+				if ferr != nil {
+					fulfillStatus = ordermodel.FulfillStatusFailed
+					fulfillMsg = fmt.Sprintf("fulfill error: %v", ferr)
+				} else if !resp.Success {
+					fulfillStatus = ordermodel.FulfillStatusFailed
+					fulfillMsg = resp.Message
+				} else {
+					fulfillStatus = ordermodel.FulfillStatusSuccess
+					fulfillMsg = resp.Message
+				}
 			}
 		}
 
 		if err := s.orderRepo.UpdateOrderItemFulfillStatus(ctx, item.Id, fulfillStatus, fulfillTime, fulfillMsg); err != nil {
 			return fmt.Errorf("failed to update order item fulfill status: %w", err)
 		}
+		// 同步内存态，避免后续整单状态判断误判。
+		item.FulfillStatus = fulfillStatus
+		item.FulfillTime = fulfillTime
+		item.FulfillMsg = fulfillMsg
 	}
 
-	if allSuccess {
+	if allOrderItemsFulfilledSuccessfully(items) {
 		fulfillTime := uint32(time.Now().Unix())
 		if err := s.orderRepo.UpdateOrderToFulfilled(ctx, order.OrderNo, fulfillTime); err != nil {
 			return fmt.Errorf("failed to update order to fulfilled: %w", err)
@@ -761,6 +760,18 @@ func (s *orderServiceImpl) fulfillSkuItems(ctx context.Context, order *ordermode
 	}
 
 	return nil
+}
+
+func allOrderItemsFulfilledSuccessfully(items []*ordermodel.OrderItem) bool {
+	if len(items) == 0 {
+		return false
+	}
+	for _, item := range items {
+		if item == nil || !item.IsFulfillSuccess() {
+			return false
+		}
+	}
+	return true
 }
 
 // doFulfill 执行履约（手动调用时 bizUserId 仅对回调模式生效，会覆盖按业务线映射的用户标识）

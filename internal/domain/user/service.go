@@ -275,16 +275,22 @@ func (s *userServiceImpl) UnbindUser(ctx context.Context, req *UnbindUserRequest
 	if req.BizCode == "" {
 		return errors.New("biz_code is required")
 	}
+	if req.BizUserId == 0 {
+		return errors.New("biz_user_id is required")
+	}
 
-	binding, err := s.bindingRepo.GetBindingByUserAndBiz(ctx, req.UserId, req.BizCode)
+	binding, err := s.bindingRepo.GetBindingByBiz(ctx, req.BizCode, req.BizUserId)
 	if err != nil {
 		return fmt.Errorf("failed to get binding: %w", err)
 	}
 	if binding == nil {
-		return fmt.Errorf("user not bindded to biz_code %s", req.BizCode)
+		return fmt.Errorf("user not bindded to biz_code %s biz_user_id %d", req.BizCode, req.BizUserId)
+	}
+	if binding.UserId != req.UserId {
+		return errors.New("binding does not belong to current user")
 	}
 
-	if err = s.bindingRepo.DeleteBinding(ctx, req.UserId, req.BizCode); err != nil {
+	if err = s.bindingRepo.DeleteBindingByBiz(ctx, req.BizCode, req.BizUserId); err != nil {
 		return fmt.Errorf("failed to delete binding: %w", err)
 	}
 

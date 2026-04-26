@@ -99,7 +99,7 @@
               </div>
             </td>
             <td>{{ sku.biz_code }}</td>
-            <td><span class="sku-price-rmb">¥{{ sku.cost?.toFixed(2) }}</span> <span class="ecoin-price">({{ toEcoin(sku.cost) }} 积分)</span></td>
+            <td><span class="sku-price-rmb">¥{{ sku.cost?.toFixed(2) }}</span></td>
             <td>
               <span :class="sku.multi_select === 1 ? 'badge-success' : 'badge-default'">
                 {{ sku.multi_select === 1 ? '支持' : '不支持' }}
@@ -127,6 +127,12 @@
             <td>{{ formatTime(sku.ctime) }}</td>
             <td>
               <div class="action-buttons">
+                <button class="action-btn" @click="openCopyModal(sku)" title="复制">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                  </svg>
+                </button>
                 <button class="action-btn" @click="openEditModal(sku)" title="编辑">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
@@ -224,9 +230,6 @@
               min="0"
               step="0.01"
             >
-            <div v-if="formData.cost > 0 && ecoinUnitPrice > 0" class="form-hint">
-              ≈ {{ (formData.cost / ecoinUnitPrice).toFixed(2) }} 积分
-            </div>
           </div>
           
           <div class="form-group">
@@ -337,7 +340,7 @@
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
 import OpsSelect from '../../components/OpsSelect.vue'
-import { opsSkuApi, ecoinApi } from '../../api'
+import { opsSkuApi } from '../../api'
 
 const statusFilterOptions = [
   { value: '', label: '全部' },
@@ -475,13 +478,6 @@ const fulfillModeNum = computed(() => {
   return n === 1 ? 1 : 0
 })
 
-const ecoinUnitPrice = ref(0)
-
-function toEcoin(cost) {
-  if (!cost || !ecoinUnitPrice.value || ecoinUnitPrice.value <= 0) return '--'
-  return (cost / ecoinUnitPrice.value).toFixed(2)
-}
-
 // 计算总页数
 const totalPages = computed(() => Math.ceil(total.value / pageSize))
 
@@ -541,23 +537,36 @@ function openCreateModal() {
   showModal.value = true
 }
 
+// 打开复制新增弹窗（仅前端复用表单，sku_code 必须置空）
+function openCopyModal(sku) {
+  isEditing.value = false
+  editingId.value = null
+  applySkuToForm(sku)
+  formData.sku_code = ''
+  showModal.value = true
+}
+
 // 打开编辑弹窗
 function openEditModal(sku) {
   isEditing.value = true
   editingId.value = sku.id
-  formData.sku_code = sku.sku_code
-  formData.sku_name = sku.sku_name
-  formData.biz_code = sku.biz_code
-  formData.cost = sku.cost
+  applySkuToForm(sku)
+  showModal.value = true
+}
+
+function applySkuToForm(sku) {
+  formData.sku_code = sku.sku_code || ''
+  formData.sku_name = sku.sku_name || ''
+  formData.biz_code = sku.biz_code || ''
+  formData.cost = sku.cost ?? ''
   formData.sku_avatar = sku.sku_avatar || ''
   formData.sku_desc = sku.sku_desc || ''
-  formData.fulfill_mode = sku.fulfill_mode ?? 0
+  formData.fulfill_mode = Number(sku.fulfill_mode ?? 0)
   formData.delivery_method = sku.delivery_method || ''
   formData.fulfill_ecoin_amount = sku.fulfill_ecoin_amount ?? null
-  formData.multi_select = sku.multi_select || 0
+  formData.multi_select = Number(sku.multi_select || 0) === 1 ? 1 : 0
   const s = Number(sku.sku_scope)
   formData.sku_scope = s >= 0 && s <= 2 ? s : 0
-  showModal.value = true
 }
 
 // 关闭弹窗
@@ -736,10 +745,6 @@ function formatTime(timestamp) {
 
 onMounted(async () => {
   fetchSkuList()
-  try {
-    const cfg = await ecoinApi.getRechargeConfig()
-    ecoinUnitPrice.value = cfg.unit_price || 0
-  } catch (e) { /* ignore */ }
 })
 </script>
 
@@ -859,12 +864,6 @@ onMounted(async () => {
 .data-table td .sku-price-rmb {
   color: #b91c1c;
   font-weight: 700;
-}
-
-.data-table td .ecoin-price {
-  font-size: 12px;
-  color: #f59e0b;
-  font-weight: 600;
 }
 
 .data-table td {

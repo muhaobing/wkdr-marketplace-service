@@ -39,7 +39,6 @@
               
               <div class="product-price">
                 <span class="price-value">¥{{ product.cost.toFixed(2) }}</span>
-                <span v-if="!isEcoinGrantSku(product)" class="price-ecoin">({{ toEcoin(product.cost) }} 积分)</span>
               </div>
 
               <div class="product-desc">
@@ -82,11 +81,10 @@
 <script setup>
 import { ref, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { skuApi, orderApi, ecoinApi } from '../api'
+import { skuApi, orderApi } from '../api'
 import { useCartStore } from '../stores/cart'
 import { useUserStore } from '../stores/user'
 import { toast } from '../utils/toast'
-import { isEcoinGrantSku } from '../utils/sku'
 
 const route = useRoute()
 const router = useRouter()
@@ -96,13 +94,7 @@ const userStore = useUserStore()
 const product = ref(null)
 const loading = ref(false)
 const quantity = ref(1)
-const ecoinUnitPrice = ref(0)
 const ordering = ref(false)
-
-function toEcoin(cost) {
-  if (!ecoinUnitPrice.value || ecoinUnitPrice.value <= 0) return '--'
-  return (cost / ecoinUnitPrice.value).toFixed(2)
-}
 
 // 获取商品详情
 async function fetchProduct() {
@@ -174,10 +166,6 @@ watch(
 
 onMounted(async () => {
   fetchProduct()
-  try {
-    const cfg = await ecoinApi.getRechargeConfig()
-    ecoinUnitPrice.value = cfg.unit_price || 0
-  } catch (e) { /* ignore */ }
 })
 </script>
 
@@ -277,13 +265,6 @@ onMounted(async () => {
   font-weight: 700;
   color: #b91c1c;
   letter-spacing: -0.02em;
-}
-
-.price-ecoin {
-  font-size: 15px;
-  color: #f59e0b;
-  margin-left: 10px;
-  font-weight: 600;
 }
 
 .product-desc {

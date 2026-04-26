@@ -44,29 +44,14 @@ func (r *userBindingRepoImpl) GetBindingsByUserId(ctx context.Context, userId ui
 	return bindings, nil
 }
 
-// GetBindingByUserAndBiz 获取用户在指定业务的绑定记录
-func (r *userBindingRepoImpl) GetBindingByUserAndBiz(ctx context.Context, userId uint, bizCode string) (*usermodel.UserBinding, error) {
-	var binding usermodel.UserBinding
-	err := database.FromContext(ctx).
-		Where("user_id = ? AND biz_code = ?", userId, bizCode).
-		First(&binding).Error
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, nil
-		}
-		return nil, err
-	}
-	return &binding, nil
-}
-
 // CreateBinding 创建绑定记录
 func (r *userBindingRepoImpl) CreateBinding(ctx context.Context, binding *usermodel.UserBinding) error {
 	return database.FromContext(ctx).Create(binding).Error
 }
 
-// DeleteBinding 删除绑定记录
-func (r *userBindingRepoImpl) DeleteBinding(ctx context.Context, userId uint, bizCode string) error {
+// DeleteBindingByBiz 删除指定业务身份绑定记录
+func (r *userBindingRepoImpl) DeleteBindingByBiz(ctx context.Context, bizCode string, bizUserId uint64) error {
 	return database.FromContext(ctx).
-		Where("user_id = ? AND biz_code = ?", userId, bizCode).
+		Where("biz_code = ? AND biz_user_id = ?", bizCode, bizUserId).
 		Delete(&usermodel.UserBinding{}).Error
 }

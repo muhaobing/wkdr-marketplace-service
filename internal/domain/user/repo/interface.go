@@ -38,12 +38,9 @@ type UserBindingRepo interface {
 	// GetBindingsByUserId 获取用户所有绑定记录
 	GetBindingsByUserId(ctx context.Context, userId uint) ([]*usermodel.UserBinding, error)
 
-	// GetBindingByUserAndBiz 获取用户在指定业务的绑定记录
-	GetBindingByUserAndBiz(ctx context.Context, userId uint, bizCode string) (*usermodel.UserBinding, error)
-
 	// CreateBinding 创建绑定记录
 	CreateBinding(ctx context.Context, binding *usermodel.UserBinding) error
 
-	// DeleteBinding 删除绑定记录
-	DeleteBinding(ctx context.Context, userId uint, bizCode string) error
+	// DeleteBindingByBiz 删除指定业务身份绑定记录
+	DeleteBindingByBiz(ctx context.Context, bizCode string, bizUserId uint64) error
 }

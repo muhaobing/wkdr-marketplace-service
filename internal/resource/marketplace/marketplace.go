@@ -26,6 +26,7 @@ import (
 	"wdkr-marketplace-service/internal/domain/sku"
 	skumodel "wdkr-marketplace-service/internal/domain/sku/sku_model"
 	"wdkr-marketplace-service/internal/domain/user"
+	usermodel "wdkr-marketplace-service/internal/domain/user/user_model"
 )
 
 // MarketplaceResource 商城接口资源（面向用户）
@@ -605,6 +606,109 @@ func (r *MarketplaceResource) GetPaymentMethods(ctx *gin.Context) {
 
 // ==================== 用户登录接口 ====================
 
+// ==================== DTOs for avoiding uint64 precision loss in frontend ====================
+
+// MarketplaceUserDTO 用于 /marketplace 返回，防止 company_id 精度丢失
+type MarketplaceUserDTO struct {
+	Id        uint   `json:"id"`
+	TelNo     string `json:"tel_no"`
+	Email     string `json:"email"`
+	CompanyId string `json:"company_id"`
+	Role      uint8  `json:"role"`
+	Ctime     uint32 `json:"ctime"`
+	Mtime     uint32 `json:"mtime"`
+}
+
+// MarketplaceUserBindingDTO 用于 /marketplace 返回，防止 biz_user_id 精度丢失
+type MarketplaceUserBindingDTO struct {
+	Id        uint64 `json:"id"`
+	UserId    uint   `json:"user_id"`
+	BizCode   string `json:"biz_code"`
+	BizUserId string `json:"biz_user_id"`
+	Ctime     uint32 `json:"ctime"`
+	Mtime     uint32 `json:"mtime"`
+}
+
+// MarketplaceLoginResponseDTO 用于 /marketplace 登录/绑定返回
+type MarketplaceLoginResponseDTO struct {
+	Token    string                       `json:"token"`
+	UserId   uint                         `json:"user_id"`
+	User     *MarketplaceUserDTO          `json:"user"`
+	Bindings []*MarketplaceUserBindingDTO `json:"bindings"`
+}
+
+// MarketplaceBindResponseDTO 用于 /marketplace 绑定返回
+type MarketplaceBindResponseDTO struct {
+	UserId    uint                         `json:"user_id"`
+	IsNewUser bool                         `json:"is_new_user"`
+	Token     string                       `json:"token"`
+	User      *MarketplaceUserDTO          `json:"user"`
+	Bindings  []*MarketplaceUserBindingDTO `json:"bindings"`
+}
+
+func toMarketplaceUserDTO(u *usermodel.User) *MarketplaceUserDTO {
+	if u == nil {
+		return nil
+	}
+	return &MarketplaceUserDTO{
+		Id:        u.Id,
+		TelNo:     u.TelNo,
+		Email:     u.Email,
+		CompanyId: strconv.FormatUint(u.CompanyId, 10),
+		Role:      u.Role,
+		Ctime:     u.Ctime,
+		Mtime:     u.Mtime,
+	}
+}
+
+func toMarketplaceUserBindingDTOs(bindings []*usermodel.UserBinding) []*MarketplaceUserBindingDTO {
+	if bindings == nil {
+		return nil
+	}
+	res := make([]*MarketplaceUserBindingDTO, 0, len(bindings))
+	for _, b := range bindings {
+		if b == nil {
+			continue
+		}
+		res = append(res, &MarketplaceUserBindingDTO{
+			Id:        b.Id,
+			UserId:    b.UserId,
+			BizCode:   b.BizCode,
+			BizUserId: strconv.FormatUint(b.BizUserId, 10),
+			Ctime:     b.Ctime,
+			Mtime:     b.Mtime,
+		})
+	}
+	return res
+}
+
+func toMarketplaceLoginResponseDTO(resp *user.LoginResponse) *MarketplaceLoginResponseDTO {
+	if resp == nil {
+		return nil
+	}
+	return &MarketplaceLoginResponseDTO{
+		Token:    resp.Token,
+		UserId:   resp.UserId,
+		User:     toMarketplaceUserDTO(resp.User),
+		Bindings: toMarketplaceUserBindingDTOs(resp.Bindings),
+	}
+}
+
+func toMarketplaceBindResponseDTO(resp *user.BindUserResponse) *MarketplaceBindResponseDTO {
+	if resp == nil {
+		return nil
+	}
+	return &MarketplaceBindResponseDTO{
+		UserId:    resp.UserId,
+		IsNewUser: resp.IsNewUser,
+		Token:     resp.Token,
+		User:      toMarketplaceUserDTO(resp.User),
+		Bindings:  toMarketplaceUserBindingDTOs(resp.Bindings),
+	}
+}
+
+// ==========================================================================================
+
 // LoginRequest 登录请求（电话号码/邮箱登录）
 type LoginRequest struct {
 	TelNo     string `json:"tel_no"`     // 手机号
@@ -635,7 +739,7 @@ func (r *MarketplaceResource) Login(ctx *gin.Context) {
 		return
 	}
 
-	http_utils.WriteResponse(ctx, resp, nil)
+	http_utils.WriteResponse(ctx, toMarketplaceLoginResponseDTO(resp), nil)
 }
 
 // BindUserRequest 用户绑定（与业务平台账号关联，成功后返回 session）
@@ -708,7 +812,7 @@ func (r *MarketplaceResource) BindUser(ctx *gin.Context) {
 		return
 	}
 
-	http_utils.WriteResponse(ctx, resp, nil)
+	http_utils.WriteResponse(ctx, toMarketplaceBindResponseDTO(resp), nil)
 }
 
 // CheckBizBinding 校验 biz_code + biz_user_id 是否已有绑定（免登录，供登录页预检）
@@ -739,7 +843,8 @@ func (r *MarketplaceResource) CheckBizBinding(ctx *gin.Context) {
 
 // UnbindUserBody 解绑请求体（当前用户从 session 解析）
 type UnbindUserBody struct {
-	BizCode string `json:"biz_code" binding:"required"` // 业务平台代码
+	BizCode   string `json:"biz_code" binding:"required"`          // 业务平台代码
+	BizUserId uint64 `json:"biz_user_id,string" binding:"required"` // 业务平台用户ID
 }
 
 // UnbindUser 解绑
@@ -758,8 +863,9 @@ func (r *MarketplaceResource) UnbindUser(ctx *gin.Context) {
 	}
 
 	if err := r.userService.UnbindUser(ctx.Request.Context(), &user.UnbindUserRequest{
-		UserId:  u.Id,
-		BizCode: req.BizCode,
+		UserId:    u.Id,
+		BizCode:   req.BizCode,
+		BizUserId: req.BizUserId,
 	}); err != nil {
 		http_utils.WriteResponse(ctx, nil, err)
 		return
@@ -783,7 +889,7 @@ func (r *MarketplaceResource) ListUserBindings(ctx *gin.Context) {
 		return
 	}
 
-	http_utils.WriteResponse(ctx, bindings, nil)
+	http_utils.WriteResponse(ctx, toMarketplaceUserBindingDTOs(bindings), nil)
 }
 
 // ChangePasswordBody 修改登录密钥
@@ -852,7 +958,7 @@ func (r *MarketplaceResource) UpdateProfile(ctx *gin.Context) {
 		http_utils.WriteResponse(ctx, nil, err)
 		return
 	}
-	http_utils.WriteResponse(ctx, fresh, nil)
+	http_utils.WriteResponse(ctx, toMarketplaceUserDTO(fresh), nil)
 }
 
 // ==================== 购物车接口 ====================

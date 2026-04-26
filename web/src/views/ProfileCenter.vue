@@ -307,7 +307,7 @@ async function confirmUnbind(row) {
   if (!ok) return
   unbindingCode.value = row.biz_code
   try {
-    await authApi.unbindBiz(row.biz_code)
+    await authApi.unbindBiz(row.biz_code, row.biz_user_id)
     toast.success('已解除绑定')
     await loadBindings()
   } catch (e) {

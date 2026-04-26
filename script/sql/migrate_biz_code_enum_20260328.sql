@@ -13,7 +13,8 @@ CREATE TABLE IF NOT EXISTS `biz_code_enum_tab` (
 
 INSERT IGNORE INTO `biz_code_enum_tab` (`code`, `name`, `ctime`, `mtime`) VALUES
 ('LawMind_ToC', 'LawMind C端用户', 0, 0),
-('LawMind_Enterprise', 'LawMind 企业用户', 0, 0),
-('LawMind_Admin', 'LawMind 运营人员', 0, 0);
+('LawMind_Enterprise', 'LawMind 企业用户', 0, 0);
+
+DELETE FROM `biz_code_enum_tab` WHERE `code` = 'LawMind_Admin';
 
 ALTER TABLE `user_binding_tab` MODIFY COLUMN `biz_code` VARCHAR(64) NOT NULL DEFAULT '' COMMENT '业务平台代码（见 biz_code_enum_tab）';
