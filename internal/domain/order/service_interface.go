@@ -117,4 +117,14 @@ type OrderService interface {
 
 	// AutoFulfill 自动履约（定时任务使用）
 	AutoFulfill(ctx context.Context, orderNo string) error
+
+	// GiftOrder 运营赠送商品：零元下单、标记已支付并自动履约
+	GiftOrder(ctx context.Context, req *GiftOrderRequest) (*CreateOrderResponse, error)
+}
+
+// GiftOrderRequest 运营赠送商品请求
+type GiftOrderRequest struct {
+	UserId   uint64          `json:"user_id"`
+	SkuItems []*SkuOrderItem `json:"sku_items"`
+	Remark   string          `json:"remark"`
 }

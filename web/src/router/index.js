@@ -69,6 +69,12 @@ const routes = [
         meta: { requiresAuth: true, requiresAdmin: true }
       },
       {
+        path: 'user-benefits',
+        name: 'OpsUserBenefits',
+        component: () => import('../views/ops/UserBenefits.vue'),
+        meta: { requiresAuth: true, requiresAdmin: true }
+      },
+      {
         path: 'data',
         name: 'OpsDataCenter',
         component: () => import('../views/ops/DataCenter.vue'),

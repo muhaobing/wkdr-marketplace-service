@@ -255,7 +255,7 @@
 
         <!-- 登录 -->
         <form v-else @submit.prevent="handleLogin" class="login-form login-form--login">
-          <div class="login-tabs login-tabs--account">
+          <div v-if="!isLoginKindLockedByBizCode" class="login-tabs login-tabs--account">
             <button
               type="button"
               :class="['tab', { active: loginAccountKind === 'personal' }]"
@@ -487,10 +487,32 @@ async function loadCompanies() {
   try {
     const list = await metaApi.listCompanies()
     companies.value = Array.isArray(list) ? list : []
+    applyLoginCompanyPrefillFromQuery()
   } catch {
     companies.value = []
   } finally {
     companiesLoading.value = false
+  }
+}
+
+function applyLoginCompanyPrefillFromQuery() {
+  const qCid = route.query.company_id
+  if (qCid !== undefined && qCid !== null && String(qCid).trim() !== '') {
+    const cid = parseInt(String(qCid), 10)
+    if (Number.isFinite(cid) && cid > 0) {
+      formData.company_id = cid
+      return
+    }
+  }
+
+  const qComp = route.query.company
+  const companyName = qComp == null ? '' : String(qComp).trim()
+  if (!companyName) {
+    return
+  }
+  const matched = companies.value.find((c) => String(c.name || '').trim() === companyName)
+  if (matched) {
+    formData.company_id = Number(matched.id) || 0
   }
 }
 
@@ -568,6 +590,23 @@ const loginAccountKind = ref('personal')
 const loading = ref(false)
 const errorMsg = ref('')
 
+const bizCodeFromRoute = computed(() => {
+  const raw = route.query.biz_code
+  return raw == null ? '' : String(raw).trim()
+})
+
+const lockedLoginKindByBizCode = computed(() => {
+  const code = bizCodeFromRoute.value
+  if (!code) return ''
+  if (code === 'LawMind_Enterprise') return 'enterprise'
+  if (code === 'LawMind_ToC') return 'personal'
+  // 兜底：包含 enterprise 关键字的业务码统一按企业登录模式
+  if (code.toLowerCase().includes('enterprise')) return 'enterprise'
+  return 'personal'
+})
+
+const isLoginKindLockedByBizCode = computed(() => !!lockedLoginKindByBizCode.value)
+
 const formData = reactive({
   loginAccount: '',
   secret: '',
@@ -612,6 +651,10 @@ function selectLoginCompany(id) {
 }
 
 watch(loginAccountKind, (k, prev) => {
+  if (isLoginKindLockedByBizCode.value && k !== lockedLoginKindByBizCode.value) {
+    loginAccountKind.value = lockedLoginKindByBizCode.value
+    return
+  }
   if (k === 'enterprise') loadCompanies()
   else if (prev === 'enterprise') formData.company_id = 0
 })
@@ -646,9 +689,20 @@ async function applyQueryAndBindCheck() {
       bindForm.company_name = ''
     }
   }
+  applyLoginCompanyPrefillFromQuery()
   syncBindPrefillLocksFromRoute()
   if (bindPlatformFromQuery.value) {
     bindPlatformOpen.value = false
+  }
+
+  // URL 带 biz_code 时固定登录模式，并隐藏个人/企业切换
+  if (lockedLoginKindByBizCode.value) {
+    loginAccountKind.value = lockedLoginKindByBizCode.value
+    if (lockedLoginKindByBizCode.value === 'enterprise') {
+      loadCompanies()
+    } else {
+      formData.company_id = 0
+    }
   }
 
   if (!hasBothValidBindQuery()) {

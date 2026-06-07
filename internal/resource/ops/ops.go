@@ -8,25 +8,37 @@ import (
 	"github.com/muhaobing/std-go/restserver/registry"
 
 	"wdkr-marketplace-service/internal/common/utils/http_utils"
+	"wdkr-marketplace-service/internal/domain/companyecoin"
+	"wdkr-marketplace-service/internal/domain/ecoin"
 	"wdkr-marketplace-service/internal/domain/order"
 	"wdkr-marketplace-service/internal/domain/sku"
+	"wdkr-marketplace-service/internal/domain/user"
 	skumodel "wdkr-marketplace-service/internal/domain/sku/sku_model"
 )
 
 // OpsResource 运营接口资源（面向运营人员）
 type OpsResource struct {
-	skuService   sku.SkuService
-	orderService order.OrderService
+	skuService          sku.SkuService
+	orderService        order.OrderService
+	userService         user.UserService
+	ecoinService        ecoin.EcoinService
+	companyEcoinService companyecoin.CompanyEcoinService
 }
 
 // NewOpsResource 创建运营资源实例
 func NewOpsResource(
 	skuService sku.SkuService,
 	orderService order.OrderService,
+	userService user.UserService,
+	ecoinService ecoin.EcoinService,
+	companyEcoinService companyecoin.CompanyEcoinService,
 ) *OpsResource {
 	return &OpsResource{
-		skuService:   skuService,
-		orderService: orderService,
+		skuService:          skuService,
+		orderService:        orderService,
+		userService:         userService,
+		ecoinService:        ecoinService,
+		companyEcoinService: companyEcoinService,
 	}
 }
 
@@ -379,6 +391,12 @@ func (r *OpsResource) Router() registry.Registry {
 			group.GET("/orders/:order_no", r.GetOrderDetail)
 			group.POST("/orders/refund", r.RefundOrder)
 			group.POST("/orders/fulfill", r.FulfillOrder)
+			group.POST("/orders/gift", r.GiftSku)
+
+			// 用户权益
+			group.GET("/users/lookup", r.LookupUser)
+			group.POST("/ecoin/adjust", r.AdjustEcoin)
+			group.POST("/ecoin/gift", r.GiftEcoin)
 		}
 	}
 }

@@ -46,6 +46,30 @@
           </div>
         </div>
 
+        <!-- 用户权益 -->
+        <div class="nav-group">
+          <div class="nav-group-title" @click="toggleGroup('user')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+              <circle cx="12" cy="7" r="4"/>
+            </svg>
+            <span>用户运营</span>
+            <svg class="arrow" :class="{ expanded: expandedGroups.user }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="6 9 12 15 18 9"/>
+            </svg>
+          </div>
+          <div class="nav-group-items" v-show="expandedGroups.user">
+            <router-link to="/ops/user-benefits" class="nav-item" active-class="active">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/>
+                <path d="M12 6v12"/>
+                <path d="M6 12h12"/>
+              </svg>
+              <span>用户权益</span>
+            </router-link>
+          </div>
+        </div>
+
         <!-- 数据中心 -->
         <div class="nav-group">
           <div class="nav-group-title" @click="toggleGroup('data')">
@@ -105,6 +129,7 @@ const userName = computed(() => userStore.userName)
 
 const expandedGroups = reactive({
   mall: true,
+  user: true,
   data: false
 })
 

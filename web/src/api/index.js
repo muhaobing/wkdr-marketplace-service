@@ -296,4 +296,20 @@ export const opsOrderApi = {
   }
 }
 
+// 运营端用户权益 API
+export const opsUserBenefitsApi = {
+  lookup(params) {
+    return opsApi.get('/users/lookup', { params })
+  },
+  adjustEcoin(data) {
+    return opsApi.post('/ecoin/adjust', data)
+  },
+  giftEcoin(data) {
+    return opsApi.post('/ecoin/gift', data)
+  },
+  giftSku(data) {
+    return opsApi.post('/orders/gift', data)
+  }
+}
+
 export default api

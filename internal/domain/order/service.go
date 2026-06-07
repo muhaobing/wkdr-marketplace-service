@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"strings"
 	"time"
 
 	"github.com/muhaobing/std-go/go-common/database"
@@ -945,6 +946,63 @@ func (s *orderServiceImpl) SyncOrderStatus(ctx context.Context, orderNo string) 
 	items, _ := s.orderRepo.GetOrderItemsByOrderId(ctx, order.Id)
 	order.Items = items
 	return order, nil
+}
+
+// GiftOrder 运营赠送商品：创建零元已支付订单并触发履约
+func (s *orderServiceImpl) GiftOrder(ctx context.Context, req *GiftOrderRequest) (*CreateOrderResponse, error) {
+	if req == nil {
+		return nil, errors.New("request is required")
+	}
+	if req.UserId == 0 {
+		return nil, errors.New("user_id is required")
+	}
+	if len(req.SkuItems) == 0 {
+		return nil, errors.New("at least one sku_item is required")
+	}
+
+	createReq := &CreateOrderRequest{
+		UserId:   req.UserId,
+		SkuItems: req.SkuItems,
+		PayType:  ordermodel.PayTypeMoney,
+		Remark:   strings.TrimSpace(req.Remark),
+	}
+	order, orderItems, err := s.buildOrder(ctx, createReq)
+	if err != nil {
+		return nil, err
+	}
+	order.PayAmount = 0
+	if order.Remark != "" {
+		order.Remark = "OPS_GIFT: " + order.Remark
+	} else {
+		order.Remark = "OPS_GIFT"
+	}
+
+	payTime := uint32(time.Now().Unix())
+	err = database.Transaction(ctx, func(ctx context.Context) error {
+		if err := s.orderRepo.CreateOrder(ctx, order); err != nil {
+			return fmt.Errorf("failed to create order: %w", err)
+		}
+		for _, item := range orderItems {
+			item.OrderId = order.Id
+		}
+		if err := s.orderRepo.CreateOrderItems(ctx, orderItems); err != nil {
+			return fmt.Errorf("failed to create order items: %w", err)
+		}
+		if err := s.orderRepo.UpdateOrderToPaid(ctx, order.OrderNo, payTime); err != nil {
+			return fmt.Errorf("failed to update order to paid: %w", err)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	order.Status = ordermodel.OrderStatusPaid
+	order.PayTime = payTime
+	order.Items = orderItems
+	go s.asyncAutoFulfill(order.OrderNo)
+
+	return &CreateOrderResponse{Order: order}, nil
 }
 
 // generateOrderNo 生成订单号
