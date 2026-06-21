@@ -40,6 +40,10 @@ func corsOriginAllowed(origin string) bool {
 		"http://lawmind.top",
 		"https://www.lawmind.top",
 		"https://lawmind.top",
+		"http://www.powermind.top",
+		"http://powermind.top",
+		"https://www.powermind.top",
+		"https://powermind.top",
 	} {
 		if origin == o {
 			return true
