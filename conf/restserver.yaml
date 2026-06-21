@@ -1,4 +1,5 @@
-# WKDR Marketplace Service 配置文件
+# PowerMind 专用商城配置（version/powermind-release）
+# 部署：独立 marketplace 实例 + 库 power_marketplace_db
 restserver:
   server:
     port: 10302
@@ -10,20 +11,18 @@ restserver:
     port: 3306
     user: "DBManager"
     password: "DBA_powermind"
-    db: "marketplace"
+    db: "power_marketplace_db"
   cache:
     host: "r-2zebckuc7ews8163scpd.redis.rds.aliyuncs.com"
     port: 6379
     username: "redis_user"
     password: "RDBA_powermind"
-    db: 0
+    db: 1  # 与 LawMind marketplace（db 0）隔离 Session
 
-# 业务配置
 config:
   auth:
     aes_key: "ThisIsNotAAesKey"
     expiration: 86400
-    # 无尾斜杠的项仅匹配自身或「自身/子路径」，不会把 user/bindings 误当成 user/bind 的前缀
     whitelist:
       - "/marketplace/login"
       - "/marketplace/biz_codes"
@@ -32,32 +31,31 @@ config:
       - "/openapi/"
       - "/mock/"
       - "/ping"
-    # 需要管理员权限的路径前缀
     admin_paths:
       - "/ops/"
   jwt:
     expiration_seconds: 300
     clients:
-      - account: "lawmind"
+      - account: "powermind"
         secret: "dxyxv1TrPentq-v-ly4Mewkk2owmG2cspKXN5rkGOi87fxzxtiDHuAvsyr7QwRZ8"
     paths:
       - "/openapi/ecoin"
   callback_jwt:
     expiration_seconds: 300
     clients:
-      - biz_code: "LawMind_ToC"
+      - biz_code: "PowerMind_ToC"
         secret: "dxyxv1TrPentq-v-ly4Mewkk2owmG2cspKXN5rkGOi87fxzxtiDHuAvsyr7QwRZ8"
-      - biz_code: "LawMind_Enterprise"
+      - biz_code: "PowerMind_Enterprise"
         secret: "dxyxv1TrPentq-v-ly4Mewkk2owmG2cspKXN5rkGOi87fxzxtiDHuAvsyr7QwRZ8"
-  # 微信支付配置
+      - biz_code: "PowerMind_Ops"
+        secret: "dxyxv1TrPentq-v-ly4Mewkk2owmG2cspKXN5rkGOi87fxzxtiDHuAvsyr7QwRZ8"
   wechat_pay:
     app_id: "wxa73175af23fa8262"
     mch_id: "1739371658"
     api_key: "7H8j9K2s5D8f7G9h1J3k5L7m8N9b0V8z"
     serial_no: "56FCA42324AD15BBE258203AB1AE6FA08FC473B3"
     private_key_path: "script/keys/1739371658_20260213_cert/apiclient_key.pem"
-    notify_url: "http://www.lawmind.top/market/api/openapi/callback/wechat/pay"
-    refund_notify_url: "http://www.lawmind.top/market/api/openapi/callback/wechat/refund"
+    notify_url: "https://www.powermind.top/market/api/openapi/callback/wechat/pay"
+    refund_notify_url: "https://www.powermind.top/market/api/openapi/callback/wechat/refund"
   ecoin_unit_price: 0.01
-  # 已废弃（保留键名）；积分过期：当月最后一日 23:59:59（Asia/Shanghai）；当月最后 5 个自然日内购买顺延至次月最后一日 23:59:59
   ecoin_expire_seconds: 2592000
