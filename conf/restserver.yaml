@@ -29,6 +29,7 @@ config:
       - "/marketplace/biz_codes"
       - "/marketplace/companies"
       - "/marketplace/user/bind"
+      - "/marketplace/user/bind/check"
       - "/openapi/"
       - "/mock/"
       - "/ping"
