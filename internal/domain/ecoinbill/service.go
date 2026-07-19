@@ -28,7 +28,7 @@ type pointsBillServiceImpl struct {
 	companyEcoin companyecoin.CompanyEcoinService
 }
 
-// NewEcoinBillService 创建积分账单服务
+// NewEcoinBillService 创建金币账单服务
 func NewEcoinBillService(
 	billRepo repo.EcoinBillRepo,
 	ecoinSvc ecoin.EcoinService,
@@ -70,7 +70,7 @@ func (s *pointsBillServiceImpl) PreDeduct(ctx context.Context, userId, companyId
 				Amount:         cost,
 				SourceType:     ecoin_model.SourceTypeEcoinBillPreDeduct,
 				SourceId:       sid,
-				Description:    "积分账单预扣",
+				Description:    "金币账单预扣",
 			})
 			if err != nil {
 				return err
@@ -82,7 +82,7 @@ func (s *pointsBillServiceImpl) PreDeduct(ctx context.Context, userId, companyId
 			Amount:      cost,
 			SourceType:  ecoin_model.SourceTypeEcoinBillPreDeduct,
 			SourceId:    sid,
-			Description: "积分账单预扣",
+			Description: "金币账单预扣",
 		})
 		if err != nil {
 			return err
@@ -139,7 +139,7 @@ func (s *pointsBillServiceImpl) refundAndCancel(ctx context.Context, bill *ecoin
 			Amount:         bill.Amount,
 			SourceType:     ecoin_model.SourceTypeEcoinBillRefund,
 			SourceId:       rid,
-			Description:    "积分账单取消退回",
+			Description:    "金币账单取消退回",
 		})
 		if err != nil {
 			return err
@@ -150,7 +150,7 @@ func (s *pointsBillServiceImpl) refundAndCancel(ctx context.Context, bill *ecoin
 			Amount:      bill.Amount,
 			SourceType:  ecoin_model.SourceTypeEcoinBillRefund,
 			SourceId:    rid,
-			Description: "积分账单取消退回",
+			Description: "金币账单取消退回",
 		})
 		if err != nil {
 			return err

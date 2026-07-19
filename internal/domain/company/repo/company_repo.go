@@ -32,6 +32,21 @@ func (r *companyRepoImpl) GetById(ctx context.Context, id uint64) (*companymodel
 	return &c, nil
 }
 
+func (r *companyRepoImpl) GetByBizCompanyId(ctx context.Context, bizCompanyId uint64) (*companymodel.Company, error) {
+	if bizCompanyId == 0 {
+		return nil, nil
+	}
+	var c companymodel.Company
+	err := database.FromContext(ctx).Where("biz_company_id = ?", bizCompanyId).First(&c).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &c, nil
+}
+
 func (r *companyRepoImpl) GetByName(ctx context.Context, name string) (*companymodel.Company, error) {
 	name = strings.TrimSpace(name)
 	if name == "" {

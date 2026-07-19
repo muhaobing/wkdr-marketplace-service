@@ -1,0 +1,6 @@
+
+> marketplace-web@1.0.0 preview
+> vite preview --host 0.0.0.0 --port 10301
+
+  ➜  Local:   http://localhost:10301/market/
+  ➜  Network: http://172.22.235.31:10301/market/

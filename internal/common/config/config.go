@@ -12,7 +12,8 @@ const DefaultJWTExpirationSeconds uint32 = 300
 
 // Conf 应用配置
 type Conf struct {
-	Auth                       AuthConfig        `yaml:"auth"`         // 用户 session（AES+Redis）鉴权
+	Auth                       AuthConfig        `yaml:"auth"`         // 路径白名单 / 运营端前缀
+	MainJWT                    MainJWTConfig     `yaml:"main_jwt"`     // 主站 LawLLM 登录 JWT（HS256）
 	JWT                        JWTConfig         `yaml:"jwt"`          // OpenAPI 等系统间 JWT 鉴权（与 auth 独立）
 	CallbackJWT                CallbackJWTConfig `yaml:"callback_jwt"` // SKU 履约回调 JWT（按 biz_code 配置 secret）
 	WechatPay                  WechatPayConfig   `yaml:"wechat_pay"`   // 微信支付配置
@@ -21,12 +22,17 @@ type Conf struct {
 	EcoinIdempotencyTTLSeconds uint32            `yaml:"ecoin_idempotency_ttl_seconds"` // 积分加减幂等 Redis 键 TTL（秒），0 表示默认 12 小时
 }
 
-// AuthConfig 前台/运营端 session 鉴权
+// AuthConfig 路径白名单与运营端前缀
 type AuthConfig struct {
-	AesKey     string   `yaml:"aes_key"`     // AES加密密钥
-	Expiration uint32   `yaml:"expiration"`  // session过期时间（秒）
-	Whitelist  []string `yaml:"whitelist"`   // 不需要 session 鉴权的路径白名单
-	AdminPaths []string `yaml:"admin_paths"` // 需要管理员权限的路径前缀
+	AesKey     string   `yaml:"aes_key"`     // 已废弃：旧商城 session，保留键名兼容
+	Expiration uint32   `yaml:"expiration"`  // 已废弃
+	Whitelist  []string `yaml:"whitelist"`   // 不需要主站身份鉴权的路径白名单
+	AdminPaths []string `yaml:"admin_paths"` // 需要主站管理员权限的路径前缀
+}
+
+// MainJWTConfig 主站 LawLLM JWT 验签配置（与 lawllm-gateway / user-service 共享 secret）
+type MainJWTConfig struct {
+	Secret string `yaml:"secret"`
 }
 
 // JWTConfig 系统间 JWT：请求体仅含 jwt 字段，业务参数在 payload；account 与 secret 成对，验签时按 payload.account 选用对应 secret

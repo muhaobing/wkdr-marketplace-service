@@ -20,14 +20,14 @@ type ecoinServiceImpl struct {
 	ecoinRepo repo.EcoinRepo
 }
 
-// NewEcoinService 创建积分服务实例
+// NewEcoinService 创建金币服务实例
 func NewEcoinService(ecoinRepo repo.EcoinRepo) EcoinService {
 	return &ecoinServiceImpl{
 		ecoinRepo: ecoinRepo,
 	}
 }
 
-// GetUserEcoin 获取用户积分信息
+// GetUserEcoin 获取用户金币信息
 func (s *ecoinServiceImpl) GetUserEcoin(ctx context.Context, userId uint64) (*ecoin_model.UserEcoin, error) {
 	if userId == 0 {
 		return nil, errors.New("user id is required")
@@ -67,7 +67,7 @@ func (s *ecoinServiceImpl) GetUserEcoin(ctx context.Context, userId uint64) (*ec
 	return userEcoin, nil
 }
 
-// AddEcoin 增加积分（source_id 非空时 Redis SETNX 幂等键仅含 source_type+source_id；未抢到键视为已成功并返回 nil,nil；TTL 见 ecoin_idempotency_ttl_seconds）
+// AddEcoin 增加金币（source_id 非空时 Redis SETNX 幂等键仅含 source_type+source_id；未抢到键视为已成功并返回 nil,nil；TTL 见 ecoin_idempotency_ttl_seconds）
 func (s *ecoinServiceImpl) AddEcoin(ctx context.Context, req *AddEcoinRequest) (*ecoin_model.EcoinTransaction, error) {
 	if req.UserId == 0 {
 		return nil, errors.New("user id is required")
@@ -113,7 +113,7 @@ func (s *ecoinServiceImpl) addEcoinOnce(ctx context.Context, req *AddEcoinReques
 	return transaction, nil
 }
 
-// AddEcoinInTx 在已有事务内入账（供积分账单退款等与账单同事务调用）
+// AddEcoinInTx 在已有事务内入账（供金币账单退款等与账单同事务调用）
 func (s *ecoinServiceImpl) AddEcoinInTx(ctx context.Context, req *AddEcoinRequest) (*ecoin_model.EcoinTransaction, error) {
 	if req.UserId == 0 {
 		return nil, errors.New("user id is required")
@@ -178,7 +178,7 @@ func (s *ecoinServiceImpl) AddEcoinInTx(ctx context.Context, req *AddEcoinReques
 	return transaction, nil
 }
 
-// DeductEcoin 扣除积分（幂等键与 AddEcoin 相同规则，同一 source_type+source_id 在 TTL 内先执行的接口会占用键）
+// DeductEcoin 扣除金币（幂等键与 AddEcoin 相同规则，同一 source_type+source_id 在 TTL 内先执行的接口会占用键）
 func (s *ecoinServiceImpl) DeductEcoin(ctx context.Context, req *DeductEcoinRequest) (*ecoin_model.EcoinTransaction, error) {
 	if req.UserId == 0 {
 		return nil, errors.New("user id is required")
@@ -224,7 +224,7 @@ func (s *ecoinServiceImpl) deductEcoinOnce(ctx context.Context, req *DeductEcoin
 	return transaction, nil
 }
 
-// DeductEcoinInTx 在已有事务内扣款（供积分账单预扣等与账单同事务调用）
+// DeductEcoinInTx 在已有事务内扣款（供金币账单预扣等与账单同事务调用）
 func (s *ecoinServiceImpl) DeductEcoinInTx(ctx context.Context, req *DeductEcoinRequest) (*ecoin_model.EcoinTransaction, error) {
 	if req.UserId == 0 {
 		return nil, errors.New("user id is required")
@@ -311,7 +311,7 @@ func (s *ecoinServiceImpl) DeductEcoinInTx(ctx context.Context, req *DeductEcoin
 	return transaction, nil
 }
 
-// GetEcoinTransactionList 获取积分流水列表
+// GetEcoinTransactionList 获取金币流水列表
 func (s *ecoinServiceImpl) GetEcoinTransactionList(ctx context.Context, req *EcoinTransactionListRequest) (*EcoinTransactionListResponse, error) {
 	if req.UserId == 0 {
 		return nil, errors.New("user id is required")
@@ -343,7 +343,7 @@ func (s *ecoinServiceImpl) GetEcoinTransactionList(ctx context.Context, req *Eco
 	}, nil
 }
 
-// GetEcoinTransaction 根据ID获取积分流水
+// GetEcoinTransaction 根据ID获取金币流水
 func (s *ecoinServiceImpl) GetEcoinTransaction(ctx context.Context, id uint64) (*ecoin_model.EcoinTransaction, error) {
 	if id == 0 {
 		return nil, errors.New("transaction id is required")
@@ -361,7 +361,7 @@ func (s *ecoinServiceImpl) GetEcoinTransaction(ctx context.Context, id uint64) (
 	return transaction, nil
 }
 
-// InitUserEcoin 初始化用户积分账户
+// InitUserEcoin 初始化用户金币账户
 func (s *ecoinServiceImpl) InitUserEcoin(ctx context.Context, userId uint64) (*ecoin_model.UserEcoin, bool, error) {
 	if userId == 0 {
 		return nil, false, errors.New("user id is required")
@@ -377,7 +377,7 @@ func (s *ecoinServiceImpl) InitUserEcoin(ctx context.Context, userId uint64) (*e
 		return existingEcoin, false, nil
 	}
 
-	// 创建新的用户积分记录
+	// 创建新的用户金币记录
 	userEcoin := &ecoin_model.UserEcoin{
 		UserId:         userId,
 		AvailableStock: 0,
@@ -390,7 +390,7 @@ func (s *ecoinServiceImpl) InitUserEcoin(ctx context.Context, userId uint64) (*e
 	return userEcoin, true, nil
 }
 
-// GetEcoinStockGroupList 获取积分库存分组
+// GetEcoinStockGroupList 获取金币库存分组
 func (s *ecoinServiceImpl) GetEcoinStockGroupList(ctx context.Context, req *EcoinStockGroupListRequest) (*EcoinStockGroupListResponse, error) {
 	if req.UserId == 0 {
 		return nil, errors.New("user id is required")
@@ -405,7 +405,7 @@ func (s *ecoinServiceImpl) GetEcoinStockGroupList(ctx context.Context, req *Ecoi
 	}, nil
 }
 
-// ExpireEcoinStock 过期积分处理（定时任务调用）
+// ExpireEcoinStock 过期金币处理（定时任务调用）
 func (s *ecoinServiceImpl) ExpireEcoinStock(ctx context.Context, now uint32, limit int) (int, error) {
 	if limit <= 0 {
 		limit = 500
@@ -452,7 +452,7 @@ func (s *ecoinServiceImpl) ExpireEcoinStock(ctx context.Context, now uint32, lim
 				TxType:      ecoin_model.TransactionTypeDeduct,
 				SourceType:  ecoin_model.SourceTypeExpire,
 				SourceId:    fmt.Sprintf("expire_task:%d", now),
-				Description: "积分已过期自动失效",
+				Description: "金币已过期自动失效",
 				Status:      ecoin_model.TransactionStatusCompleted,
 			}
 			if err := s.ecoinRepo.AddEcoinTransaction(ctx, tx); err != nil {
@@ -535,7 +535,7 @@ func (s *ecoinServiceImpl) expireGroupsForUser(ctx context.Context, userEcoin *e
 		TxType:      ecoin_model.TransactionTypeDeduct,
 		SourceType:  ecoin_model.SourceTypeExpire,
 		SourceId:    sourceID,
-		Description: "积分已过期自动失效",
+		Description: "金币已过期自动失效",
 		Status:      ecoin_model.TransactionStatusCompleted,
 	}
 	if err := s.ecoinRepo.AddEcoinTransaction(ctx, tx); err != nil {

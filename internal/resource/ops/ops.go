@@ -51,10 +51,10 @@ type CreateSkuRequest struct {
 	SkuName            string  `json:"sku_name" binding:"required"` // 商品名称
 	SkuAvatar          string  `json:"sku_avatar"`                  // 商品图标
 	SkuDesc            string  `json:"sku_desc"`                    // 商品描述
-	Cost               float32 `json:"cost" binding:"required"`     // 商品售价(积分)
+	Cost               float32 `json:"cost" binding:"required"`     // 商品售价(金币)
 	DeliveryMethod     string  `json:"delivery_method"`             // 履约回调接口（fulfill_mode=0）
-	FulfillMode        uint8   `json:"fulfill_mode"`                // 履约模式：0-接口回调，1-积分发放
-	FulfillEcoinAmount float64 `json:"fulfill_ecoin_amount"`        // 积分发放：每件发放积分数
+	FulfillMode        uint8   `json:"fulfill_mode"`                // 履约模式：0-接口回调，1-金币发放
+	FulfillEcoinAmount float64 `json:"fulfill_ecoin_amount"`        // 金币发放：每件发放金币数
 	MultiSelect        uint8   `json:"multi_select"`                // 是否支持多选：0-不支持，1-支持
 	SkuScope           uint8   `json:"sku_scope"`                   // 可见范围：0=通用 1=仅个人 2=仅企业，默认 0
 }
@@ -95,10 +95,10 @@ type EditSkuRequest struct {
 	SkuName            string  `json:"sku_name" binding:"required"` // 商品名称
 	SkuAvatar          string  `json:"sku_avatar"`                  // 商品图标
 	SkuDesc            string  `json:"sku_desc"`                    // 商品描述
-	Cost               float32 `json:"cost" binding:"required"`     // 商品售价(积分)
+	Cost               float32 `json:"cost" binding:"required"`     // 商品售价(金币)
 	DeliveryMethod     string  `json:"delivery_method"`             // 履约回调接口（fulfill_mode=0）
-	FulfillMode        uint8   `json:"fulfill_mode"`                // 履约模式：0-接口回调，1-积分发放
-	FulfillEcoinAmount float64 `json:"fulfill_ecoin_amount"`        // 积分发放：每件发放积分数
+	FulfillMode        uint8   `json:"fulfill_mode"`                // 履约模式：0-接口回调，1-金币发放
+	FulfillEcoinAmount float64 `json:"fulfill_ecoin_amount"`        // 金币发放：每件发放金币数
 	MultiSelect        uint8   `json:"multi_select"`                // 是否支持多选：0-不支持，1-支持
 	SkuScope           uint8   `json:"sku_scope"`                   // 可见范围：0=通用 1=仅个人 2=仅企业
 }

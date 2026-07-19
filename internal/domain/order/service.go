@@ -138,7 +138,7 @@ func (s *orderServiceImpl) CreateOrder(ctx context.Context, req *CreateOrderRequ
 		return nil, err
 	}
 
-	// 积分支付需要立即扣除积分
+	// 金币支付需要立即扣除金币
 	if req.PayType == ordermodel.PayTypeEcoin {
 		err := database.Transaction(ctx, func(ctx context.Context) error {
 			if err := s.orderRepo.CreateOrder(ctx, order); err != nil {
@@ -224,7 +224,7 @@ func (s *orderServiceImpl) buildOrder(ctx context.Context, req *CreateOrderReque
 
 		// 校验支付金额不低于1分钱
 		if int64(totalAmount*100) < 1 {
-			return nil, nil, fmt.Errorf("充值金额过低，最低支付金额为1分钱，当前积分单价为%.4f元，请至少充值%d积分",
+			return nil, nil, fmt.Errorf("充值金额过低，最低支付金额为1分钱，当前金币单价为%.4f元，请至少充值%d金币",
 				unitPrice, int(math.Ceil(0.01/float64(unitPrice))))
 		}
 
@@ -232,7 +232,7 @@ func (s *orderServiceImpl) buildOrder(ctx context.Context, req *CreateOrderReque
 			OrderNo:       orderNo,
 			SkuId:         0,
 			SkuCode:       "ecoin",
-			SkuName:       "积分",
+			SkuName:       "金币",
 			SkuAvatar:     "",
 			Quantity:      req.EcoinUnits,
 			UnitPrice:     unitPrice,
@@ -277,7 +277,7 @@ func (s *orderServiceImpl) buildOrder(ctx context.Context, req *CreateOrderReque
 			}
 
 			if req.PayType == ordermodel.PayTypeEcoin && skuInfo.IsEcoinGrantFulfill() {
-				return nil, nil, errors.New("积分类商品不支持积分支付，请使用在线支付")
+				return nil, nil, errors.New("金币类商品不支持金币支付，请使用在线支付")
 			}
 
 			// 计算价格
@@ -368,7 +368,7 @@ func (s *orderServiceImpl) PayOrder(ctx context.Context, req *PayOrderRequest) (
 		return nil, fmt.Errorf("order cannot be paid, current status: %d", order.Status)
 	}
 
-	// 积分支付
+	// 金币支付
 	if req.Channel == "ecoin" {
 		return s.payWithEcoin(ctx, order)
 	}
@@ -417,7 +417,7 @@ func (s *orderServiceImpl) PayOrder(ctx context.Context, req *PayOrderRequest) (
 	}, nil
 }
 
-// payWithEcoin 积分支付
+// payWithEcoin 金币支付
 func (s *orderServiceImpl) payWithEcoin(ctx context.Context, order *ordermodel.Order) (*PayOrderResponse, error) {
 	items, err := s.orderRepo.GetOrderItemsByOrderId(ctx, order.Id)
 	if err != nil {
@@ -435,7 +435,7 @@ func (s *orderServiceImpl) payWithEcoin(ctx context.Context, order *ordermodel.O
 			return nil, fmt.Errorf("sku %d not found", it.SkuId)
 		}
 		if skuInfo.IsEcoinGrantFulfill() {
-			return nil, errors.New("积分类商品不支持积分支付，请使用在线支付")
+			return nil, errors.New("金币类商品不支持金币支付，请使用在线支付")
 		}
 	}
 
@@ -561,7 +561,7 @@ func (s *orderServiceImpl) FulfillOrder(ctx context.Context, orderNo string, biz
 }
 
 // AutoFulfill 自动履约（获取分布式锁 + 执行履约）
-// 所有自动履约入口统一调用此方法：微信回调、积分支付、定时任务、前端同步
+// 所有自动履约入口统一调用此方法：微信回调、金币支付、定时任务、前端同步
 func (s *orderServiceImpl) AutoFulfill(ctx context.Context, orderNo string) error {
 	lock, err := utils.AcquireDistributedLock(ctx, utils.GenKey(":", fulfillLockPrefix, orderNo), fulfillLockTTL)
 	if err != nil {
@@ -609,7 +609,7 @@ func (s *orderServiceImpl) autoFulfill(ctx context.Context, orderNo string) erro
 		return fmt.Errorf("failed to get order items: %w", err)
 	}
 
-	// 判断是否为积分充值订单
+	// 判断是否为金币充值订单
 	if s.isEcoinRechargeOrder(items) {
 		return s.fulfillEcoinRecharge(ctx, order, items)
 	}
@@ -619,12 +619,12 @@ func (s *orderServiceImpl) autoFulfill(ctx context.Context, orderNo string) erro
 	return s.fulfillSkuItems(ctx, order, items, bizUserIdMap, "")
 }
 
-// isEcoinRechargeOrder 判断是否为积分充值订单
+// isEcoinRechargeOrder 判断是否为金币充值订单
 func (s *orderServiceImpl) isEcoinRechargeOrder(items []*ordermodel.OrderItem) bool {
 	return len(items) == 1 && items[0].SkuId == 0 && items[0].SkuCode == "ecoin"
 }
 
-// fulfillEcoinRecharge 积分充值履约：给用户增加积分
+// fulfillEcoinRecharge 金币充值履约：给用户增加金币
 func (s *orderServiceImpl) fulfillEcoinRecharge(ctx context.Context, order *ordermodel.Order, items []*ordermodel.OrderItem) error {
 	item := items[0]
 	if !item.IsFulfillPending() {
@@ -636,7 +636,7 @@ func (s *orderServiceImpl) fulfillEcoinRecharge(ctx context.Context, order *orde
 		Amount:      float64(item.Quantity),
 		SourceType:  "recharge",
 		SourceId:    order.OrderNo,
-		Description: fmt.Sprintf("积分充值 - 订单号: %s", order.OrderNo),
+		Description: fmt.Sprintf("金币充值 - 订单号: %s", order.OrderNo),
 	})
 
 	fulfillTime := uint32(time.Now().Unix())
@@ -645,7 +645,7 @@ func (s *orderServiceImpl) fulfillEcoinRecharge(ctx context.Context, order *orde
 		return fmt.Errorf("failed to add ecoin: %w", err)
 	}
 
-	if err := s.orderRepo.UpdateOrderItemFulfillStatus(ctx, item.Id, ordermodel.FulfillStatusSuccess, fulfillTime, "积分充值成功"); err != nil {
+	if err := s.orderRepo.UpdateOrderItemFulfillStatus(ctx, item.Id, ordermodel.FulfillStatusSuccess, fulfillTime, "金币充值成功"); err != nil {
 		return err
 	}
 	return s.orderRepo.UpdateOrderToFulfilled(ctx, order.OrderNo, fulfillTime)
@@ -700,21 +700,21 @@ func (s *orderServiceImpl) fulfillSkuItems(ctx context.Context, order *ordermode
 			grant := skuInfo.FulfillEcoinAmount * float64(item.Quantity)
 			if grant <= 0 {
 				fulfillStatus = ordermodel.FulfillStatusFailed
-				fulfillMsg = "未配置积分发放数量"
+				fulfillMsg = "未配置金币发放数量"
 			} else {
 				addErr := s.addEcoinForOrder(ctx, order.UserId, &ecoin.AddEcoinRequest{
 					UserId:      order.UserId,
 					Amount:      grant,
 					SourceType:  ecoin_model.SourceTypeOrder,
 					SourceId:    fmt.Sprintf("%s#%d", order.OrderNo, item.Id),
-					Description: fmt.Sprintf("商品履约发放积分 - %s x%d", skuInfo.SkuName, item.Quantity),
+					Description: fmt.Sprintf("商品履约发放金币 - %s x%d", skuInfo.SkuName, item.Quantity),
 				})
 				if addErr != nil {
 					fulfillStatus = ordermodel.FulfillStatusFailed
 					fulfillMsg = addErr.Error()
 				} else {
 					fulfillStatus = ordermodel.FulfillStatusSuccess
-					fulfillMsg = "积分发放成功"
+					fulfillMsg = "金币发放成功"
 				}
 			}
 		} else if skuInfo.DeliveryMethod == "" {
@@ -823,7 +823,7 @@ func (s *orderServiceImpl) RefundOrder(ctx context.Context, req *RefundOrderRequ
 		}
 
 		if order.IsEcoinPay() {
-			// 积分支付退款：返还积分
+			// 金币支付退款：返还金币
 			err := s.addEcoinForOrder(ctx, order.UserId, &ecoin.AddEcoinRequest{
 				UserId:      order.UserId,
 				Amount:      float64(order.PayAmount),

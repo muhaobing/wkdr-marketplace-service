@@ -25,11 +25,12 @@ func main() {
 	handler.RegisterHandler(&database.DatabaseHandler{})
 	handler.RegisterHandler(&cache.CacheHandler{})
 	handler.RegisterHandler(&middleware.RecoveryHandler{})
-	handler.RegisterHandler(&middleware.AuthValidationHandler{})
+	handler.RegisterHandler(&middleware.MainIdentityAuthHandler{})
 	handler.RegisterHandler(&middleware.JWTValidationHandler{})
 
 	// 2. init resources
 	resources := resource.InitializeResources()
+	middleware.SetUserServiceForAuth(resources.Marketplace.UserService())
 
 	// 3. init rest server (middleware + routes)
 	if err := restserver.Init(
@@ -38,7 +39,7 @@ func main() {
 			database.DatabaseHandlerKey,
 			cache.CacheHandlerKey,
 			middleware.RecoveryHandlerKey,
-			middleware.AuthValidationHandlerKey,
+			middleware.MainIdentityAuthHandlerKey,
 			middleware.JWTValidationHandlerKey,
 		),
 		registry.RouterRegistry(resources),

@@ -7,7 +7,7 @@ import (
 	"wdkr-marketplace-service/internal/domain/ecoinbill"
 )
 
-// EcoinBillAutoCancelTask 预扣积分账单超时自动取消并退款（>15 分钟 incomplete）
+// EcoinBillAutoCancelTask 预扣金币账单超时自动取消并退款（>15 分钟 incomplete）
 type EcoinBillAutoCancelTask struct {
 	svc ecoinbill.EcoinBillService
 }

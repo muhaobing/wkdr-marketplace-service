@@ -22,7 +22,7 @@ type companyEcoinServiceImpl struct {
 	repo repo.CompanyEcoinRepo
 }
 
-// NewCompanyEcoinService 企业积分服务
+// NewCompanyEcoinService 企业金币服务
 func NewCompanyEcoinService(r repo.CompanyEcoinRepo) CompanyEcoinService {
 	return &companyEcoinServiceImpl{repo: r}
 }
@@ -371,7 +371,7 @@ func (s *companyEcoinServiceImpl) ExpireCompanyEcoinStock(ctx context.Context, n
 				TxType:         ecoin_model.TransactionTypeDeduct,
 				SourceType:     ecoin_model.SourceTypeExpire,
 				SourceId:       fmt.Sprintf("expire_task:%d", now),
-				Description:    "积分已过期自动失效",
+				Description:    "金币已过期自动失效",
 				Status:         ecoin_model.TransactionStatusCompleted,
 			}
 			if err := s.repo.AddTransaction(ctx, tx); err != nil {
@@ -448,7 +448,7 @@ func (s *companyEcoinServiceImpl) expireGroups(ctx context.Context, ce *companye
 		TxType:         ecoin_model.TransactionTypeDeduct,
 		SourceType:     ecoin_model.SourceTypeExpire,
 		SourceId:       sourceID,
-		Description:    "积分已过期自动失效",
+		Description:    "金币已过期自动失效",
 		Status:         ecoin_model.TransactionStatusCompleted,
 	}
 	if err := s.repo.AddTransaction(ctx, tx); err != nil {

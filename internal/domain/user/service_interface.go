@@ -68,8 +68,19 @@ type UpdateProfileRequest struct {
 	Email string `json:"email"`  // 邮箱
 }
 
+// ResolveOrCreateByBizRequest 主站身份解析/自动建号
+type ResolveOrCreateByBizRequest struct {
+	BizCode       string // LawMind_ToC | LawMind_Enterprise
+	BizUserId     uint64 // 主站 userId
+	MainCompanyId uint64 // 主站 companyId（企业账号）
+	DisplayLabel  string // 展示名（JWT username/sub）
+}
+
 // UserService 用户服务接口
 type UserService interface {
+	// ResolveOrCreateByBiz 按主站 biz 身份解析商城用户；无绑定时自动建号并绑定
+	ResolveOrCreateByBiz(ctx context.Context, req *ResolveOrCreateByBizRequest) (*usermodel.User, error)
+
 	// BindUser 绑定用户（包含注册逻辑）
 	// 如果根据手机号/邮箱找到已有用户，则直接绑定
 	// 如果没有找到用户，则创建新用户并绑定，同时初始化积分账户

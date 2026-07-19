@@ -64,6 +64,11 @@ func NewMarketplaceResource(
 	}
 }
 
+// UserService 供主站身份中间件注入
+func (r *MarketplaceResource) UserService() user.UserService {
+	return r.userService
+}
+
 func writeMarketplaceErr(ctx *gin.Context, err error) {
 	if errors.Is(err, sys_err.ErrInsufficientEcoin) {
 		http_utils.WriteResponseWithRetcode(ctx, err_code.EcoinInsufficientBalance, err.Error())
@@ -158,7 +163,6 @@ func (r *MarketplaceResource) GetSkuDetail(ctx *gin.Context) {
 
 // CreateOrderRequest 创建订单请求
 type CreateOrderRequest struct {
-	UserId   uint64                `json:"user_id" binding:"required"`   // 用户ID
 	SkuItems []*order.SkuOrderItem `json:"sku_items" binding:"required"` // SKU列表
 	PayType  string                `json:"pay_type"`                     // 支付类型：ecoin/money，不传默认money
 	Remark   string                `json:"remark"`                       // 备注
@@ -167,6 +171,12 @@ type CreateOrderRequest struct {
 // CreateOrder 创建订单
 // POST /marketplace/checkout
 func (r *MarketplaceResource) CreateOrder(ctx *gin.Context) {
+	u, err := auth_utils.UserFromGinContext(ctx)
+	if err != nil {
+		http_utils.WriteResponse(ctx, nil, err)
+		return
+	}
+
 	var req CreateOrderRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
 		http_utils.WriteResponse(ctx, nil, err)
@@ -179,7 +189,7 @@ func (r *MarketplaceResource) CreateOrder(ctx *gin.Context) {
 	}
 
 	resp, err := r.orderService.CreateOrder(ctx.Request.Context(), &order.CreateOrderRequest{
-		UserId:   req.UserId,
+		UserId:   uint64(u.Id),
 		SkuItems: req.SkuItems,
 		PayType:  payType,
 		Remark:   req.Remark,
@@ -212,15 +222,20 @@ func (r *MarketplaceResource) GetOrderDetail(ctx *gin.Context) {
 
 // ListOrdersRequest 订单列表请求
 type ListOrdersRequest struct {
-	UserId uint64 `form:"user_id" binding:"required"` // 用户ID
-	Status *uint8 `form:"status"`                     // 订单状态过滤（可选）
-	Offset int    `form:"offset"`                     // 偏移量
-	Limit  int    `form:"limit"`                      // 每页数量
+	Status *uint8 `form:"status"` // 订单状态过滤（可选）
+	Offset int    `form:"offset"` // 偏移量
+	Limit  int    `form:"limit"`  // 每页数量
 }
 
 // ListOrders 获取订单列表
 // GET /marketplace/orders
 func (r *MarketplaceResource) ListOrders(ctx *gin.Context) {
+	u, err := auth_utils.UserFromGinContext(ctx)
+	if err != nil {
+		http_utils.WriteResponse(ctx, nil, err)
+		return
+	}
+
 	var req ListOrdersRequest
 	if err := ctx.ShouldBindQuery(&req); err != nil {
 		http_utils.WriteResponse(ctx, nil, err)
@@ -228,7 +243,7 @@ func (r *MarketplaceResource) ListOrders(ctx *gin.Context) {
 	}
 
 	resp, err := r.orderService.ListOrders(ctx.Request.Context(), &order.ListOrdersRequest{
-		UserId: req.UserId,
+		UserId: uint64(u.Id),
 		Status: req.Status,
 		Offset: req.Offset,
 		Limit:  req.Limit,
@@ -276,7 +291,7 @@ func (r *MarketplaceResource) CancelOrder(ctx *gin.Context) {
 // PayOrderRequest 支付订单请求
 type PayOrderRequest struct {
 	Channel   string `json:"channel" binding:"required"` // 支付渠道：ecoin/wechat/alipay
-	PayMethod string `json:"pay_method"`                 // 支付方式：native/jsapi/h5（积分支付无需提供）
+	PayMethod string `json:"pay_method"`                 // 支付方式：native/jsapi/h5（金币支付无需提供）
 	ClientIP  string `json:"client_ip"`                  // 客户端IP（H5支付需要）
 	OpenId    string `json:"open_id"`                    // 用户OpenID（JSAPI支付需要）
 }
@@ -335,27 +350,20 @@ func (r *MarketplaceResource) SyncOrderStatus(ctx *gin.Context) {
 	http_utils.WriteResponse(ctx, orderInfo, nil)
 }
 
-// ==================== 积分接口 ====================
+// ==================== 金币接口 ====================
 
-// GetEcoinBalanceRequest 获取积分余额请求
-type GetEcoinBalanceRequest struct {
-	UserId uint64 `form:"user_id" binding:"required"` // 用户ID
-}
+// GetEcoinBalanceRequest 获取金币余额请求
+type GetEcoinBalanceRequest struct{}
 
-// GetEcoinBalance 获取用户积分余额
+// GetEcoinBalance 获取用户金币余额
 // GET /marketplace/ecoin/balance
 func (r *MarketplaceResource) GetEcoinBalance(ctx *gin.Context) {
-	var req GetEcoinBalanceRequest
-	if err := ctx.ShouldBindQuery(&req); err != nil {
+	u, err := auth_utils.UserFromGinContext(ctx)
+	if err != nil {
 		http_utils.WriteResponse(ctx, nil, err)
 		return
 	}
 
-	u, err := r.userService.GetUserById(ctx.Request.Context(), uint(req.UserId))
-	if err != nil || u == nil {
-		http_utils.WriteResponse(ctx, nil, errors.New("user not found"))
-		return
-	}
 	if u.CompanyId > 0 {
 		ce, err := r.companyEcoinService.GetCompanyEcoin(ctx.Request.Context(), u.CompanyId)
 		if err != nil {
@@ -374,7 +382,7 @@ func (r *MarketplaceResource) GetEcoinBalance(ctx *gin.Context) {
 		return
 	}
 
-	ecoinInfo, err := r.ecoinService.GetUserEcoin(ctx.Request.Context(), req.UserId)
+	ecoinInfo, err := r.ecoinService.GetUserEcoin(ctx.Request.Context(), uint64(u.Id))
 	if err != nil {
 		http_utils.WriteResponse(ctx, nil, err)
 		return
@@ -383,20 +391,15 @@ func (r *MarketplaceResource) GetEcoinBalance(ctx *gin.Context) {
 	http_utils.WriteResponse(ctx, ecoinInfo, nil)
 }
 
-// GetEcoinStockGroups 获取用户积分分组
+// GetEcoinStockGroups 获取用户金币分组
 // GET /marketplace/ecoin/stock_groups
 func (r *MarketplaceResource) GetEcoinStockGroups(ctx *gin.Context) {
-	var req GetEcoinBalanceRequest
-	if err := ctx.ShouldBindQuery(&req); err != nil {
+	u, err := auth_utils.UserFromGinContext(ctx)
+	if err != nil {
 		http_utils.WriteResponse(ctx, nil, err)
 		return
 	}
 
-	u, err := r.userService.GetUserById(ctx.Request.Context(), uint(req.UserId))
-	if err != nil || u == nil {
-		http_utils.WriteResponse(ctx, nil, errors.New("user not found"))
-		return
-	}
 	if u.CompanyId > 0 {
 		ce, err := r.companyEcoinService.GetCompanyEcoin(ctx.Request.Context(), u.CompanyId)
 		if err != nil {
@@ -413,7 +416,7 @@ func (r *MarketplaceResource) GetEcoinStockGroups(ctx *gin.Context) {
 	}
 
 	resp, err := r.ecoinService.GetEcoinStockGroupList(ctx.Request.Context(), &ecoin.EcoinStockGroupListRequest{
-		UserId: req.UserId,
+		UserId: uint64(u.Id),
 	})
 	if err != nil {
 		http_utils.WriteResponse(ctx, nil, err)
@@ -422,23 +425,28 @@ func (r *MarketplaceResource) GetEcoinStockGroups(ctx *gin.Context) {
 	http_utils.WriteResponse(ctx, resp, nil)
 }
 
-// GetEcoinTransactionsRequest 获取积分流水请求
+// GetEcoinTransactionsRequest 获取金币流水请求
 type GetEcoinTransactionsRequest struct {
-	UserId uint64 `form:"user_id" binding:"required"` // 用户ID
-	Offset int    `form:"offset"`                     // 偏移量
-	Limit  int    `form:"limit"`                      // 每页数量
+	Offset int `form:"offset"` // 偏移量
+	Limit  int `form:"limit"`  // 每页数量
 }
 
-// GetEcoinTransactions 获取积分流水列表
+// GetEcoinTransactions 获取金币流水列表
 // GET /marketplace/ecoin/transactions
 func (r *MarketplaceResource) GetEcoinTransactions(ctx *gin.Context) {
+	sessionUser, err := auth_utils.UserFromGinContext(ctx)
+	if err != nil {
+		http_utils.WriteResponse(ctx, nil, err)
+		return
+	}
+
 	var req GetEcoinTransactionsRequest
 	if err := ctx.ShouldBindQuery(&req); err != nil {
 		http_utils.WriteResponse(ctx, nil, err)
 		return
 	}
 
-	u, err := r.userService.GetUserById(ctx.Request.Context(), uint(req.UserId))
+	u, err := r.userService.GetUserById(ctx.Request.Context(), sessionUser.Id)
 	if err != nil || u == nil {
 		http_utils.WriteResponse(ctx, nil, errors.New("user not found"))
 		return
@@ -463,7 +471,7 @@ func (r *MarketplaceResource) GetEcoinTransactions(ctx *gin.Context) {
 	}
 
 	resp, err := r.ecoinService.GetEcoinTransactionList(ctx.Request.Context(), &ecoin.EcoinTransactionListRequest{
-		UserId: req.UserId,
+		UserId: uint64(u.Id),
 		Offset: req.Offset,
 		Limit:  req.Limit,
 	})
@@ -499,8 +507,8 @@ func (r *MarketplaceResource) fillCompanyTxOperatorLabel(ctx context.Context, tx
 	tx.OperatorLabel = fmt.Sprintf("用户 #%d", op.Id)
 }
 
-// RechargeEcoinRequest 积分充值请求
-// GetRechargeConfig 获取积分充值配置
+// RechargeEcoinRequest 金币充值请求
+// GetRechargeConfig 获取金币充值配置
 // GET /marketplace/ecoin/recharge_config
 func (r *MarketplaceResource) GetRechargeConfig(ctx *gin.Context) {
 	unitPrice := config.GetConf().EcoinUnitPrice
@@ -517,16 +525,21 @@ func (r *MarketplaceResource) GetRechargeConfig(ctx *gin.Context) {
 }
 
 type RechargeEcoinRequest struct {
-	UserId    uint64 `json:"user_id" binding:"required"`  // 用户ID
-	Amount    int    `json:"amount" binding:"required"`   // 充值积分数量
+	Amount    int    `json:"amount" binding:"required"`   // 充值金币数量
 	PayType   string `json:"pay_type" binding:"required"` // 支付类型：money
 	Channel   string `json:"channel"`                     // 支付渠道：wechat
 	PayMethod string `json:"pay_method"`                  // 支付方式：native/jsapi/h5
 }
 
-// RechargeEcoin 积分充值
+// RechargeEcoin 金币充值
 // POST /marketplace/ecoin/recharge
 func (r *MarketplaceResource) RechargeEcoin(ctx *gin.Context) {
+	u, err := auth_utils.UserFromGinContext(ctx)
+	if err != nil {
+		http_utils.WriteResponse(ctx, nil, err)
+		return
+	}
+
 	var req RechargeEcoinRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
 		http_utils.WriteResponse(ctx, nil, err)
@@ -535,10 +548,10 @@ func (r *MarketplaceResource) RechargeEcoin(ctx *gin.Context) {
 
 	// 创建充值订单（不需要SKU，直接使用特殊参数）
 	orderResp, err := r.orderService.CreateOrder(ctx.Request.Context(), &order.CreateOrderRequest{
-		UserId:          req.UserId,
+		UserId:          uint64(u.Id),
 		SkuItems:        nil,
 		PayType:         req.PayType,
-		Remark:          "积分充值",
+		Remark:          "金币充值",
 		IsEcoinRecharge: true,
 		EcoinUnits:      req.Amount,
 	})
@@ -589,7 +602,7 @@ func (r *MarketplaceResource) GetPaymentMethods(ctx *gin.Context) {
 	methods := []*PaymentMethod{
 		{
 			Channel:   "ecoin",
-			Name:      "积分支付",
+			Name:      "金币支付",
 			PayMethod: "ecoin",
 			Icon:      "",
 		},
@@ -965,7 +978,6 @@ func (r *MarketplaceResource) UpdateProfile(ctx *gin.Context) {
 
 // AddToCartRequest 添加购物车请求
 type AddToCartRequest struct {
-	UserId   uint64 `json:"user_id" binding:"required"`  // 用户ID
 	SkuId    uint64 `json:"sku_id" binding:"required"`   // 商品ID
 	Quantity int    `json:"quantity" binding:"required"` // 数量
 }
@@ -973,6 +985,12 @@ type AddToCartRequest struct {
 // AddToCart 添加商品到购物车
 // POST /marketplace/shopping_cart/add
 func (r *MarketplaceResource) AddToCart(ctx *gin.Context) {
+	u, err := auth_utils.UserFromGinContext(ctx)
+	if err != nil {
+		http_utils.WriteResponse(ctx, nil, err)
+		return
+	}
+
 	var req AddToCartRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
 		http_utils.WriteResponse(ctx, nil, err)
@@ -980,7 +998,7 @@ func (r *MarketplaceResource) AddToCart(ctx *gin.Context) {
 	}
 
 	item, err := r.cartService.AddToCart(ctx.Request.Context(), &cart.AddToCartRequest{
-		UserId:   req.UserId,
+		UserId:   uint64(u.Id),
 		SkuId:    req.SkuId,
 		Quantity: req.Quantity,
 	})
@@ -994,21 +1012,26 @@ func (r *MarketplaceResource) AddToCart(ctx *gin.Context) {
 
 // RemoveFromCartRequest 移除购物车请求
 type RemoveFromCartRequest struct {
-	UserId uint64 `json:"user_id" binding:"required"` // 用户ID
-	SkuId  uint64 `json:"sku_id" binding:"required"`  // 商品ID
+	SkuId uint64 `json:"sku_id" binding:"required"` // 商品ID
 }
 
 // RemoveFromCart 从购物车移除商品
 // POST /marketplace/shopping_cart/remove
 func (r *MarketplaceResource) RemoveFromCart(ctx *gin.Context) {
+	u, err := auth_utils.UserFromGinContext(ctx)
+	if err != nil {
+		http_utils.WriteResponse(ctx, nil, err)
+		return
+	}
+
 	var req RemoveFromCartRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
 		http_utils.WriteResponse(ctx, nil, err)
 		return
 	}
 
-	err := r.cartService.RemoveFromCart(ctx.Request.Context(), &cart.RemoveFromCartRequest{
-		UserId: req.UserId,
+	err = r.cartService.RemoveFromCart(ctx.Request.Context(), &cart.RemoveFromCartRequest{
+		UserId: uint64(u.Id),
 		SkuId:  req.SkuId,
 	})
 	if err != nil {
@@ -1021,14 +1044,19 @@ func (r *MarketplaceResource) RemoveFromCart(ctx *gin.Context) {
 
 // UpdateCartItemRequest 更新购物车商品数量请求
 type UpdateCartItemRequest struct {
-	UserId   uint64 `json:"user_id" binding:"required"` // 用户ID
-	SkuId    uint64 `json:"sku_id" binding:"required"`  // 商品ID
-	Quantity int    `json:"quantity"`                   // 数量（0表示删除）
+	SkuId    uint64 `json:"sku_id" binding:"required"` // 商品ID
+	Quantity int    `json:"quantity"`                  // 数量（0表示删除）
 }
 
 // UpdateCartItem 更新购物车商品数量
 // POST /marketplace/shopping_cart/update
 func (r *MarketplaceResource) UpdateCartItem(ctx *gin.Context) {
+	u, err := auth_utils.UserFromGinContext(ctx)
+	if err != nil {
+		http_utils.WriteResponse(ctx, nil, err)
+		return
+	}
+
 	var req UpdateCartItemRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
 		http_utils.WriteResponse(ctx, nil, err)
@@ -1036,7 +1064,7 @@ func (r *MarketplaceResource) UpdateCartItem(ctx *gin.Context) {
 	}
 
 	item, err := r.cartService.UpdateCartItem(ctx.Request.Context(), &cart.UpdateCartItemRequest{
-		UserId:   req.UserId,
+		UserId:   uint64(u.Id),
 		SkuId:    req.SkuId,
 		Quantity: req.Quantity,
 	})
@@ -1048,21 +1076,16 @@ func (r *MarketplaceResource) UpdateCartItem(ctx *gin.Context) {
 	http_utils.WriteResponse(ctx, item, nil)
 }
 
-// ClearCartRequest 清空购物车请求
-type ClearCartRequest struct {
-	UserId uint64 `json:"user_id" binding:"required"` // 用户ID
-}
-
 // ClearCart 清空购物车
 // POST /marketplace/shopping_cart/clear
 func (r *MarketplaceResource) ClearCart(ctx *gin.Context) {
-	var req ClearCartRequest
-	if err := ctx.ShouldBindJSON(&req); err != nil {
+	u, err := auth_utils.UserFromGinContext(ctx)
+	if err != nil {
 		http_utils.WriteResponse(ctx, nil, err)
 		return
 	}
 
-	err := r.cartService.ClearCart(ctx.Request.Context(), req.UserId)
+	err = r.cartService.ClearCart(ctx.Request.Context(), uint64(u.Id))
 	if err != nil {
 		http_utils.WriteResponse(ctx, nil, err)
 		return
@@ -1071,21 +1094,16 @@ func (r *MarketplaceResource) ClearCart(ctx *gin.Context) {
 	http_utils.WriteResponse(ctx, nil, nil)
 }
 
-// GetCartListRequest 获取购物车列表请求
-type GetCartListRequest struct {
-	UserId uint64 `form:"user_id" binding:"required"` // 用户ID
-}
-
 // GetCartList 获取购物车列表
 // GET /marketplace/shopping_cart/list
 func (r *MarketplaceResource) GetCartList(ctx *gin.Context) {
-	var req GetCartListRequest
-	if err := ctx.ShouldBindQuery(&req); err != nil {
+	u, err := auth_utils.UserFromGinContext(ctx)
+	if err != nil {
 		http_utils.WriteResponse(ctx, nil, err)
 		return
 	}
 
-	resp, err := r.cartService.GetCartList(ctx.Request.Context(), req.UserId)
+	resp, err := r.cartService.GetCartList(ctx.Request.Context(), uint64(u.Id))
 	if err != nil {
 		http_utils.WriteResponse(ctx, nil, err)
 		return
@@ -1096,7 +1114,6 @@ func (r *MarketplaceResource) GetCartList(ctx *gin.Context) {
 
 // CartCheckoutRequest 购物车下单请求
 type CartCheckoutRequest struct {
-	UserId  uint64   `json:"user_id" binding:"required"` // 用户ID
 	SkuIds  []uint64 `json:"sku_ids" binding:"required"` // 要下单的商品ID列表
 	PayType string   `json:"pay_type"`                   // 支付类型：ecoin/money，不传默认money
 	Remark  string   `json:"remark"`                     // 备注
@@ -1105,6 +1122,12 @@ type CartCheckoutRequest struct {
 // CartCheckout 购物车下单（下单并移除对应商品）
 // POST /marketplace/shopping_cart/checkout
 func (r *MarketplaceResource) CartCheckout(ctx *gin.Context) {
+	u, err := auth_utils.UserFromGinContext(ctx)
+	if err != nil {
+		http_utils.WriteResponse(ctx, nil, err)
+		return
+	}
+
 	var req CartCheckoutRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
 		http_utils.WriteResponse(ctx, nil, err)
@@ -1117,7 +1140,7 @@ func (r *MarketplaceResource) CartCheckout(ctx *gin.Context) {
 	}
 
 	resp, err := r.cartService.Checkout(ctx.Request.Context(), &cart.CheckoutRequest{
-		UserId:  req.UserId,
+		UserId:  uint64(u.Id),
 		SkuIds:  req.SkuIds,
 		PayType: payType,
 		Remark:  req.Remark,
@@ -1135,7 +1158,7 @@ func (r *MarketplaceResource) Router() registry.Registry {
 	return func(router *gin.Engine) {
 		group := router.Group("/marketplace")
 		{
-			// 用户登录接口
+			// 用户登录与绑定
 			group.POST("/login", r.Login)
 			group.GET("/biz_codes", r.ListBizCodes)
 			group.GET("/companies", r.ListCompanies)
@@ -1158,7 +1181,7 @@ func (r *MarketplaceResource) Router() registry.Registry {
 			group.POST("/orders/:order_no/pay", r.PayOrder)
 			group.POST("/orders/:order_no/sync", r.SyncOrderStatus)
 
-			// 积分接口
+			// 金币接口
 			ecoinGroup := group.Group("/ecoin")
 			{
 				ecoinGroup.GET("/balance", r.GetEcoinBalance)

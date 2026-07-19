@@ -21,7 +21,7 @@ const (
 	opsEcoinSourceGift   = "system"
 )
 
-// LookupUser 查询商城用户及积分概况
+// LookupUser 查询商城用户及金币概况
 // GET /ops/users/lookup
 func (r *OpsResource) LookupUser(ctx *gin.Context) {
 	userIDStr := strings.TrimSpace(ctx.Query("user_id"))
@@ -115,7 +115,7 @@ func (r *OpsResource) loadUserEcoinSummary(ctx *gin.Context, userID uint64, comp
 	}, nil
 }
 
-// AdjustEcoinRequest 运营调整积分
+// AdjustEcoinRequest 运营调整金币
 type AdjustEcoinRequest struct {
 	UserId        uint64  `json:"user_id" binding:"required"`
 	Mode          string  `json:"mode" binding:"required"` // set | add | deduct
@@ -124,7 +124,7 @@ type AdjustEcoinRequest struct {
 	Description   string  `json:"description"`
 }
 
-// AdjustEcoin 直接调整用户积分（设为指定值 / 增减）
+// AdjustEcoin 直接调整用户金币（设为指定值 / 增减）
 // POST /ops/ecoin/adjust
 func (r *OpsResource) AdjustEcoin(ctx *gin.Context) {
 	var req AdjustEcoinRequest
@@ -180,11 +180,11 @@ func (r *OpsResource) AdjustEcoin(ctx *gin.Context) {
 	desc := strings.TrimSpace(req.Description)
 	if desc == "" {
 		if mode == "set" {
-			desc = fmt.Sprintf("运营调整积分至 %.2f", req.TargetBalance)
+			desc = fmt.Sprintf("运营调整金币至 %.2f", req.TargetBalance)
 		} else if delta > 0 {
-			desc = fmt.Sprintf("运营增加积分 %.2f", delta)
+			desc = fmt.Sprintf("运营增加金币 %.2f", delta)
 		} else {
-			desc = fmt.Sprintf("运营扣减积分 %.2f", -delta)
+			desc = fmt.Sprintf("运营扣减金币 %.2f", -delta)
 		}
 	}
 
@@ -209,14 +209,14 @@ func (r *OpsResource) AdjustEcoin(ctx *gin.Context) {
 	}, nil)
 }
 
-// GiftEcoinRequest 运营赠送积分
+// GiftEcoinRequest 运营赠送金币
 type GiftEcoinRequest struct {
 	UserId      uint64  `json:"user_id" binding:"required"`
 	Amount      float64 `json:"amount" binding:"required,gt=0"`
 	Description string  `json:"description"`
 }
 
-// GiftEcoin 赠送积分
+// GiftEcoin 赠送金币
 // POST /ops/ecoin/gift
 func (r *OpsResource) GiftEcoin(ctx *gin.Context) {
 	var req GiftEcoinRequest
@@ -233,7 +233,7 @@ func (r *OpsResource) GiftEcoin(ctx *gin.Context) {
 
 	desc := strings.TrimSpace(req.Description)
 	if desc == "" {
-		desc = fmt.Sprintf("运营赠送积分 %.2f", req.Amount)
+		desc = fmt.Sprintf("运营赠送金币 %.2f", req.Amount)
 	}
 	sourceID := fmt.Sprintf("ops_gift:%d:%d", req.UserId, time.Now().UnixNano())
 

@@ -20,11 +20,17 @@ restserver:
 
 # 业务配置
 config:
+  main_jwt:
+    secret: "LawLLMJwtSecretKeyForProd20260308Secure"
   auth:
     aes_key: "ThisIsNotAAesKey"
     expiration: 86400
-    # 无尾斜杠的项仅匹配自身或「自身/子路径」，不会把 user/bindings 误当成 user/bind 的前缀
     whitelist:
+      - "/login"
+      - "/biz_codes"
+      - "/companies"
+      - "/user/bind"
+      - "/user/bind/check"
       - "/marketplace/login"
       - "/marketplace/biz_codes"
       - "/marketplace/companies"
@@ -33,7 +39,6 @@ config:
       - "/openapi/"
       - "/mock/"
       - "/ping"
-    # 需要管理员权限的路径前缀
     admin_paths:
       - "/ops/"
   jwt:

@@ -91,19 +91,19 @@ func (r *OpenAPIResource) userCompanyId(ctx context.Context, userId uint64) (uin
 	return u.CompanyId, nil
 }
 
-// ==================== 积分接口 ====================
+// ==================== 金币接口 ====================
 
-// AddEcoinRequest 增加积分请求（按业务身份定位商城用户）
+// AddEcoinRequest 增加金币请求（按业务身份定位商城用户）
 type AddEcoinRequest struct {
 	BizCode     string  `json:"biz_code" binding:"required"`    // 业务平台代码
 	BizUserId   uint64  `json:"biz_user_id,string" binding:"required"` // 业务平台用户 ID
-	Amount      float64 `json:"amount" binding:"required,gt=0"` // 积分数量（必须大于0）
+	Amount      float64 `json:"amount" binding:"required,gt=0"` // 金币数量（必须大于0）
 	SourceType  string  `json:"source_type" binding:"required"` // 来源类型
 	SourceId    string  `json:"source_id"`                      // 来源业务ID
 	Description string  `json:"description"`                    // 描述
 }
 
-// AddEcoin 增加积分
+// AddEcoin 增加金币
 // POST /openapi/ecoin/add
 func (r *OpenAPIResource) AddEcoin(ctx *gin.Context) {
 	var req AddEcoinRequest
@@ -155,17 +155,17 @@ func (r *OpenAPIResource) AddEcoin(ctx *gin.Context) {
 	http_utils.WriteResponse(ctx, transaction, nil)
 }
 
-// DeductEcoinRequest 扣除积分请求（按业务身份定位商城用户）
+// DeductEcoinRequest 扣除金币请求（按业务身份定位商城用户）
 type DeductEcoinRequest struct {
 	BizCode     string  `json:"biz_code" binding:"required"`    // 业务平台代码
 	BizUserId   uint64  `json:"biz_user_id,string" binding:"required"` // 业务平台用户 ID
-	Amount      float64 `json:"amount" binding:"required,gt=0"` // 积分数量（必须大于0）
+	Amount      float64 `json:"amount" binding:"required,gt=0"` // 金币数量（必须大于0）
 	SourceType  string  `json:"source_type" binding:"required"` // 来源类型
 	SourceId    string  `json:"source_id"`                      // 来源业务ID
 	Description string  `json:"description"`                    // 描述
 }
 
-// DeductEcoin 扣除积分
+// DeductEcoin 扣除金币
 // POST /openapi/ecoin/deduct
 func (r *OpenAPIResource) DeductEcoin(ctx *gin.Context) {
 	var req DeductEcoinRequest
@@ -217,13 +217,13 @@ func (r *OpenAPIResource) DeductEcoin(ctx *gin.Context) {
 	http_utils.WriteResponse(ctx, transaction, nil)
 }
 
-// EcoinBalanceRequest 查询积分余额（按业务身份定位商城用户；JWT 仍用于鉴权）
+// EcoinBalanceRequest 查询金币余额（按业务身份定位商城用户；JWT 仍用于鉴权）
 type EcoinBalanceRequest struct {
 	BizCode   string `json:"biz_code" binding:"required"`    // 业务平台代码
 	BizUserId uint64 `json:"biz_user_id,string" binding:"required"` // 业务平台用户 ID
 }
 
-// PostEcoinBalance 获取用户积分信息
+// PostEcoinBalance 获取用户金币信息
 // POST /openapi/ecoin/balance（业务参数在 JWT payload 中）
 func (r *OpenAPIResource) PostEcoinBalance(ctx *gin.Context) {
 	var req EcoinBalanceRequest
@@ -262,14 +262,14 @@ func (r *OpenAPIResource) PostEcoinBalance(ctx *gin.Context) {
 	http_utils.WriteResponse(ctx, ecoinInfo, nil)
 }
 
-// EcoinBillCreateRequest 预扣积分（生成积分账单并扣减可用余额）
+// EcoinBillCreateRequest 预扣金币（生成金币账单并扣减可用余额）
 type EcoinBillCreateRequest struct {
 	BizCode   string  `json:"biz_code" binding:"required"`    // 业务平台代码
 	BizUserId uint64  `json:"biz_user_id,string" binding:"required"` // 业务平台用户 ID
-	Cost      float64 `json:"cost" binding:"required,gt=0"`   // 预扣积分数量
+	Cost      float64 `json:"cost" binding:"required,gt=0"`   // 预扣金币数量
 }
 
-// PostEcoinBillCreate 预扣积分并创建积分账单（JWT 鉴权）
+// PostEcoinBillCreate 预扣金币并创建金币账单（JWT 鉴权）
 // POST /openapi/ecoin/bill/create
 // retcode：0 成功返回 bill_id；UserBindingNotFound(-100404) 未绑定；EcoinInsufficientBalance(-100402) 余额不足；15 分钟内未确认则自动取消并退款
 func (r *OpenAPIResource) PostEcoinBillCreate(ctx *gin.Context) {
@@ -312,7 +312,7 @@ type EcoinBillMutateRequest struct {
 	BillId    string `json:"bill_id" binding:"required"`
 }
 
-// PostEcoinBillConfirm 确认积分账单（扣款生效，状态 completed）
+// PostEcoinBillConfirm 确认金币账单（扣款生效，状态 completed）
 // POST /openapi/ecoin/bill/confirm
 func (r *OpenAPIResource) PostEcoinBillConfirm(ctx *gin.Context) {
 	var req EcoinBillMutateRequest
@@ -337,7 +337,7 @@ func (r *OpenAPIResource) PostEcoinBillConfirm(ctx *gin.Context) {
 	http_utils.WriteResponse(ctx, gin.H{"bill_id": req.BillId, "status": "completed"}, nil)
 }
 
-// PostEcoinBillCancel 取消积分账单并退回积分（单事务）
+// PostEcoinBillCancel 取消金币账单并退回金币（单事务）
 // POST /openapi/ecoin/bill/cancel
 func (r *OpenAPIResource) PostEcoinBillCancel(ctx *gin.Context) {
 	var req EcoinBillMutateRequest
@@ -362,7 +362,7 @@ func (r *OpenAPIResource) PostEcoinBillCancel(ctx *gin.Context) {
 	http_utils.WriteResponse(ctx, gin.H{"bill_id": req.BillId, "status": "cancelled"}, nil)
 }
 
-// InitUserEcoin 初始化用户积分账户
+// InitUserEcoin 初始化用户金币账户
 // POST /openapi/ecoin/init
 func (r *OpenAPIResource) InitUserEcoin(ctx *gin.Context) {
 	type InitRequest struct {
@@ -399,7 +399,7 @@ func (r *OpenAPIResource) InitUserEcoin(ctx *gin.Context) {
 	http_utils.WriteResponse(ctx, ecoinInfo, nil)
 }
 
-// EcoinTransactionsRequest 积分流水列表（按业务身份定位商城用户；JWT payload）
+// EcoinTransactionsRequest 金币流水列表（按业务身份定位商城用户；JWT payload）
 type EcoinTransactionsRequest struct {
 	BizCode   string `json:"biz_code" binding:"required"`    // 业务平台代码
 	BizUserId uint64 `json:"biz_user_id,string" binding:"required"` // 业务平台用户 ID
@@ -407,7 +407,7 @@ type EcoinTransactionsRequest struct {
 	Limit     int    `json:"limit"`                          // 每页数量
 }
 
-// PostEcoinTransactions 获取积分流水列表
+// PostEcoinTransactions 获取金币流水列表
 // POST /openapi/ecoin/transactions（业务参数在 JWT payload 中）
 func (r *OpenAPIResource) PostEcoinTransactions(ctx *gin.Context) {
 	var req EcoinTransactionsRequest
@@ -573,7 +573,7 @@ func (r *OpenAPIResource) Router() registry.Registry {
 	return func(router *gin.Engine) {
 		group := router.Group("/openapi")
 		{
-			// 积分接口
+			// 金币接口
 			group.POST("/ecoin/add", r.AddEcoin)
 			group.POST("/ecoin/deduct", r.DeductEcoin)
 			group.POST("/ecoin/init", r.InitUserEcoin)

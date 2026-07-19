@@ -11,7 +11,7 @@ import (
 
 const ecoinExpireScanLimit = 500
 
-// EcoinExpireTask 积分过期扫描任务（个人 + 企业）
+// EcoinExpireTask 金币过期扫描任务（个人 + 企业）
 type EcoinExpireTask struct {
 	ecoinService        ecoin.EcoinService
 	companyEcoinService companyecoin.CompanyEcoinService
