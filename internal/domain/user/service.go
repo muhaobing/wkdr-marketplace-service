@@ -58,7 +58,7 @@ func NewUserService(
 	}
 }
 
-// lawCompanyIdByUserId 主站 law.company_user 解析企业ID；个人用户/不存在返回 0。
+// lawCompanyIdByUserId 解析主站用户所属企业 ID（company_user 优先，其次 operation_user.company_id）。
 func lawCompanyIdByUserId(ctx context.Context, userId uint64) (uint64, error) {
 	if userId == 0 {
 		return 0, nil
@@ -66,6 +66,15 @@ func lawCompanyIdByUserId(ctx context.Context, userId uint64) (uint64, error) {
 	var companyId uint64
 	err := database.FromContext(ctx).
 		Raw("SELECT company_id FROM law.company_user WHERE user_id = ? AND is_deleted = 0 LIMIT 1", userId).
+		Scan(&companyId).Error
+	if err != nil {
+		return 0, err
+	}
+	if companyId != 0 {
+		return companyId, nil
+	}
+	err = database.FromContext(ctx).
+		Raw("SELECT company_id FROM law.operation_user WHERE user_id = ? AND is_deleted = 0 AND company_id IS NOT NULL LIMIT 1", userId).
 		Scan(&companyId).Error
 	if err != nil {
 		return 0, err

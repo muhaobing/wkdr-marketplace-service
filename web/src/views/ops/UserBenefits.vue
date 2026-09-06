@@ -26,7 +26,7 @@
         </div>
         <div class="field">
           <label>业务用户 biz_user_id</label>
-          <input v-model="lookup.biz_user_id" type="text" placeholder="LawMind 用户 ID" @keyup.enter="handleLookup">
+          <input v-model="lookup.biz_user_id" type="text" placeholder="LawSharp 用户 ID" @keyup.enter="handleLookup">
         </div>
         <div class="field actions">
           <button class="btn btn-primary" :disabled="lookupLoading" @click="handleLookup">
@@ -126,6 +126,37 @@
           {{ giftSkuSubmitting ? '提交中…' : '确认赠送商品' }}
         </button>
       </div>
+
+      <div v-show="activeTab === 'gift_membership'" class="tab-panel">
+        <div class="form-row">
+          <label>会员档位</label>
+          <OpsSelect
+            v-model="giftMembershipForm.vip_role"
+            :options="membershipRoleOptions"
+            variant="filter"
+          />
+        </div>
+        <div class="form-row">
+          <label>时长</label>
+          <div class="mode-row">
+            <label class="mode-option">
+              <input v-model="giftMembershipForm.period" type="radio" value="monthly">
+              <span>包月</span>
+            </label>
+            <label class="mode-option">
+              <input v-model="giftMembershipForm.period" type="radio" value="yearly">
+              <span>包年</span>
+            </label>
+          </div>
+        </div>
+        <div class="form-row">
+          <label>备注（选填）</label>
+          <input v-model="giftMembershipForm.remark" type="text" placeholder="赠送原因">
+        </div>
+        <button class="btn btn-primary" :disabled="giftMembershipSubmitting" @click="submitGiftMembership">
+          {{ giftMembershipSubmitting ? '提交中…' : '确认赠送会员' }}
+        </button>
+      </div>
     </div>
   </div>
 </template>
@@ -148,6 +179,7 @@ const tabs = [
   { key: 'adjust', label: '调整积分' },
   { key: 'gift_ecoin', label: '赠送积分' },
   { key: 'gift_sku', label: '赠送商品' },
+  { key: 'gift_membership', label: '赠送会员' },
 ]
 const activeTab = ref('adjust')
 
@@ -181,6 +213,21 @@ const giftSkuForm = reactive({
 })
 const giftSkuSubmitting = ref(false)
 const skuOptions = ref([{ value: '', label: '请选择商品' }])
+
+const giftMembershipForm = reactive({
+  vip_role: 'VIP_PRO',
+  period: 'monthly',
+  remark: '',
+})
+const giftMembershipSubmitting = ref(false)
+const membershipRoleOptions = [
+  { value: 'VIP_PRO', label: '个人专业版 VIP_PRO' },
+  { value: 'VIP_MAX', label: '个人旗舰版 VIP_MAX' },
+  { value: 'ENTERPRISE_BASIC', label: '企业基础版' },
+  { value: 'ENTERPRISE_STANDARD', label: '企业标准版' },
+  { value: 'ENTERPRISE_PRO', label: '企业专业版' },
+  { value: 'ENTERPRISE_FLAGSHIP', label: '企业旗舰版' },
+]
 
 const ecoinAccountLabel = computed(() => {
   if (!userProfile.value?.ecoin) return '--'
@@ -294,6 +341,28 @@ async function submitGiftSku() {
     toast.error(error.message || '赠送商品失败')
   } finally {
     giftSkuSubmitting.value = false
+  }
+}
+
+async function submitGiftMembership() {
+  if (!userProfile.value?.user?.id) return
+  if (!giftMembershipForm.vip_role) {
+    toast.warning('请选择会员档位')
+    return
+  }
+  giftMembershipSubmitting.value = true
+  try {
+    const result = await opsUserBenefitsApi.giftMembership({
+      user_id: String(userProfile.value.user.id),
+      vip_role: giftMembershipForm.vip_role,
+      period: giftMembershipForm.period,
+      remark: giftMembershipForm.remark.trim(),
+    })
+    toast.success(`赠送成功：${result.sku_name || ''}，订单号 ${result.order_no || '--'}`)
+  } catch (error) {
+    toast.error(error.message || '赠送会员失败')
+  } finally {
+    giftMembershipSubmitting.value = false
   }
 }
 

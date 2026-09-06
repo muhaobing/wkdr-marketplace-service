@@ -85,7 +85,7 @@ ensure_frontend_dependencies() {
 kill_port() {
   local port="$1"
   local pids
-  pids="$(lsof -ti :"${port}" || true)"
+  pids="$(lsof -tiTCP:"${port}" -sTCP:LISTEN || true)"
   if [[ -n "${pids}" ]]; then
     echo "[deploy] stopping processes on port ${port}: ${pids}"
     kill -9 ${pids}

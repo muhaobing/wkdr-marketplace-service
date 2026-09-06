@@ -135,7 +135,7 @@ export const useUserStore = defineStore('user', () => {
     } catch (_) {}
   }
 
-  /** 仅读 localStorage，路由守卫与 LawMind 跳转校验用此数据 */
+  /** 仅读 localStorage，路由守卫与 LawSharp 跳转校验用此数据 */
   function getCachedBindings() {
     try {
       const raw = localStorage.getItem(STORAGE_BINDINGS_KEY)

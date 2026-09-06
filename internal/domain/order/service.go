@@ -722,7 +722,11 @@ func (s *orderServiceImpl) fulfillSkuItems(ctx context.Context, order *ordermode
 			fulfillMsg = "未配置履约回调接口"
 		} else {
 			bizUserId := bizUserIdMap[skuInfo.BizCode]
-			if bizUserId == "" {
+			if strings.TrimSpace(bizUserId) == "" {
+				// 统一账号后 biz_user_id 即主站 userId；绑定推导缺失时回退，避免赠送会员无法履约。
+				bizUserId = fmt.Sprintf("%d", order.UserId)
+			}
+			if bizUserId == "" || bizUserId == "0" {
 				fulfillStatus = ordermodel.FulfillStatusFailed
 				fulfillMsg = fmt.Sprintf("biz user binding not found for biz_code: %s", skuInfo.BizCode)
 			} else {

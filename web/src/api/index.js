@@ -309,7 +309,10 @@ export const opsUserBenefitsApi = {
   },
   giftSku(data) {
     return opsApi.post('/orders/gift', data)
-  }
+  },
+  giftMembership(data) {
+    return opsApi.post('/membership/gift', data)
+  },
 }
 
 export default api

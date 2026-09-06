@@ -102,7 +102,7 @@
               />
             </div>
 
-            <!-- 企业类 biz_code（如 LawMind 企业用户）：所属企业（样式同绑定平台） -->
+            <!-- 企业类 biz_code（如 LawSharp 企业用户）：所属企业（样式同绑定平台） -->
             <div v-if="isEnterpriseBiz" class="form-group form-group--compact form-group--full-row">
               <label class="form-label" :id="bindCompanyLabelId">所属企业 <span class="req">*</span></label>
               <p class="form-hint-inline">请从列表选择已有企业；若无，请仅在下方填写企业名称</p>

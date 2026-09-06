@@ -97,14 +97,14 @@ router.beforeEach(async (to, from, next) => {
 
   const bizParams = parseBizQueryFromRoute(to.query)
 
-  // LawMind 跳转带 biz_code、biz_user_id：已登录则与本地缓存的绑定列表比对（登录/启动时已写入 localStorage，此处不再请求接口）
+  // LawSharp 跳转带 biz_code、biz_user_id：已登录则与本地缓存的绑定列表比对（登录/启动时已写入 localStorage，此处不再请求接口）
   if (bizParams && isLoggedIn) {
     const { useUserStore } = await import('../stores/user.js')
     const userStore = useUserStore()
     const bindings = userStore.getCachedBindings()
     if (!bindingListContains(bindings, bizParams.biz_code, bizParams.biz_user_id)) {
       userStore.logout()
-      toast.error('当前账号与 LawMind 跳转参数不一致，请重新登录')
+      toast.error('当前账号与 LawSharp 跳转参数不一致，请重新登录')
       next({
         name: 'Login',
         query: {

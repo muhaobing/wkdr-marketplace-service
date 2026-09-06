@@ -12,8 +12,8 @@ import (
 	"wdkr-marketplace-service/internal/domain/ecoin"
 	"wdkr-marketplace-service/internal/domain/order"
 	"wdkr-marketplace-service/internal/domain/sku"
-	"wdkr-marketplace-service/internal/domain/user"
 	skumodel "wdkr-marketplace-service/internal/domain/sku/sku_model"
+	"wdkr-marketplace-service/internal/domain/user"
 )
 
 // OpsResource 运营接口资源（面向运营人员）
@@ -397,6 +397,7 @@ func (r *OpsResource) Router() registry.Registry {
 			group.GET("/users/lookup", r.LookupUser)
 			group.POST("/ecoin/adjust", r.AdjustEcoin)
 			group.POST("/ecoin/gift", r.GiftEcoin)
+			group.POST("/membership/gift", r.GiftMembership)
 		}
 	}
 }
